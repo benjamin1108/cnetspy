@@ -181,7 +181,7 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
                 return []
             
             # 解析更新条目
-            updates = self._parse_updates(html, source_name, url)
+            updates = self._parse_updates(html, product_name, url)
             
             # 过滤已存在的更新（除非强制模式）
             if not force_mode:
@@ -227,7 +227,7 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
     def _parse_updates(
         self, 
         html: str, 
-        source_name: str, 
+        product_name: str, 
         url: str
     ) -> List[Dict[str, Any]]:
         """
@@ -235,7 +235,7 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         
         Args:
             html: 页面HTML
-            source_name: 服务名称
+            product_name: 产品名称
             url: 页面URL
             
         Returns:
@@ -248,12 +248,12 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
             # 查找所有表格
             tables = soup.find_all('table')
             if not tables:
-                logger.warning(f"{source_name} 未找到表格结构")
+                logger.warning(f"{product_name} 未找到表格结构")
                 return []
             
             # 查找时间标题 (h4标签: "2025年10月")
             time_headers = soup.find_all('h4', string=re.compile(r'20[1-2][0-9]年[0-1]?[0-9]月'))
-            logger.debug(f"{source_name} 找到 {len(time_headers)} 个时间标题")
+            logger.debug(f"{product_name} 找到 {len(time_headers)} 个时间标题")
             
             # 建立时间标题与表格的映射
             time_map = {}
@@ -274,14 +274,14 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
             
             # 解析每个有时间映射的表格
             for table, time_key in time_map.items():
-                table_updates = self._parse_table(table, source_name, url, time_key)
+                table_updates = self._parse_table(table, product_name, url, time_key)
                 updates.extend(table_updates)
             
-            logger.info(f"{source_name} 解析到 {len(updates)} 条更新")
+            logger.info(f"{product_name} 解析到 {len(updates)} 条更新")
             return updates
             
         except Exception as e:
-            logger.error(f"解析 {source_name} 页面时出错: {e}")
+            logger.error(f"解析 {product_name} 页面时出错: {e}")
             return []
     
     def _find_next_table(self, header) -> Optional[Any]:

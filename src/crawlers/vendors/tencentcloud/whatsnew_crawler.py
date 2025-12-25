@@ -181,7 +181,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
                 return []
             
             # 解析更新条目
-            updates = self._parse_updates(html, source_name, url)
+            updates = self._parse_updates(html, product_name, url)
             
             # 过滤已存在的更新（除非强制模式）
             if not force_mode:
@@ -226,7 +226,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
     def _parse_updates(
         self, 
         html: str, 
-        source_name: str, 
+        product_name: str, 
         url: str
     ) -> List[Dict[str, Any]]:
         """
@@ -255,10 +255,10 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             tables = content_area.find_all('table') if content_area else soup.find_all('table')
             
             if not tables:
-                logger.warning(f"{source_name} 未找到表格结构")
+                logger.warning(f"{product_name} 未找到表格结构")
                 return []
             
-            logger.debug(f"{source_name} 找到 {len(tables)} 个表格")
+            logger.debug(f"{product_name} 找到 {len(tables)} 个表格")
             
             # 查找年份标题 (h2标签: "2024年")
             year_headers = content_area.find_all(['h2', 'h3']) if content_area else []
@@ -281,14 +281,14 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             # 解析每个表格
             for table in tables:
                 year = table_year_map.get(id(table), current_year)
-                table_updates = self._parse_table(table, source_name, url, year)
+                table_updates = self._parse_table(table, product_name, url, year)
                 updates.extend(table_updates)
             
-            logger.info(f"{source_name} 解析到 {len(updates)} 条更新")
+            logger.info(f"{product_name} 解析到 {len(updates)} 条更新")
             return updates
             
         except Exception as e:
-            logger.error(f"解析 {source_name} 页面时出错: {e}")
+            logger.error(f"解析 {product_name} 页面时出错: {e}")
             return []
     
     def _parse_table(
