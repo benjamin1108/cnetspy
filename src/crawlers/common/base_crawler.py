@@ -211,7 +211,7 @@ class BaseCrawler(ABC):
     
     def _export_to_file(self, update: Dict[str, Any], content: str) -> Optional[str]:
         """
-        导出更新内容到文件（可选）
+        导出更新内容到文件（包含元数据头）
         
         Args:
             update: 更新数据
@@ -223,14 +223,43 @@ class BaseCrawler(ABC):
         try:
             source_url = update.get('source_url', '')
             publish_date = update.get('publish_date', '')
+            title = update.get('title', '无标题')
+            product_name = update.get('product_name', '')
             
             url_hash = hashlib.md5(source_url.encode('utf-8')).hexdigest()[:8]
             filename = f"{publish_date}_{url_hash}.md"
             filepath = os.path.join(self.output_dir, filename)
             
+            # 构建带元数据头的内容
+            metadata_lines = [
+                f"# {title}",
+                "",
+                f"**发布时间:** {publish_date}",
+                "",
+                f"**厂商:** {self.vendor.upper()}",
+                "",
+            ]
+            
+            if product_name:
+                metadata_lines.extend([
+                    f"**产品:** {product_name}",
+                    "",
+                ])
+            
+            metadata_lines.extend([
+                f"**类型:** {self.source_type}",
+                "",
+                f"**原始链接:** {source_url}",
+                "",
+                "---",
+                "",
+            ])
+            
+            final_content = "\n".join(metadata_lines) + content
+            
             os.makedirs(self.output_dir, exist_ok=True)
             with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
+                f.write(final_content)
             
             return filepath
         except Exception as e:
