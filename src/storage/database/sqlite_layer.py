@@ -253,12 +253,13 @@ class UpdateDataLayer:
             self.logger.error(f"插入Update记录失败: {e}")
             return False
     
-    def batch_insert_updates(self, updates_data: List[Dict[str, Any]]) -> Tuple[int, int]:
+    def batch_insert_updates(self, updates_data: List[Dict[str, Any]], force_update: bool = False) -> Tuple[int, int]:
         """
         批量插入Update记录
         
         Args:
             updates_data: Update数据列表
+            force_update: 是否强制更新已存在的记录
             
         Returns:
             (成功数量, 失败数量)元组
@@ -282,8 +283,10 @@ class UpdateDataLayer:
                                             f"source_channel={update_data.get('source_channel')}, "
                                             f"source_url={update_data.get('source_url')[:50] if update_data.get('source_url') else None}")
                             
-                            cursor.execute('''
-                                INSERT OR IGNORE INTO updates (
+                            # 根据 force_update 决定使用 IGNORE 还是 REPLACE
+                            sql_prefix = 'INSERT OR REPLACE' if force_update else 'INSERT OR IGNORE'
+                            cursor.execute(f'''
+                                {sql_prefix} INTO updates (
                                     update_id, vendor, source_channel, update_type, source_url, source_identifier,
                                     title, title_translated, content, content_summary, publish_date, crawl_time,
                                     product_name, product_category, priority, tags,

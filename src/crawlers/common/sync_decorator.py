@@ -141,7 +141,8 @@ class CrawlerIntegration:
         self,
         vendor: str,
         source_type: str,
-        metadata_dict: Dict[str, Dict[str, Any]]
+        metadata_dict: Dict[str, Dict[str, Any]],
+        force_update: bool = False
     ) -> Dict[str, int]:
         """
         批量同步到数据库
@@ -150,6 +151,7 @@ class CrawlerIntegration:
             vendor: 厂商标识
             source_type: 源类型
             metadata_dict: 元数据字典
+            force_update: 是否强制更新已存在的记录
             
         Returns:
             统计结果 {success, failed, skipped}
@@ -183,8 +185,8 @@ class CrawlerIntegration:
                         url_key
                     )
                     
-                    # 检查是否已存在
-                    if self.data_layer.check_update_exists(
+                    # 检查是否已存在（如果不是强制更新模式）
+                    if not force_update and self.data_layer.check_update_exists(
                         update_data['source_url'], 
                         update_data.get('source_identifier', '')
                     ):
@@ -199,7 +201,7 @@ class CrawlerIntegration:
             
             # 批量插入
             if updates_batch:
-                success_count, fail_count = self.data_layer.batch_insert_updates(updates_batch)
+                success_count, fail_count = self.data_layer.batch_insert_updates(updates_batch, force_update=force_update)
                 result['success'] = success_count
                 result['failed'] += fail_count
             
@@ -245,7 +247,11 @@ def sync_to_database_decorator(func: Callable) -> Callable:
             vendor = getattr(self, 'vendor', None)
             source_type = getattr(self, 'source_type', None)
             
-            logger.debug(f"同步到数据库: {vendor}/{source_type}")
+            # 获取 force 配置
+            crawler_config = getattr(self, 'crawler_config', {})
+            force_mode = crawler_config.get('force', False)
+            
+            logger.debug(f"同步到数据库: {vendor}/{source_type}, force={force_mode}")
             
             if vendor and source_type:
                 # 检查是否有待同步的数据
@@ -254,9 +260,13 @@ def sync_to_database_decorator(func: Callable) -> Callable:
                     sync_result = _crawler_integration.batch_sync_to_database(
                         vendor,
                         source_type,
-                        self._pending_sync_updates
+                        self._pending_sync_updates,
+                        force_update=force_mode
                     )
-                    logger.info(f"数据库同步完成: 成功{sync_result.get('success', 0)}, 跳过{sync_result.get('skipped', 0)}, 失败{sync_result.get('failed', 0)}")
+                    if force_mode:
+                        logger.info(f"数据库强制更新完成: 更新{sync_result.get('success', 0)}, 失败{sync_result.get('failed', 0)}")
+                    else:
+                        logger.info(f"数据库同步完成: 成功{sync_result.get('success', 0)}, 跳过{sync_result.get('skipped', 0)}, 失败{sync_result.get('failed', 0)}")
                     # 同步完成后清空
                     self._pending_sync_updates = {}
                 else:
