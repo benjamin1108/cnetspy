@@ -331,7 +331,52 @@ class BaseNotifier(ABC):
 
 ---
 
-## 七、备注
+## 七、AI模型配置
+
+```yaml
+# config/ai_model.yaml
+
+default:
+  provider: gemini
+  
+  # 模型名称
+  model_name: gemini-3-pro-preview
+  
+  # API Key 环境变量名称（实际的 API Key 从环境变量读取）
+  api_key_env: GEMINI_API_KEY
+  
+  # 生成参数
+  generation:
+    # 温度：控制输出的随机性 (0.0-1.0)
+    # 较低的值使输出更确定，较高的值使输出更有创造性
+    temperature: 0.5
+    
+    # Top-p：核采样参数 (0.0-1.0)
+    # 控制输出的多样性
+    top_p: 0.9
+    
+    # Top-k：候选词数量
+    # 限制每步采样的候选词数量
+    top_k: 40
+    
+    # 最大输出令牌数
+    max_output_tokens: 65535
+  
+  # 速率限制
+  rate_limit:
+    # API 调用间隔（秒）
+    interval: 0.5
+    
+    # 最大重试次数
+    max_retries: 3
+    
+    # 重试退避基数（指数退避）
+    retry_backoff_base: 2.0
+```
+
+---
+
+## 八、备注
 
 - 建议从 Phase 1 开始，AI分析是后续所有功能的基础
 - 每个 Phase 完成后进行回归测试
