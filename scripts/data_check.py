@@ -333,7 +333,7 @@ class DataChecker:
             anomalies.append(f"{vendor}: {count}条未来日期")
             self.issues['anomalies'].append(f"{vendor}: 未来日期{count}条")
         
-        # 检查过短标题 (少于5个字符)
+        # 检查过短标题 (少于5个字符) - 仅信息展示，不作为告警
         cursor.execute("""
             SELECT vendor, COUNT(*) FROM updates 
             WHERE LENGTH(title) < 5
@@ -342,8 +342,7 @@ class DataChecker:
         short_title_vendors = []
         for vendor, count in cursor.fetchall():
             if count > 0:
-                anomalies.append(f"{vendor}: {count}条标题过短(<5字符)")
-                short_title_vendors.append(vendor)
+                short_title_vendors.append((vendor, count))
         
         # 检查空内容
         cursor.execute("""
@@ -372,16 +371,20 @@ class DataChecker:
             print("  ✓ 未发现异常值")
         print()
         
-        # 打印过短标题详情
+        # 打印过短标题详情（仅信息展示）
         if short_title_vendors:
-            self.print_short_titles(conn)
+            self.print_short_titles(conn, short_title_vendors)
         
         conn.close()
     
-    def print_short_titles(self, conn):
+    def print_short_titles(self, conn, short_title_vendors):
         """打印过短标题详情"""
-        print("📝 8.1 过短标题详情")
+        print("📝 8.1 短标题记录（仅信息）")
         print("-" * 40)
+        
+        # 先打印汇总
+        for vendor, count in short_title_vendors:
+            print(f"  {vendor}: {count}条")
         
         cursor = conn.cursor()
         cursor.execute('''
