@@ -31,7 +31,7 @@ REQUIRED_FIELDS = ['update_id', 'vendor', 'source_channel', 'source_url', 'title
 ALL_FIELDS = [
     'update_id', 'vendor', 'source_channel', 'update_type', 'source_url', 'source_identifier',
     'title', 'title_translated', 'description', 'content', 'content_summary',
-    'publish_date', 'crawl_time', 'product_name', 'product_category', 'priority', 'tags',
+    'publish_date', 'crawl_time', 'product_name', 'product_category', 'product_subcategory', 'priority', 'tags',
     'raw_filepath', 'analysis_filepath', 'file_hash', 'metadata_json'
 ]
 

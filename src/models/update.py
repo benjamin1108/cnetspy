@@ -21,6 +21,7 @@ class UpdateType(str, Enum):
     更新类型枚举
     
     用于AI分类，表示云厂商更新的具体类型
+    AI需结合 content + source_channel 综合判断
     """
     NEW_PRODUCT = 'new_product'    # 新产品发布
     NEW_FEATURE = 'new_feature'    # 新功能发布
@@ -44,6 +45,7 @@ class UpdateType(str, Enum):
     def is_valid(cls, value: str) -> bool:
         """检查值是否有效"""
         return value in cls.values()
+
 
 
 @dataclass

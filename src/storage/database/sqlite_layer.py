@@ -69,6 +69,7 @@ class UpdateDataLayer:
                     crawl_time TEXT,
                     product_name TEXT,
                     product_category TEXT,
+                    product_subcategory TEXT,
                     priority TEXT,
                     tags TEXT,
                     raw_filepath TEXT,
@@ -214,9 +215,9 @@ class UpdateDataLayer:
                         INSERT INTO updates (
                             update_id, vendor, source_channel, update_type, source_url, source_identifier,
                             title, title_translated, description, content, content_summary, publish_date, crawl_time,
-                            product_name, product_category, priority, tags,
+                            product_name, product_category, product_subcategory, priority, tags,
                             raw_filepath, analysis_filepath, file_hash, metadata_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         update_data.get('update_id'),
                         update_data.get('vendor'),
@@ -233,6 +234,7 @@ class UpdateDataLayer:
                         update_data.get('crawl_time'),
                         update_data.get('product_name'),
                         update_data.get('product_category'),
+                        update_data.get('product_subcategory'),
                         update_data.get('priority'),
                         update_data.get('tags'),
                         update_data.get('raw_filepath'),
@@ -289,9 +291,9 @@ class UpdateDataLayer:
                                 {sql_prefix} INTO updates (
                                     update_id, vendor, source_channel, update_type, source_url, source_identifier,
                                     title, title_translated, content, content_summary, publish_date, crawl_time,
-                                    product_name, product_category, priority, tags,
+                                    product_name, product_category, product_subcategory, priority, tags,
                                     raw_filepath, analysis_filepath, file_hash, metadata_json
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ''', (
                                 update_data.get('update_id'),
                                 update_data.get('vendor'),
@@ -307,6 +309,7 @@ class UpdateDataLayer:
                                 update_data.get('crawl_time'),
                                 update_data.get('product_name'),
                                 update_data.get('product_category'),
+                                update_data.get('product_subcategory'),
                                 update_data.get('priority'),
                                 update_data.get('tags'),
                                 update_data.get('raw_filepath'),

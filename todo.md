@@ -189,7 +189,119 @@ cnetCompSpy/
 
 ---
 
-## 六、核心模块设计参考
+## 六、AI字段处理规范
+
+### 1. 字段概览
+
+| 字段 | 来源 | 输入/输出 | 说明 |
+|------|------|----------|------|
+| `title_translated` | AI生成 | `content` + `title` → 中文标题 | 从内容提取合适标题再翻译 |
+| `content_summary` | AI生成 | `content` → 结构化摘要 | 固定格式，良好阅读体验 |
+| `update_type` | AI分类 | `content` + `source_channel` → 枚举值 | 从 UpdateType 枚举中选择 |
+| `product_category` | **爬虫获取** | 厂商原始数据 | 如没有则由AI补充 |
+| `product_subcategory` | AI判定 | `content` + `product_name` → 子类名 | 自由文本，AI动态判定 |
+| `tags` | AI提取 | `content` + `title` → 关键词 | JSON数组格式 |
+
+### 2. title_translated 要求
+
+**处理逻辑：**
+- 不直接翻译原始 `title`，而是结合 `content` 语境理解内容
+- 从 `content` 中提取最能概括更新内容的英文标题
+- 将提取的英文标题翻译为中文
+
+**输出要求：**
+- 简洁明了，不超过50个字
+- 体现更新的核心内容和价值
+- 避免模糊表达，突出关键信息
+
+### 3. content_summary 格式规范
+
+**固定输出格式：**
+
+```markdown
+## 更新概要
+{1-2句话概括更新核心内容}
+
+## 主要内容
+- {要点1}
+- {要点2}
+- {要点3}
+
+## 影响范围
+{适用场景或影响的用户/服务}
+
+## 相关产品
+{涉及的云产品名称}
+```
+
+**输出要求：**
+- 总字数控制在 150-300 字
+- 使用 Markdown 格式
+- 要点不超过5条，突出核心价值
+- 语言简洁专业，避免冗余
+
+### 4. update_type 分类规则
+
+**输入维度：**
+- `content`: 更新的具体内容
+- `source_channel`: 数据源类型 (blog / whatsnew)
+
+**枚举选项 (UpdateType)：**
+| 枚举值 | 说明 | 判断依据 |
+|---------|------|----------|
+| `new_product` | 新产品发布 | 全新产品/服务上线 |
+| `new_feature` | 新功能发布 | 现有产品新增功能 |
+| `enhancement` | 功能增强 | 现有功能优化升级 |
+| `deprecation` | 功能弃用 | 功能下线/弃用通知 |
+| `pricing` | 定价调整 | 价格变化相关 |
+| `region` | 区域扩展 | 新区域/可用区上线 |
+| `security` | 安全更新 | 安全补丁/增强 |
+| `fix` | 问题修复 | Bug修复 |
+| `performance` | 性能优化 | 性能提升相关 |
+| `compliance` | 合规认证 | 合规/认证相关 |
+| `integration` | 集成能力 | 第三方集成/API更新 |
+| `other` | 其他 | 无法归类时选择 |
+
+### 5. product_subcategory 子类判定规则
+
+**字段说明：**
+- `product_category`: 优先从爬虫获取厂商的原始分类，如没有则由AI补充
+- `product_subcategory`: 由AI根据内容动态判定
+
+**AI判定规则：**
+- 结合 `content` 和 `product_name` 进行语义分析
+- 输出简洁的子类名称（英文小写+下划线）
+- 不使用枚举，允许自由文本
+
+**示例：**
+| product_category | product_subcategory | 内容特征 |
+|-----------------|---------------------|----------|
+| VPC | `peering` | VPC对等连接相关 |
+| VPC | `private_link` | 私网端点连接相关 |
+| VPC | `transit_gateway` | 中转网关相关 |
+| VPC | `subnet` | 子网管理相关 |
+| VPC | `nat` | NAT网关相关 |
+| Load Balancing | `alb` | 应用型负载均衡 |
+| Load Balancing | `nlb` | 网络型负载均衡 |
+| CDN | `edge_cache` | 边缘缓存相关 |
+| CDN | `origin_shield` | 回源保护相关 |
+
+### 6. tags 提取规则
+
+**输出格式：**
+```json
+["VPC", "网络安全", "IPv6", "多可用区"]
+```
+
+**提取规则：**
+- 提取 3-8 个关键词
+- 优先提取：产品名、技术特性、业务场景
+- 支持中英文混合
+- 避免过于宽泛的词汇（如"更新"、"功能"）
+
+---
+
+## 七、核心模块设计参考
 
 ### 1. AI分析器基类
 
@@ -331,7 +443,7 @@ class BaseNotifier(ABC):
 
 ---
 
-## 七、AI模型配置
+## 八、AI模型配置
 
 ```yaml
 # config/ai_model.yaml
@@ -376,7 +488,7 @@ default:
 
 ---
 
-## 八、备注
+## 九、备注
 
 - 建议从 Phase 1 开始，AI分析是后续所有功能的基础
 - 每个 Phase 完成后进行回归测试
