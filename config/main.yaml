@@ -1,0 +1,6 @@
+# 主配置文件 - 精简版
+
+imports:
+  - crawler.yaml    # 爬虫配置
+  - sources.yaml    # 数据源配置
+  - logging.yaml    # 日志配置

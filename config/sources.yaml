@@ -1,0 +1,251 @@
+sources:
+  aws:
+    network-blog:
+      url: https://aws.amazon.com/blogs/networking-and-content-delivery/
+      type: blog
+      product: AWS Networking & Content Delivery
+      analyze: true
+    whatsnew:
+      url: https://aws.amazon.com/about-aws/whats-new/networking_and_content_delivery
+      type: what's new
+      analyze: true
+  azure:
+    network-blog:
+      url: https://azure.microsoft.com/en-us/blog/category/networking/
+      type: blog
+      product: Azure Networking
+      analyze: true
+    tech-blog:
+      url: https://techcommunity.microsoft.com/category/azure/blog/azurenetworkingblog
+      type: tech-blog
+      product: Azure Networking
+      analyze: true
+      proxy:
+        enabled: true
+        host: ${PROXY_HOST}
+        port: ${PROXY_PORT}
+        username: ${PROXY_USERNAME}
+        password: ${PROXY_PASSWORD}
+    whatsnew:
+      type: whatsnew
+      analyze: true
+  gcp:
+    network-blog:
+      url: https://cloud.google.com/blog/products/networking
+      type: blog
+      product: Google Cloud Networking
+      analyze: true
+    whatsnew:
+      analyze: true
+      vpc:
+        url: https://cloud.google.com/vpc/docs/release-notes
+        type: documentation
+        product: VPC
+      load-balancing:
+        url: https://cloud.google.com/load-balancing/docs/release-notes
+        type: documentation
+        product: Cloud Load Balancing
+      cdn:
+        url: https://cloud.google.com/cdn/docs/release-notes
+        type: documentation
+        product: Cloud CDN
+      dns:
+        url: https://cloud.google.com/dns/docs/release-notes
+        type: documentation
+        product: Cloud DNS
+      nat:
+        url: https://cloud.google.com/nat/docs/release-notes
+        type: documentation
+        product: Cloud NAT
+      interconnect:
+        url: https://cloud.google.com/network-connectivity/docs/interconnect/release-notes
+        type: documentation
+        product: Cloud Interconnect
+      vpn:
+        url: https://cloud.google.com/network-connectivity/docs/vpn/release-notes
+        type: documentation
+        product: Cloud VPN
+      network-connectivity:
+        url: https://cloud.google.com/network-connectivity/docs/network-connectivity-center/release-notes
+        type: documentation
+        product: Network Connectivity Center
+      armor:
+        url: https://cloud.google.com/armor/docs/release-notes
+        type: documentation
+        product: Cloud Armor
+      router:
+        url: https://cloud.google.com/network-connectivity/docs/router/release-notes
+        type: documentation
+        product: Cloud Router
+      network-tiers:
+        url: https://cloud.google.com/network-tiers/docs/release-notes
+        type: documentation
+        product: Network Service Tiers
+      service-mesh:
+        url: https://cloud.google.com/service-mesh/docs/release-notes
+        type: documentation
+        product: Cloud Service Mesh
+  huawei:
+    whatsnew:
+      analyze: true
+      vpc-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-vpc/index.html
+        type: documentation
+        product: VPC
+      eip-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-eip/index.html
+        type: documentation
+        product: EIP
+      elb-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-elb/index.html
+        type: documentation
+        product: ELB
+      natgateway:
+        url: https://support.huaweicloud.com/wtsnew-natgateway/index.html
+        type: documentation
+        product: NAT Gateway
+      dc-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-dc/index.html
+        type: documentation
+        product: Direct Connect
+      vpn-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-vpn/index.html
+        type: documentation
+      cc-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-cc/index.html
+        type: documentation
+      vpcep-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-vpcep/index.html
+        type: documentation
+      er-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-er/index.html
+        type: documentation
+      ga-whatsnew:
+        url: https://support.huaweicloud.com/wtsnew-ga/index.html
+        type: documentation
+  tencentcloud:
+    whatsnew:
+      analyze: true
+      clb:
+        url: https://cloud.tencent.com/document/product/214/42841
+        type: documentation
+        product: 负载均衡(CLB)
+      gwlb:
+        url: https://cloud.tencent.com/document/product/1782/111599
+        type: documentation
+        product: 网关负载均衡(GWLB)
+      vpc:
+        url: https://cloud.tencent.com/document/product/215/37951
+        type: documentation
+        product: 私有网络(VPC)
+      nat:
+        url: https://cloud.tencent.com/document/product/552/71560
+        type: documentation
+        product: NAT网关
+      bwp:
+        url: https://cloud.tencent.com/document/product/684/74390
+        type: documentation
+        product: 共享带宽包(BWP)
+      stp:
+        url: https://cloud.tencent.com/document/product/1171/61165
+        type: documentation
+        product: 共享流量包
+      ipv6:
+        url: https://cloud.tencent.com/document/product/1142/112767
+        type: documentation
+        product: 弹性公网IPv6
+      eip:
+        url: https://cloud.tencent.com/document/product/1199/44150
+        type: documentation
+        product: 弹性公网IP(EIP)
+      ihpn:
+        url: https://cloud.tencent.com/document/product/1779/110928
+        type: documentation
+        product: 智能高性能网络(IHPN)
+      privatelink:
+        url: https://cloud.tencent.com/document/product/1451/57261
+        type: documentation
+        product: 私有连接(PrivateLink)
+      dc:
+        url: https://cloud.tencent.com/document/product/216/52940
+        type: documentation
+        product: 专线接入(DC)
+      ccn:
+        url: https://cloud.tencent.com/document/product/877/58511
+        type: documentation
+        product: 云联网(CCN)
+      vpn:
+        url: https://cloud.tencent.com/document/product/554/53881
+        type: documentation
+        product: VPN连接
+      gaap:
+        url: https://cloud.tencent.com/document/product/608/64952
+        type: documentation
+        product: 全球应用加速(GAAP)
+  volcengine:
+    whatsnew:
+      analyze: true
+      vpc:
+        url: https://www.volcengine.com/docs/6401/67803
+        type: documentation
+        product: VPC私有网络
+      eip:
+        url: https://www.volcengine.com/docs/6402/67934
+        type: documentation
+        product: 公网IP(EIP)
+      shared_bandwidth_package:
+        url: https://www.volcengine.com/docs/6623/93507
+        type: documentation
+        product: 共享带宽包 - 新功能发布记录
+      nat_gateway:
+        url: https://www.volcengine.com/docs/6404/67976
+        type: documentation
+        product: NAT网关 - 新功能发布记录
+      ipv6_gateway:
+        url: https://www.volcengine.com/docs/6896/133698
+        type: documentation
+        product: IPv6网关 - 新功能发布记录
+      cen:
+        url: https://www.volcengine.com/docs/6405/68180
+        type: documentation
+        product: 云企业网(CEN)
+      transit_router:
+        url: https://www.volcengine.com/docs/6979/155961
+        type: documentation
+        product: 中转路由器(TR)
+      clb:
+        url: https://www.volcengine.com/docs/6406/1264527
+        type: documentation
+        product: 负载均衡(CLB)
+      clb_release:
+        url: https://www.volcengine.com/docs/6406/113563
+        type: documentation
+        product: 负载均衡(CLB) - 新功能发布记录
+      alb:
+        url: https://www.volcengine.com/docs/6406/67894
+        type: documentation
+        product: 应用型负载均衡(ALB)
+      direct_connect:
+        url: https://www.volcengine.com/docs/6407/68174
+        type: documentation
+        product: 专线连接 - 新功能发布记录
+      vpn_connection:
+        url: https://www.volcengine.com/docs/6455/70535
+        type: documentation
+        product: VPN连接 - 新功能发布记录
+      private_link:
+        url: https://www.volcengine.com/docs/6980/155768
+        type: documentation
+        product: 私网连接(PrivateLink) - 新功能发布记录
+      nic:
+        url: https://www.volcengine.com/docs/83782/1155035
+        type: documentation
+        product: 网络智能中心(NIC)
+      cloud_connector:
+        url: https://www.volcengine.com/docs/83812/1167747
+        type: documentation
+        product: 云连接器
+      shared_traffic_package:
+        url: https://www.volcengine.com/docs/84435/1282844
+        type: documentation
+        product: 共享流量包
