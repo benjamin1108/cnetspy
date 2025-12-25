@@ -137,7 +137,7 @@ class BaseCrawler(ABC):
     
     def save_update(self, update: Dict[str, Any]) -> bool:
         """
-        保存更新数据（入库）
+        保存更新数据（入库 + 保存文件）
         
         Args:
             update: 更新数据字典，必须包含：
@@ -163,6 +163,9 @@ class BaseCrawler(ABC):
             # 如果没有 content，用 description 填充
             content = update.get('content', '') or update.get('description', '')
             
+            # 保存原始文件
+            filepath = self._export_to_file(update, content)
+            
             # 创建同步条目
             sync_entry = {
                 'title': update.get('title', ''),
@@ -175,7 +178,8 @@ class BaseCrawler(ABC):
                 'crawl_time': datetime.datetime.now().isoformat(),
                 'file_hash': hashlib.md5(content.encode('utf-8')).hexdigest(),
                 'vendor': self.vendor,
-                'source_type': self.source_type
+                'source_type': self.source_type,
+                'filepath': filepath  # 添加文件路径
             }
             
             # 收集待同步数据
