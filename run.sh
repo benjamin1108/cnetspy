@@ -35,6 +35,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}命令:${NC}"
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
+    echo -e "  ${GREEN}check${NC}     数据质量检查"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
     echo -e "  ${GREEN}clean${NC}     清理临时文件"
     echo -e "  ${GREEN}help${NC}      显示帮助"
@@ -121,6 +122,14 @@ do_crawl() {
     "$PYTHON" -m src.main $ARGS
 }
 
+# 数据质量检查
+do_check() {
+    check_venv
+    
+    echo -e "${BLUE}数据质量检查...${NC}"
+    "$PYTHON" scripts/data_check.py
+}
+
 # 清理临时文件
 do_clean() {
     echo -e "${BLUE}清理临时文件...${NC}"
@@ -146,6 +155,9 @@ case "${1:-help}" in
         ;;
     setup)
         do_setup
+        ;;
+    check)
+        do_check
         ;;
     clean)
         do_clean
