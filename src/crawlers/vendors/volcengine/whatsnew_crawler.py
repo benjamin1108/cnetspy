@@ -289,6 +289,11 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         """
         解析火山引擎产品动态页面
         
+        页面结构：
+        - 日期在 SPAN 元素中（如 "2025年11月"），位于表格上方
+        - 每个表格属于其上方最近的日期
+        - 表格列：序号 | 功能（标题）| 功能描述 | 阶段 | 文档
+        
         Args:
             html: 页面HTML
             product_name: 产品名称
@@ -301,7 +306,17 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         updates = []
         
         try:
-            # 查找所有表格
+            # 1. 查找所有日期元素（匹配 "2024年01月" 格式）
+            date_pattern = re.compile(r'20\d{2}年\d{1,2}月')
+            date_elements = []
+            for span in soup.find_all('span'):
+                text = span.get_text(strip=True).replace('\u200b', '')
+                if date_pattern.match(text):
+                    date_elements.append({'element': span, 'date_text': text})
+            
+            logger.debug(f"{product_name} 找到 {len(date_elements)} 个日期元素")
+            
+            # 2. 查找所有表格
             tables = soup.find_all('table')
             
             if not tables:
@@ -310,9 +325,14 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             
             logger.debug(f"{product_name} 找到 {len(tables)} 个表格")
             
-            # 解析每个表格
-            for table in tables:
-                table_updates = self._parse_table(table, product_name, url)
+            # 3. 建立日期-表格映射
+            # 遍历 DOM 树，为每个表格找到其前面最近的日期
+            table_date_map = self._build_table_date_map(soup, date_elements, tables)
+            
+            # 4. 解析每个表格
+            for idx, table in enumerate(tables):
+                date_text = table_date_map.get(idx, '')
+                table_updates = self._parse_table(table, product_name, url, date_text)
                 updates.extend(table_updates)
             
             logger.info(f"{product_name} 解析到 {len(updates)} 条更新")
@@ -322,25 +342,74 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             logger.error(f"解析 {product_name} 页面时出错: {e}")
             return []
     
+    def _build_table_date_map(
+        self,
+        soup,
+        date_elements: List[Dict],
+        tables: List
+    ) -> Dict[int, str]:
+        """
+        建立表格索引到日期的映射
+        
+        逻辑：按 DOM 顺序遍历，记录当前日期，遇到表格时分配当前日期
+        
+        Args:
+            soup: BeautifulSoup对象
+            date_elements: 日期元素列表
+            tables: 表格列表
+            
+        Returns:
+            {表格索引: 日期文本}
+        """
+        table_date_map = {}
+        
+        # 获取所有元素的DOM顺序
+        all_elements = soup.find_all(['span', 'table'])
+        
+        current_date = ''
+        date_pattern = re.compile(r'20\d{2}年\d{1,2}月')
+        table_index = 0
+        
+        for elem in all_elements:
+            if elem.name == 'span':
+                text = elem.get_text(strip=True).replace('\u200b', '')
+                if date_pattern.match(text):
+                    current_date = text
+                    logger.debug(f"发现日期: {current_date}")
+            elif elem.name == 'table':
+                if table_index < len(tables) and elem == tables[table_index]:
+                    table_date_map[table_index] = current_date
+                    logger.debug(f"表格{table_index+1} 对应日期: {current_date}")
+                    table_index += 1
+        
+        return table_date_map
+    
     def _parse_table(
         self,
         table,
         product_name: str,
-        url: str
+        url: str,
+        date_text: str = ''
     ) -> List[Dict[str, Any]]:
         """
         解析火山引擎产品动态表格
-        表格结构通常为: 发布时间 | 功能模块 | 功能描述 | 相关文档
+        
+        表格结构：序号 | 功能（标题）| 功能描述 | 阶段 | 文档
+        日期从表格上方的 SPAN 元素获取，通过 date_text 参数传入
         
         Args:
             table: BeautifulSoup表格元素
             product_name: 产品名称
             url: 页面URL
+            date_text: 日期文本（如 "2024年12月"）
             
         Returns:
             更新条目列表
         """
         updates = []
+        
+        # 解析日期（从传入的日期文本）
+        publish_date = self._parse_date(date_text) if date_text else datetime.date.today().strftime('%Y-%m-01')
         
         try:
             rows = table.find_all('tr')
@@ -350,38 +419,24 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             # 跳过表头，从第二行开始
             for row in rows[1:]:
                 cells = row.find_all(['td', 'th'])
-                if len(cells) < 2:
+                if len(cells) < 3:  # 至少需要：序号、功能、描述
                     continue
                 
                 try:
-                    # 提取表格数据（火山引擎表格通常是：发布时间、功能模块、功能描述、相关文档）
-                    date_text = cells[0].get_text(strip=True) if len(cells) > 0 else ""
+                    # 列0: 序号（跳过）
+                    # 列1: 功能（标题）
+                    title = cells[1].get_text(strip=True).replace('\u200b', '') if len(cells) > 1 else ""
                     
-                    # 第二列可能是功能模块或标题
-                    title = cells[1].get_text(strip=True) if len(cells) > 1 else ""
+                    # 列2: 功能描述
+                    description = cells[2].get_text(strip=True).replace('\u200b', '') if len(cells) > 2 else ""
                     
-                    # 第三列通常是描述
-                    description = cells[2].get_text(strip=True) if len(cells) > 2 else ""
-                    
-                    # 过滤无效行
+                    # 过滤无效行（标题为空或是表头）
                     if not title or len(title) < 2 or title in ['功能', '功能模块', '功能名称']:
                         continue
                     
-                    # 如果第二列是模块名，第三列是标题，调整结构
-                    if len(cells) >= 4 and description and len(description) > len(title):
-                        # 可能的结构：时间 | 模块 | 标题 | 描述
-                        module = title
-                        title = description
-                        description = cells[3].get_text(strip=True) if len(cells) > 3 else ""
-                        title = f"{module} - {title}" if module else title
-                    
-                    # 解析日期
-                    publish_date = self._parse_date(date_text)
-                    
-                    # 提取相关文档链接
+                    # 提取相关文档链接（最后一列）
                     doc_links = []
-                    # 查找最后一列的链接
-                    if len(cells) > 2:
+                    if len(cells) > 3:
                         last_cell = cells[-1]
                         links = last_cell.find_all('a', href=True)
                         for link in links:
@@ -410,6 +465,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
                     }
                     
                     updates.append(update)
+                    logger.debug(f"解析到: [{publish_date}] {title[:30]}...")
                     
                 except Exception as e:
                     logger.debug(f"解析表格行时出错: {e}")
@@ -429,27 +485,46 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             date_text: 日期文本
             
         Returns:
-            标准化的日期 (YYYY-MM格式)
+            标准化的日期 (YYYY-MM-DD格式)
         """
         # 清理文本
         date_text = date_text.strip().replace('\u200b', '').replace('\ufeff', '')
         
+        logger.debug(f"解析日期文本: '{date_text}'")
+        
         # 尝试匹配 YYYY-MM-DD 格式
-        match = re.search(r'(20[1-2][0-9])[年-](0?[1-9]|1[0-2])', date_text)
+        match = re.search(r'(20[1-2][0-9])[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])', date_text)
         if match:
             year_part = match.group(1)
             month_part = match.group(2).zfill(2)
-            return f"{year_part}-{month_part}"
+            day_part = match.group(3).zfill(2)
+            result = f"{year_part}-{month_part}-{day_part}"
+            logger.debug(f"匹配 YYYY-MM-DD: {result}")
+            return result
         
-        # 尝试匹配 MM月 格式
-        match = re.search(r'(0?[1-9]|1[0-2])月', date_text)
+        # 尝试匹配 YYYY年MM月DD日 格式
+        match = re.search(r'(20[1-2][0-9])年(0?[1-9]|1[0-2])月(0?[1-9]|[12][0-9]|3[01])日?', date_text)
         if match:
-            month = match.group(1).zfill(2)
-            year = datetime.date.today().strftime('%Y')
-            return f"{year}-{month}"
+            year_part = match.group(1)
+            month_part = match.group(2).zfill(2)
+            day_part = match.group(3).zfill(2)
+            result = f"{year_part}-{month_part}-{day_part}"
+            logger.debug(f"匹配 YYYY年MM月DD日: {result}")
+            return result
         
-        # 默认使用当前年月
-        return datetime.date.today().strftime('%Y-%m')
+        # 尝试匹配 YYYY-MM 或 YYYY年MM月 格式
+        match = re.search(r'(20[1-2][0-9])[年/-](0?[1-9]|1[0-2])', date_text)
+        if match:
+            year_part = match.group(1)
+            month_part = match.group(2).zfill(2)
+            result = f"{year_part}-{month_part}-01"  # 缺失日补为01
+            logger.debug(f"匹配 YYYY-MM: {result}")
+            return result
+        
+        # 默认使用当前日期
+        result = datetime.date.today().strftime('%Y-%m-01')
+        logger.warning(f"日期解析失败，使用默认日期: '{date_text}' -> {result}")
+        return result
     
     def _filter_existing_updates(self, updates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """过滤已存在的更新（检查数据库）"""
@@ -515,7 +590,8 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             # 收集待同步数据（用于批量同步到数据库）
             sync_entry = {
                 'title': update.get('title', ''),
-                'content': markdown_content,  # 添加 content 字段
+                'description': update.get('description', ''),  # 添加 description 字段
+                'content': markdown_content,
                 'publish_date': publish_date,
                 'product_name': update.get('product_name', ''),
                 'source_url': update.get('source_url', ''),

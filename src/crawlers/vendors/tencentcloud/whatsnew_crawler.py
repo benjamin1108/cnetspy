@@ -472,7 +472,8 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             # 收集待同步数据（用于批量同步到数据库）
             sync_entry = {
                 'title': update.get('title', ''),
-                'content': markdown_content,  # 添加 content 字段
+                'description': update.get('description', ''),
+                'content': markdown_content,
                 'publish_date': publish_date,
                 'product_name': update.get('product_name', ''),
                 'source_url': update.get('source_url', ''),
