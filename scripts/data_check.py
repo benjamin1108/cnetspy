@@ -336,7 +336,7 @@ class DataChecker:
         # 检查过短标题 (少于5个字符) - 仅信息展示，不作为告警
         cursor.execute("""
             SELECT vendor, COUNT(*) FROM updates 
-            WHERE LENGTH(title) < 5
+            WHERE LENGTH(title) < 2
             GROUP BY vendor
         """)
         short_title_vendors = []
@@ -390,7 +390,7 @@ class DataChecker:
         cursor.execute('''
             SELECT vendor, title, product_name, publish_date 
             FROM updates 
-            WHERE LENGTH(title) < 5 
+            WHERE LENGTH(title) < 2 
             ORDER BY vendor, publish_date
         ''')
         rows = cursor.fetchall()
