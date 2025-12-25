@@ -12,6 +12,7 @@ import sys
 import time
 import hashlib
 import datetime
+import random
 import concurrent.futures
 from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
@@ -48,6 +49,9 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         
         # 使用从配置获取的type初始化父类
         super().__init__(config, vendor, actual_source_type)
+        
+        # 获取反爬虫配置
+        self.anti_crawler_config = config.get('anti_crawler', {})
         
         logger.info(f"发现 {len(self.sub_sources)} 个华为云网络服务: {list(self.sub_sources.keys())}")
     
@@ -98,8 +102,13 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         force_mode = self.crawler_config.get('force', False)
         
         try:
+            # 从配置读取并发参数
+            max_concurrent = self.anti_crawler_config.get('max_concurrent', 2)
+            task_interval_min = self.anti_crawler_config.get('task_interval_min', 1.5)
+            task_interval_max = self.anti_crawler_config.get('task_interval_max', 2.5)
+            
             # 使用线程池处理多个子源
-            max_workers = min(len(self.sub_sources), 5)  # 最多5个并发
+            max_workers = min(len(self.sub_sources), max_concurrent)
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_source = {}
@@ -107,7 +116,8 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
                 # 慢启动提交任务
                 for idx, (source_name, source_config) in enumerate(self.sub_sources.items()):
                     if idx > 0:
-                        time.sleep(0.5)  # 避免过快请求
+                        delay = random.uniform(task_interval_min, task_interval_max)
+                        time.sleep(delay)
                     
                     future = executor.submit(
                         self._crawl_single_source, 
@@ -197,7 +207,7 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
     def _get_page_content(self, url: str) -> Optional[str]:
         """
         获取页面内容
-        华为云反爬虫检测：使用简单UA避免被识别为爬虫
+        使用动态请求头和重试机制规避反爬虫检测
         
         Args:
             url: 页面URL
@@ -205,24 +215,121 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         Returns:
             页面HTML内容
         """
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0',
-                'Accept': 'text/html',
-                'Accept-Language': 'zh-CN,zh;q=0.9'
-            }
-            
-            response = requests.get(url, headers=headers, timeout=30)
-            if response.status_code == 200:
-                logger.info(f"获取页面成功: {url}")
-                return response.text
-            else:
-                logger.warning(f"请求返回状态码 {response.status_code}: {url}")
-                
-        except Exception as e:
-            logger.error(f"获取页面失败: {url} - {e}")
+        # 从配置读取重试参数
+        max_retries = self.anti_crawler_config.get('max_retries', 3)
+        retry_delay_min = self.anti_crawler_config.get('retry_delay_min', 2)
+        retry_delay_max = self.anti_crawler_config.get('retry_delay_max', 5)
         
+        for attempt in range(max_retries):
+            try:
+                # 每次请求使用不同的请求头
+                headers = self._build_dynamic_headers(url)
+                
+                # 重试前随机延迟
+                if attempt > 0:
+                    delay = random.uniform(retry_delay_min, retry_delay_max)
+                    logger.info(f"重试前等待 {delay:.1f} 秒...")
+                    time.sleep(delay)
+                
+                timeout = self.crawler_config.get('timeout', 30)
+                response = requests.get(url, headers=headers, timeout=timeout)
+                
+                if response.status_code == 200:
+                    # 检查是否返回了验证码页面
+                    if self._is_captcha_page(response.text):
+                        logger.warning(f"检测到验证码页面，尝试重试 ({attempt + 1}/{max_retries}): {url}")
+                        continue
+                    
+                    logger.info(f"获取页面成功: {url}")
+                    return response.text
+                else:
+                    logger.warning(f"请求返回状态码 {response.status_code}: {url}")
+                    
+            except Exception as e:
+                logger.error(f"获取页面失败 (尝试 {attempt + 1}/{max_retries}): {url} - {e}")
+        
+        logger.error(f"获取页面最终失败: {url}")
         return None
+    
+    def _build_dynamic_headers(self, url: str) -> Dict[str, str]:
+        """
+        构建动态请求头，模拟真实浏览器行为
+        
+        Args:
+            url: 请求URL
+            
+        Returns:
+            请求头字典
+        """
+        # 从配置读取 User-Agent 池
+        user_agents = self.anti_crawler_config.get('user_agents', [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        ])
+        
+        # 从配置读取 Accept-Language 池
+        accept_languages = self.anti_crawler_config.get('accept_languages', [
+            'zh-CN,zh;q=0.9,en;q=0.8'
+        ])
+        
+        # 随机选择
+        ua = random.choice(user_agents)
+        accept_lang = random.choice(accept_languages)
+        
+        # 基础请求头
+        headers = {
+            'User-Agent': ua,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': accept_lang,
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+        }
+        
+        # 动态添加 Referer（从配置读取）
+        referers_config = self.anti_crawler_config.get('referers', {})
+        huawei_referers = referers_config.get('huawei', [])
+        if huawei_referers and random.random() > 0.3:
+            headers['Referer'] = random.choice(huawei_referers)
+        
+        # 随机添加一些可选头
+        if random.random() > 0.5:
+            headers['DNT'] = '1'
+        
+        if random.random() > 0.5:
+            headers['Sec-Ch-Ua'] = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+            headers['Sec-Ch-Ua-Mobile'] = '?0'
+            headers['Sec-Ch-Ua-Platform'] = random.choice(['"Windows"', '"macOS"', '"Linux"'])
+        
+        return headers
+    
+    def _is_captcha_page(self, html: str) -> bool:
+        """
+        检测页面是否为验证码页面
+        
+        Args:
+            html: 页面HTML
+            
+        Returns:
+            是否为验证码页面
+        """
+        # 从配置读取验证码检测关键词
+        captcha_indicators = self.anti_crawler_config.get('captcha_indicators', [
+            '验证码', 'captcha', '人机验证'
+        ])
+        
+        html_lower = html.lower()
+        for indicator in captcha_indicators:
+            if indicator.lower() in html_lower:
+                # 进一步确认（避免误判正常页面中提到验证码的情况）
+                if len(html) < 10000 and indicator.lower() in html_lower:
+                    return True
+        
+        return False
     
     def _parse_updates(
         self, 

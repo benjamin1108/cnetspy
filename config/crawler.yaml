@@ -13,4 +13,51 @@ crawler:
   screenshot_debug: true # 是否保存页面截图用于调试
   api_rate_limit: 1000
   headers:
-    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" 
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
+# 反爬虫策略配置
+anti_crawler:
+  # 并发控制
+  max_concurrent: 2  # 单爬虫最大并发数
+  task_interval_min: 1.5  # 任务提交最小间隔（秒）
+  task_interval_max: 2.5  # 任务提交最大间隔（秒）
+  
+  # 重试策略
+  max_retries: 5  # 最大重试次数
+  retry_delay_min: 2  # 重试最小延迟（秒）
+  retry_delay_max: 5  # 重试最大延迟（秒）
+  
+  # User-Agent 池
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  
+  # Accept-Language 池
+  accept_languages:
+    - "zh-CN,zh;q=0.9,en;q=0.8"
+    - "zh-CN,zh;q=0.9"
+    - "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+    - "zh-CN,zh-TW;q=0.9,zh;q=0.8,en;q=0.7"
+  
+  # Referer 池
+  referers:
+    huawei:
+      - "https://support.huaweicloud.com/"
+      - "https://www.huaweicloud.com/"
+      - "https://support.huaweicloud.com/productdesc-vpc/zh-cn_topic_0013748729.html"
+  
+  # 验证码检测关键词
+  captcha_indicators:
+    - "验证码"
+    - "captcha"
+    - "人机验证"
+    - "安全验证"
+    - "security check"
+    - "robot"
+    - "滑动验证" 
