@@ -62,6 +62,7 @@ class UpdateDataLayer:
                     source_identifier TEXT NOT NULL DEFAULT '',
                     title TEXT,
                     title_translated TEXT,
+                    description TEXT,
                     content TEXT,
                     content_summary TEXT,
                     publish_date TEXT,
@@ -212,10 +213,10 @@ class UpdateDataLayer:
                     cursor.execute('''
                         INSERT INTO updates (
                             update_id, vendor, source_channel, update_type, source_url, source_identifier,
-                            title, title_translated, content, content_summary, publish_date, crawl_time,
+                            title, title_translated, description, content, content_summary, publish_date, crawl_time,
                             product_name, product_category, priority, tags,
                             raw_filepath, analysis_filepath, file_hash, metadata_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         update_data.get('update_id'),
                         update_data.get('vendor'),
@@ -225,6 +226,7 @@ class UpdateDataLayer:
                         update_data.get('source_identifier', ''),
                         update_data.get('title'),
                         update_data.get('title_translated'),
+                        update_data.get('description'),
                         update_data.get('content'),
                         update_data.get('content_summary'),
                         update_data.get('publish_date'),

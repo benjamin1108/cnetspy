@@ -41,7 +41,12 @@ class AzureTechBlogCrawler(BaseCrawler):
     def _init_proxy_config(self) -> None:
         """初始化代理配置"""
         self.proxy_config = self.source_config.get('proxy', {})
-        self.use_proxy = self.proxy_config.get('enabled', False)
+        # 处理字符串形式的布尔值 (从环境变量读取时是字符串)
+        enabled_value = self.proxy_config.get('enabled', False)
+        if isinstance(enabled_value, str):
+            self.use_proxy = enabled_value.lower() == 'true'
+        else:
+            self.use_proxy = bool(enabled_value)
         
         if self.use_proxy:
             proxy_host = self.proxy_config.get('host', '')
@@ -231,10 +236,18 @@ class AzureTechBlogCrawler(BaseCrawler):
                     # 解析文章内容和日期
                     article_content, pub_date = self._parse_article_content(url, article_html, list_date)
                     
-                    # 保存为Markdown
-                    file_path = self.save_to_markdown(url, title, (article_content, pub_date))
-                    saved_files.append(file_path)
-                    logger.info(f"已保存文章: {title} -> {file_path}")
+                    # 构建 update 字典并调用 save_update
+                    update = {
+                        'source_url': url,
+                        'title': title,
+                        'content': article_content,
+                        'publish_date': pub_date.replace('_', '-') if pub_date else '',
+                        'product_name': 'Azure Networking'
+                    }
+                    success = self.save_update(update)
+                    if success:
+                        saved_files.append(url)
+                    logger.info(f"已保存文章: {title}")
                     
                     # 间隔一段时间再爬取下一篇
                     if idx < len(filtered_article_info):

@@ -157,11 +157,20 @@ class AwsNetworkBlogCrawler(BaseCrawler):
                     
                     # 解析文章内容和发布日期
                     article_content_and_date = self._parse_article_content(url, article_html)
+                    content, pub_date = article_content_and_date
                     
-                    # 保存为Markdown
-                    file_path = self.save_to_markdown(url, title, article_content_and_date)
-                    saved_files.append(file_path)
-                    logger.info(f"已保存文章: {title} -> {file_path}")
+                    # 构建 update 字典并调用 save_update
+                    update = {
+                        'source_url': url,
+                        'title': title,
+                        'content': content,
+                        'publish_date': pub_date.replace('_', '-') if pub_date else '',
+                        'product_name': 'AWS Networking'
+                    }
+                    success = self.save_update(update)
+                    if success:
+                        saved_files.append(url)
+                    logger.info(f"已保存文章: {title}")
                     
                     # 间隔一段时间再爬取下一篇
                     if idx < len(filtered_article_links):

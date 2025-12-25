@@ -149,10 +149,18 @@ class GcpNetworkBlogCrawler(BaseCrawler):
                     # 解析文章内容和日期
                     content, pub_date = self._parse_article_content(url, article_html)
                     
-                    # 保存为Markdown
-                    file_path = self.save_to_markdown(url, title, (content, pub_date))
-                    saved_files.append(file_path)
-                    logger.info(f"已保存文章: {title} -> {file_path}")
+                    # 构建 update 字典并调用 save_update
+                    update = {
+                        'source_url': url,
+                        'title': title,
+                        'content': content,
+                        'publish_date': pub_date.replace('_', '-') if pub_date else '',
+                        'product_name': 'GCP Networking'
+                    }
+                    success = self.save_update(update)
+                    if success:
+                        saved_files.append(url)
+                    logger.info(f"已保存文章: {title}")
                     
                     # 间隔一段时间再爬取下一篇
                     if idx < len(filtered_article_links):
@@ -823,6 +831,16 @@ class GcpNetworkBlogCrawler(BaseCrawler):
         
         for pattern in promo_patterns:
             markdown_content = re.sub(pattern, '', markdown_content)
+        
+        # 移除 Gemini 广告块 (Try Gemini X ... Vertex AI)
+        gemini_ad_patterns = [
+            r'#{1,6}\s*Try Gemini[\s\S]*?\[Try now\]\([^\)]+\)\s*',
+            r'#{1,6}\s*Try Gemini[^\n]*\n[\s\S]*?console\.cloud\.google\.com[^\)]*\)\s*',
+            r'Our most intelligent model is now available on Vertex AI[^\n]*\n[\s\n]*\[Try now\][^\n]*\n?'
+        ]
+        
+        for pattern in gemini_ad_patterns:
+            markdown_content = re.sub(pattern, '', markdown_content, flags=re.IGNORECASE)
         
         # 去除连续多个空行
         markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)

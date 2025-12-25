@@ -7,6 +7,43 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from enum import Enum
+
+
+class SourceChannel(str, Enum):
+    """数据来源渠道"""
+    BLOG = 'blog'          # 博客文章
+    WHATSNEW = 'whatsnew'  # What's New / Release Notes
+
+
+class UpdateType(str, Enum):
+    """
+    更新类型枚举
+    
+    用于AI分类，表示云厂商更新的具体类型
+    """
+    NEW_PRODUCT = 'new_product'    # 新产品发布
+    NEW_FEATURE = 'new_feature'    # 新功能发布
+    ENHANCEMENT = 'enhancement'    # 功能增强/优化
+    DEPRECATION = 'deprecation'    # 功能弃用/下线
+    PRICING = 'pricing'            # 定价调整
+    REGION = 'region'              # 区域扩展
+    SECURITY = 'security'          # 安全更新
+    FIX = 'fix'                    # 问题修复
+    PERFORMANCE = 'performance'    # 性能优化
+    COMPLIANCE = 'compliance'      # 合规认证
+    INTEGRATION = 'integration'    # 集成能力
+    OTHER = 'other'                # 其他
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        """返回所有枚举值"""
+        return [e.value for e in cls]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        """检查值是否有效"""
+        return value in cls.values()
 
 
 @dataclass

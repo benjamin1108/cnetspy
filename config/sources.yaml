@@ -21,7 +21,7 @@ sources:
       product: Azure Networking
       analyze: true
       proxy:
-        enabled: true
+        enabled: ${PROXY_ENABLED}
         host: ${PROXY_HOST}
         port: ${PROXY_PORT}
         username: ${PROXY_USERNAME}
@@ -111,18 +111,23 @@ sources:
       vpn-whatsnew:
         url: https://support.huaweicloud.com/wtsnew-vpn/index.html
         type: documentation
+        product: VPN
       cc-whatsnew:
         url: https://support.huaweicloud.com/wtsnew-cc/index.html
         type: documentation
+        product: 云连接(CC)
       vpcep-whatsnew:
         url: https://support.huaweicloud.com/wtsnew-vpcep/index.html
         type: documentation
+        product: VPC终端节点(VPCEP)
       er-whatsnew:
         url: https://support.huaweicloud.com/wtsnew-er/index.html
         type: documentation
+        product: 企业路由器(ER)
       ga-whatsnew:
         url: https://support.huaweicloud.com/wtsnew-ga/index.html
         type: documentation
+        product: 全球加速(GA)
   tencentcloud:
     whatsnew:
       analyze: true
@@ -196,15 +201,15 @@ sources:
       shared_bandwidth_package:
         url: https://www.volcengine.com/docs/6623/93507
         type: documentation
-        product: 共享带宽包 - 新功能发布记录
+        product: 共享带宽包
       nat_gateway:
         url: https://www.volcengine.com/docs/6404/67976
         type: documentation
-        product: NAT网关 - 新功能发布记录
+        product: NAT网关
       ipv6_gateway:
         url: https://www.volcengine.com/docs/6896/133698
         type: documentation
-        product: IPv6网关 - 新功能发布记录
+        product: IPv6网关
       cen:
         url: https://www.volcengine.com/docs/6405/68180
         type: documentation
@@ -220,7 +225,7 @@ sources:
       clb_release:
         url: https://www.volcengine.com/docs/6406/113563
         type: documentation
-        product: 负载均衡(CLB) - 新功能发布记录
+        product: 负载均衡(CLB)
       alb:
         url: https://www.volcengine.com/docs/6406/67894
         type: documentation
@@ -228,15 +233,15 @@ sources:
       direct_connect:
         url: https://www.volcengine.com/docs/6407/68174
         type: documentation
-        product: 专线连接 - 新功能发布记录
+        product: 专线连接
       vpn_connection:
         url: https://www.volcengine.com/docs/6455/70535
         type: documentation
-        product: VPN连接 - 新功能发布记录
+        product: VPN连接
       private_link:
         url: https://www.volcengine.com/docs/6980/155768
         type: documentation
-        product: 私网连接(PrivateLink) - 新功能发布记录
+        product: 私网连接(PrivateLink)
       nic:
         url: https://www.volcengine.com/docs/83782/1155035
         type: documentation

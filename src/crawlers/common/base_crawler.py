@@ -135,56 +135,102 @@ class BaseCrawler(ABC):
             source_identifier=source_identifier
         )
     
-    def save_update_file(self, update: Dict[str, Any], markdown_content: str) -> Optional[str]:
+    def save_update(self, update: Dict[str, Any]) -> bool:
         """
-        统一的文件保存方法
+        保存更新数据（入库）
         
         Args:
-            update: 更新数据字典（必须包含source_url, source_identifier, publish_date, title）
-            markdown_content: Markdown格式的内容
-            
+            update: 更新数据字典，必须包含：
+                - source_url: 源URL
+                - source_identifier: 源标识符（如果没有会自动生成）
+                - publish_date: 发布日期
+                - title: 标题
+                - content: 内容（如果没有，会用 description 填充）
+                可选字段：
+                - description: 描述
+                - product_name: 产品名称
+                
         Returns:
-            文件路径，失败返回None
+            是否成功
         """
         try:
-            # 提取必要字段
-            source_url = update.get('source_url', '')
-            source_identifier = update.get('source_identifier', '')
-            publish_date = update.get('publish_date', '')
-            title = update.get('title', '')
+            # 确保有 source_identifier
+            if not update.get('source_identifier'):
+                update['source_identifier'] = self.generate_source_identifier(update)
             
-            # 生成文件名
-            url_hash = hashlib.md5(source_url.encode('utf-8')).hexdigest()[:8]
-            filename = f"{publish_date}_{url_hash}.md"
-            filepath = os.path.join(self.output_dir, filename)
+            source_identifier = update['source_identifier']
             
-            # 写入文件
-            os.makedirs(self.output_dir, exist_ok=True)
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
+            # 如果没有 content，用 description 填充
+            content = update.get('content', '') or update.get('description', '')
             
-            # 创建同步条目（用于批量同步到数据库）
+            # 创建同步条目
             sync_entry = {
-                'title': title,
-                'publish_date': publish_date,
-                'source_url': source_url,
+                'title': update.get('title', ''),
+                'publish_date': update.get('publish_date', ''),
+                'source_url': update.get('source_url', ''),
                 'source_identifier': source_identifier,
-                'filepath': filepath,
+                'content': content,
+                'description': update.get('description', ''),
+                'product_name': update.get('product_name', ''),
                 'crawl_time': datetime.datetime.now().isoformat(),
-                'file_hash': hashlib.md5(markdown_content.encode('utf-8')).hexdigest()
+                'file_hash': hashlib.md5(content.encode('utf-8')).hexdigest(),
+                'vendor': self.vendor,
+                'source_type': self.source_type
             }
-            
-            # 添加可选字段
-            if 'product_name' in update:
-                sync_entry['product_name'] = update['product_name']
             
             # 收集待同步数据
             self._pending_sync_updates[source_identifier] = sync_entry
             
-            return filepath
+            logger.debug(f"已收集更新: {update.get('title', '')[:30]}...")
+            return True
             
         except Exception as e:
-            logger.error(f"保存文件失败: {e}")
+            logger.error(f"保存更新失败: {e}")
+            return False
+    
+    def save_update_file(self, update: Dict[str, Any], markdown_content: str) -> Optional[str]:
+        """
+        [已废弃] 统一的文件保存方法，请使用 save_update() 代替
+        
+        保留此方法仅为向后兼容，内部调用 save_update()
+        """
+        # 将 markdown_content 作为 content
+        update['content'] = markdown_content
+        
+        # 调用新方法
+        success = self.save_update(update)
+        
+        if success:
+            # 可选：导出文件
+            return self._export_to_file(update, markdown_content)
+        return None
+    
+    def _export_to_file(self, update: Dict[str, Any], content: str) -> Optional[str]:
+        """
+        导出更新内容到文件（可选）
+        
+        Args:
+            update: 更新数据
+            content: 内容
+            
+        Returns:
+            文件路径
+        """
+        try:
+            source_url = update.get('source_url', '')
+            publish_date = update.get('publish_date', '')
+            
+            url_hash = hashlib.md5(source_url.encode('utf-8')).hexdigest()[:8]
+            filename = f"{publish_date}_{url_hash}.md"
+            filepath = os.path.join(self.output_dir, filename)
+            
+            os.makedirs(self.output_dir, exist_ok=True)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return filepath
+        except Exception as e:
+            logger.error(f"导出文件失败: {e}")
             return None
     
     def _close_driver(self) -> None:
@@ -236,74 +282,50 @@ class BaseCrawler(ABC):
     
     def save_to_markdown(self, url: str, title: str, content_and_date: Tuple[str, Optional[str]], metadata_extra: Dict[str, Any] = None, batch_mode: bool = True) -> str:
         """
-        将爬取的内容保存为Markdown文件
+        [已废弃] 将爬取的内容保存为Markdown文件，请使用 save_update() 代替
         
-        Args:
-            url: 文章URL
-            title: 文章标题
-            content_and_date: 文章内容和发布日期元组
-            metadata_extra: 额外的元数据字段
-            batch_mode: 是否为批量更新模式（已废弃，保留参数兼容）
-            
-        Returns:
-            保存的文件路径
+        保留此方法仅为向后兼容
         """
         content, pub_date = content_and_date
         
         if not pub_date:
             pub_date = datetime.datetime.now().strftime("%Y_%m_%d")
         
-        # 创建文件名
-        filename = self._create_filename(url, pub_date, '.md')
-        file_path = os.path.join(self.output_dir, filename)
+        # 构建 update 对象
+        update = {
+            'source_url': url,
+            'title': title,
+            'content': content,
+            'publish_date': pub_date.replace('_', '-') if pub_date else '',
+            'vendor': self.vendor,
+            'source_type': self.source_type
+        }
+        if metadata_extra:
+            update.update(metadata_extra)
         
-        # 将日期格式转换为更友好的显示格式
-        display_date = pub_date.replace('_', '-') if pub_date else "未知"
-        
-        # 构建Markdown内容
-        metadata_lines = [
-            f"# {title}",
-            "",
-            f"**原始链接:** [{url}]({url})",
-            "",
-            f"**发布时间:** {display_date}",
-            "",
-            f"**厂商:** {self.vendor.upper()}",
-            "",
-            f"**类型:** {self.source_type.upper()}",
-            "",
-            "---",
-            "",
-        ]
-        final_content = "\n".join(metadata_lines) + content
-        
-        # 线程安全地写入文件
+        # 调用新方法
         with self.lock:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(final_content)
+            self.save_update(update)
             
-            # 生成 source_identifier
-            temp_update = {'source_url': url}
-            source_identifier = self.generate_source_identifier(temp_update)
-            
-            # 创建同步条目（用于批量同步到数据库）
-            sync_entry = {
-                'source_url': url,
-                'source_identifier': source_identifier,
-                'filepath': file_path,
-                'title': title,
-                'publish_date': pub_date.replace('_', '-') if pub_date else '',
-                'crawl_time': time.strftime('%Y-%m-%d %H:%M:%S'),
-                'file_hash': hashlib.md5(final_content.encode('utf-8')).hexdigest(),
-                'vendor': self.vendor,
-                'source_type': self.source_type
-            }
-            if metadata_extra:
-                sync_entry.update(metadata_extra)
-            
-            # 收集待同步数据
-            self._pending_sync_updates[source_identifier] = sync_entry
+            # 可选：导出文件
+            # 构建Markdown内容
+            display_date = pub_date.replace('_', '-') if pub_date else "未知"
+            metadata_lines = [
+                f"# {title}",
+                "",
+                f"**原始链接:** [{url}]({url})",
+                "",
+                f"**发布时间:** {display_date}",
+                "",
+                f"**厂商:** {self.vendor.upper()}",
+                "",
+                f"**类型:** {self.source_type.upper()}",
+                "",
+                "---",
+                "",
+            ]
+            final_content = "\n".join(metadata_lines) + content
+            file_path = self._export_to_file(update, final_content)
         
         return file_path
     

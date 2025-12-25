@@ -64,8 +64,10 @@ class CrawlerIntegration:
             'update_id': str(uuid.uuid4()),
             'vendor': vendor,
             'source_channel': source_type,
-            'update_type': 'whatsnew',
+            'update_type': '',  # 由AI分类填充，参见 UpdateType 枚举
             'title': metadata_entry.get('title', ''),
+            'description': metadata_entry.get('description', ''),
+            'content': metadata_entry.get('content', ''),
             'publish_date': metadata_entry.get('publish_date', ''),
             'source_url': metadata_entry.get('source_url', url_key),
             'source_identifier': metadata_entry.get('source_identifier', ''),

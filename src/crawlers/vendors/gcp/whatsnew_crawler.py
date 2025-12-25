@@ -104,9 +104,9 @@ class GcpWhatsnewCrawler(BaseCrawler):
             # 保存每条更新
             for update in all_updates:
                 try:
-                    file_path = self._save_update(update)
-                    if file_path:
-                        saved_files.append(file_path)
+                    success = self._save_update(update)
+                    if success:
+                        saved_files.append(update.get('source_url', ''))
                 except Exception as e:
                     logger.error(f"保存更新失败 [{update.get('title', 'Unknown')}]: {e}")
             
@@ -263,20 +263,11 @@ class GcpWhatsnewCrawler(BaseCrawler):
             label = note.find('span', class_='devsite-label')
             update_type = label.get_text(strip=True) if label else 'Update'
             
-            # 提取标题（通常是第一个p标签或strong标签的内容）
-            title_elem = note.find(['strong', 'b'])
-            if title_elem:
-                title = title_elem.get_text(strip=True)
-            else:
-                # 如果没有strong标签，使用第一段的前50个字符
-                first_p = note.find('p')
-                title = first_p.get_text(strip=True)[:50] if first_p else update_type
-            
-            # 提取描述（移除标题部分）
+            # 提取描述（所有段落内容）
             description_parts = []
             for p in note.find_all('p'):
                 text = p.get_text(strip=True)
-                if text and text != title:
+                if text:
                     description_parts.append(text)
             description = '\n\n'.join(description_parts)
             
@@ -287,9 +278,8 @@ class GcpWhatsnewCrawler(BaseCrawler):
             if not publish_date:
                 publish_date = datetime.date.today().strftime('%Y-%m-%d')
             
-            # 过滤无效数据
-            if not title or len(title) < 3:
-                return None
+            # 生成格式化的 title: GCP {product_name} {date}
+            title = f"GCP {product_name} {publish_date}"
             
             # 提取文档链接
             doc_links = []
@@ -408,31 +398,32 @@ class GcpWhatsnewCrawler(BaseCrawler):
             update.get('title', '').strip()
         ]
     
-    def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
+    def _save_update(self, update: Dict[str, Any]) -> bool:
         """
-        保存单条更新为Markdown文件（使用基类方法）
+        保存单条更新（使用基类方法）
         
         Args:
             update: 更新条目
             
         Returns:
-            保存的文件路径
+            是否成功
         """
         try:
-            # 生成Markdown内容
+            # 生成完整的 Markdown 内容（包含链接等信息）
             markdown_content = self._generate_markdown(update)
+            update['content'] = markdown_content
             
-            # 使用基类的统一保存方法
-            filepath = self.save_update_file(update, markdown_content)
+            # 调用基类的 save_update 方法入库
+            success = self.save_update(update)
             
-            if filepath:
-                logger.debug(f"保存更新: {update['title']}")
+            if success:
+                logger.debug(f"保存更新: {update.get('title', '')}")
             
-            return filepath
+            return success
             
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
-            return None
+            return False
     
     def _generate_markdown(self, update: Dict[str, Any]) -> str:
         """生成Markdown格式内容"""

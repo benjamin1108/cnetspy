@@ -38,12 +38,12 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         
         # 从配置中获取type字段作为source_channel
         # 火山引擎的子源都是documentation类型
-        actual_source_type = 'docs'  # documentation -> docs
+        actual_source_type = 'whatsnew'  # documentation -> whatsnew
         if self.sub_sources:
             first_sub = next(iter(self.sub_sources.values()))
             config_type = first_sub.get('type', '')
             if config_type == 'documentation':
-                actual_source_type = 'docs'
+                actual_source_type = 'whatsnew'
         
         # 使用从配置获取的type初始化父类
         super().__init__(config, vendor, actual_source_type)
@@ -497,6 +497,11 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             # 生成文件名: YYYY-MM_hash.md
             update_id = self._generate_update_id(update)
             publish_date = update.get('publish_date', datetime.date.today().strftime('%Y-%m'))
+            
+            # 统一日期格式: YYYY-MM -> YYYY-MM-01
+            if len(publish_date) == 7:  # YYYY-MM
+                publish_date = f"{publish_date}-01"
+            
             filename = f"{publish_date}_{update_id}.md"
             filepath = os.path.join(self.output_dir, filename)
             
@@ -510,6 +515,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             # 收集待同步数据（用于批量同步到数据库）
             sync_entry = {
                 'title': update.get('title', ''),
+                'content': markdown_content,  # 添加 content 字段
                 'publish_date': publish_date,
                 'product_name': update.get('product_name', ''),
                 'source_url': update.get('source_url', ''),

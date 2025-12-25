@@ -194,9 +194,9 @@ class AwsWhatsnewCrawler(BaseCrawler):
             # 保存每条更新
             for update in all_updates:
                 try:
-                    file_path = self._save_update(update)
-                    if file_path:
-                        saved_files.append(file_path)
+                    success = self._save_update(update)
+                    if success:
+                        saved_files.append(update.get('source_url', ''))
                 except Exception as e:
                     logger.error(f"保存更新失败 [{update.get('title', 'Unknown')}]: {e}")
             
@@ -378,31 +378,32 @@ class AwsWhatsnewCrawler(BaseCrawler):
         
         return soup.get_text(strip=True) if soup else ""
     
-    def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
+    def _save_update(self, update: Dict[str, Any]) -> bool:
         """
-        保存单条更新为Markdown文件（使用基类方法）
+        保存单条更新（使用基类方法）
         
         Args:
             update: 更新条目
             
         Returns:
-            保存的文件路径
+            是否成功
         """
         try:
-            # 生成Markdown内容
+            # 生成完整的 Markdown 内容（包含链接等信息）
             markdown_content = self._generate_markdown(update)
+            update['content'] = markdown_content
             
-            # 使用基类的统一保存方法
-            filepath = self.save_update_file(update, markdown_content)
+            # 调用基类的 save_update 方法入库
+            success = self.save_update(update)
             
-            if filepath:
-                logger.debug(f"保存更新: {update['title']}")
+            if success:
+                logger.debug(f"保存更新: {update.get('title', '')}")
             
-            return filepath
+            return success
             
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
-            return None
+            return False
     
     def _generate_markdown(self, update: Dict[str, Any]) -> str:
         """生成Markdown格式内容"""
