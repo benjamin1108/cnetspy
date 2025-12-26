@@ -415,9 +415,7 @@ class AnalysisService:
             }
         
         # 3. 按更新类型统计
-        update_types = {}
-        # TODO: 需要在UpdateDataLayer添加 get_update_type_statistics() 方法
-        # 暂时返回空字典
+        update_types = self.db.get_update_type_statistics()
         
         # 4. 分析覆盖率
         coverage = self.db.get_analysis_coverage()  # 直接返回 float 值

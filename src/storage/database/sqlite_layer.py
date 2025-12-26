@@ -983,6 +983,64 @@ class UpdateDataLayer:
             self.logger.error(f"分析覆盖率计算失败: {e}")
             return 0.0
     
+    def get_update_type_statistics(
+        self,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        vendor: Optional[str] = None
+    ) -> Dict[str, int]:
+        """
+        按更新类型统计
+        
+        Args:
+            date_from: 开始日期（可选）
+            date_to: 结束日期（可选）
+            vendor: 厂商过滤（可选）
+            
+        Returns:
+            更新类型统计字典, key为类型名, value为数量
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clauses = ["update_type IS NOT NULL", "update_type != ''"]
+                params = []
+                
+                if date_from:
+                    where_clauses.append("publish_date >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_clauses.append("publish_date <= ?")
+                    params.append(date_to)
+                
+                if vendor:
+                    where_clauses.append("vendor = ?")
+                    params.append(vendor)
+                
+                where_clause = " AND ".join(where_clauses)
+                
+                sql = f"""
+                    SELECT 
+                        update_type,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE {where_clause}
+                    GROUP BY update_type
+                    ORDER BY count DESC
+                """
+                
+                cursor.execute(sql, params)
+                result = {}
+                for row in cursor.fetchall():
+                    result[row['update_type']] = row['count']
+                return result
+                
+        except Exception as e:
+            self.logger.error(f"更新类型统计查询失败: {e}")
+            return {}
+    
     # ==================== 批量任务管理方法 ====================
     
     def create_analysis_task(self, task_data: Dict[str, Any]) -> bool:
@@ -1419,42 +1477,32 @@ class UpdateDataLayer:
             self.logger.error(f"厂商产品列表查询失败: {e}")
             return []
     
-    def get_update_type_statistics(self) -> List[Dict[str, Any]]:
+    def get_available_years(self) -> List[int]:
         """
-        获取更新类型统计
+        获取数据库中有数据的年份列表
         
         Returns:
-            更新类型统计列表，每项包含 value, count
+            年份列表，降序排列
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 sql = """
-                    SELECT 
-                        update_type,
-                        COUNT(*) as count
+                    SELECT DISTINCT strftime('%Y', publish_date) as year
                     FROM updates
-                    WHERE update_type IS NOT NULL AND update_type != ''
-                    GROUP BY update_type
-                    ORDER BY count DESC
+                    WHERE publish_date IS NOT NULL
+                    ORDER BY year DESC
                 """
                 
                 cursor.execute(sql)
                 
-                results = []
-                for row in cursor.fetchall():
-                    results.append({
-                        'value': row['update_type'],
-                        'count': row['count']
-                    })
-                
-                return results
+                return [int(row['year']) for row in cursor.fetchall() if row['year']]
                 
         except Exception as e:
-            self.logger.error(f"更新类型统计失败: {e}")
+            self.logger.error(f"获取年份列表失败: {e}")
             return []
-    
+
     def get_source_channel_statistics(self) -> List[Dict[str, Any]]:
         """
         获取来源类型统计

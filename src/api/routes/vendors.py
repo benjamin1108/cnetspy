@@ -5,7 +5,7 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List
+from typing import List, Optional
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from src.models.update import UpdateType
 from ..dependencies import get_db
@@ -83,7 +83,10 @@ async def list_vendor_products(
 
 
 @router.get("/update-types", response_model=ApiResponse[List[UpdateTypeInfo]])
-async def list_update_types(db: UpdateDataLayer = Depends(get_db)):
+async def list_update_types(
+    vendor: Optional[str] = Query(None, description="厂商过滤"),
+    db: UpdateDataLayer = Depends(get_db)
+):
     """
     更新类型枚举
     
@@ -95,9 +98,8 @@ async def list_update_types(db: UpdateDataLayer = Depends(get_db)):
     
     用于前端筛选器和表单验证
     """
-    # 获取数据库中的类型统计
-    type_stats = db.get_update_type_statistics()
-    type_count_map = {item['value']: item['count'] for item in type_stats}
+    # 获取数据库中的类型统计（返回字典 {type: count}）
+    type_stats = db.get_update_type_statistics(vendor=vendor)
     
     # 构建完整的类型列表（包含所有枚举值）
     result = []
@@ -107,10 +109,50 @@ async def list_update_types(db: UpdateDataLayer = Depends(get_db)):
             'value': type_value,
             'label': label,
             'description': description,
-            'count': type_count_map.get(type_value, 0)
+            'count': type_stats.get(type_value, 0)
         })
     
     # 按使用数量倒序排列
+    result.sort(key=lambda x: x['count'], reverse=True)
+    
+    return ApiResponse(success=True, data=result)
+
+
+@router.get("/product-subcategories", response_model=ApiResponse[List[dict]])
+async def list_product_subcategories(
+    vendor: str = Query(None, description="厂商过滤"),
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    产品子类枚举
+    
+    返回所有产品子类及其统计：
+    - value: 子类名称
+    - count: 当前使用该子类的更新数量
+    
+    支持按厂商过滤
+    """
+    if vendor:
+        # 按厂商过滤
+        products = db.get_vendor_products(vendor)
+    else:
+        # 汇总所有厂商的产品子类
+        vendors = db.get_vendors_list()
+        subcat_counts = {}
+        for v in vendors:
+            products = db.get_vendor_products(v['vendor'])
+            for p in products:
+                subcat = p['product_subcategory']
+                subcat_counts[subcat] = subcat_counts.get(subcat, 0) + p['count']
+        products = [{'product_subcategory': k, 'count': v} for k, v in subcat_counts.items()]
+    
+    # 转换为前端需要的格式
+    result = [
+        {'value': p['product_subcategory'], 'count': p['count']}
+        for p in products
+    ]
+    
+    # 按数量倒序
     result.sort(key=lambda x: x['count'], reverse=True)
     
     return ApiResponse(success=True, data=result)

@@ -33,9 +33,11 @@ class UpdateBrief(BaseModel):
     title: str
     title_translated: Optional[str] = None
     description: Optional[str] = None
+    content_summary: Optional[str] = None
     publish_date: date
     product_name: Optional[str] = None
     product_category: Optional[str] = None
+    product_subcategory: Optional[str] = None
     update_type: Optional[str] = None
     tags: List[str] = []
     has_analysis: bool

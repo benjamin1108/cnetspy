@@ -91,3 +91,40 @@ async def get_stats_vendors(
     )
     
     return ApiResponse(success=True, data=vendor_stats)
+
+
+@router.get("/update-types", response_model=ApiResponse[dict])
+async def get_stats_update_types(
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    vendor: Optional[str] = Query(None, description="厂商过滤"),
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    更新类型统计
+    
+    返回各更新类型的数量统计，支持：
+    - 日期范围过滤
+    - 厂商过滤
+    
+    用于前端柱状图展示
+    """
+    update_types = db.get_update_type_statistics(
+        date_from=date_from,
+        date_to=date_to,
+        vendor=vendor
+    )
+    
+    return ApiResponse(success=True, data=update_types)
+
+
+@router.get("/years", response_model=ApiResponse[List[int]])
+async def get_available_years(db: UpdateDataLayer = Depends(get_db)):
+    """
+    获取有数据的年份列表
+    
+    返回数据库中有记录的年份，降序排列
+    用于前端筛选器的年份选项
+    """
+    years = db.get_available_years()
+    return ApiResponse(success=True, data=years)
