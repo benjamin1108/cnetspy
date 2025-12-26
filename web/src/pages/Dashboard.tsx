@@ -23,7 +23,7 @@ import {
 import { format, subDays } from 'date-fns';
 import { TrendingUp, Database, CheckCircle, Clock, Filter } from 'lucide-react';
 import { useState } from 'react';
-import { Input, Select } from '@/components/ui';
+import { Select } from '@/components/ui';
 
 export function DashboardPage() {
   // 过滤器状态
