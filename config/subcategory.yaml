@@ -95,12 +95,14 @@ tencentcloud:
   - Elastic IP (EIP)
   - Gateway Load Balancer (GWLB)
   - Global Application Acceleration Platform (GAAP)
+  - Intelligent High-performance Network (IHN)
   - NAT Gateway
   - Private Link
   - Virtual Private Cloud (VPC)
   - VPN Connection
 
 volcengine:
+  - Cloud Connector
   - Cloud Enterprise Network (CEN)
   - Cloud Load Balancer (CLB)
   - Direct Connect

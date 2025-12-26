@@ -23,6 +23,7 @@ async def list_updates(
     update_type: Optional[str] = Query(None, description="更新类型"),
     product_name: Optional[str] = Query(None, description="产品名称（模糊匹配）"),
     product_category: Optional[str] = Query(None, description="产品分类"),
+    product_subcategory: Optional[str] = Query(None, description="产品子类（精确匹配）"),
     date_from: Optional[str] = Query(None, description="开始日期（YYYY-MM-DD）"),
     date_to: Optional[str] = Query(None, description="结束日期（YYYY-MM-DD）"),
     has_analysis: Optional[bool] = Query(None, description="是否已AI分析"),
@@ -56,6 +57,8 @@ async def list_updates(
         filters['product_name'] = product_name
     if product_category:
         filters['product_category'] = product_category
+    if product_subcategory:
+        filters['product_subcategory'] = product_subcategory
     if date_from:
         filters['date_from'] = date_from
     if date_to:

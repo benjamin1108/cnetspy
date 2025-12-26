@@ -15,6 +15,12 @@ from ..schemas.common import ApiResponse
 router = APIRouter(prefix="/api/v1", tags=["元数据"])
 
 
+# 来源类型标签映射
+SOURCE_CHANNEL_LABELS = {
+    'whatsnew': 'What\'s New',
+    'blog': 'Blog',
+}
+
 # 更新类型描述映射
 UPDATE_TYPE_LABELS = {
     'new_product': ('新产品发布', '全新产品/服务上线'),
@@ -102,6 +108,53 @@ async def list_update_types(db: UpdateDataLayer = Depends(get_db)):
             'label': label,
             'description': description,
             'count': type_count_map.get(type_value, 0)
+        })
+    
+    # 按使用数量倒序排列
+    result.sort(key=lambda x: x['count'], reverse=True)
+    
+    return ApiResponse(success=True, data=result)
+
+
+@router.get("/source-channels", response_model=ApiResponse[List[dict]])
+async def list_source_channels(db: UpdateDataLayer = Depends(get_db)):
+    """
+    来源类型枚举
+    
+    返回所有来源类型及其统计：
+    - value: 枚举值
+    - label: 显示标签
+    - count: 当前使用该类型的更新数量
+    
+    用于前端筛选器
+    """
+    # 从数据库查询所有 source_channel 统计
+    channels = db.get_source_channel_statistics()
+    
+    # 合并 blog 类型：*-blog 都归类为 blog
+    blog_count = 0
+    whatsnew_count = 0
+    
+    for item in channels:
+        channel = item['value']
+        if channel == 'whatsnew':
+            whatsnew_count = item['count']
+        elif channel.endswith('-blog') or channel == 'blog':
+            blog_count += item['count']
+    
+    # 构建结果（只返回两种）
+    result = []
+    if whatsnew_count > 0:
+        result.append({
+            'value': 'whatsnew',
+            'label': "What's New",
+            'count': whatsnew_count
+        })
+    if blog_count > 0:
+        result.append({
+            'value': 'blog',
+            'label': 'Blog',
+            'count': blog_count
         })
     
     # 按使用数量倒序排列

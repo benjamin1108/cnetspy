@@ -697,10 +697,14 @@ class UpdateDataLayer:
                     where_clauses.append("vendor = ?")
                     params.append(filters['vendor'])
                     
-                # source_channel过滤
+                # source_channel过滤（blog 匹配所有 *-blog）
                 if filters.get('source_channel'):
-                    where_clauses.append("source_channel = ?")
-                    params.append(filters['source_channel'])
+                    sc = filters['source_channel']
+                    if sc == 'blog':
+                        where_clauses.append("(source_channel LIKE '%blog%')")
+                    else:
+                        where_clauses.append("source_channel = ?")
+                        params.append(sc)
                     
                 # update_type过滤
                 if filters.get('update_type'):
@@ -716,6 +720,11 @@ class UpdateDataLayer:
                 if filters.get('product_category'):
                     where_clauses.append("product_category = ?")
                     params.append(filters['product_category'])
+                
+                # product_subcategory过滤
+                if filters.get('product_subcategory'):
+                    where_clauses.append("product_subcategory = ?")
+                    params.append(filters['product_subcategory'])
                     
                 # 日期范围
                 if filters.get('date_from'):
@@ -811,9 +820,14 @@ class UpdateDataLayer:
                     where_clauses.append("vendor = ?")
                     params.append(filters['vendor'])
                     
+                # source_channel过滤（blog 匹配所有 *-blog）
                 if filters.get('source_channel'):
-                    where_clauses.append("source_channel = ?")
-                    params.append(filters['source_channel'])
+                    sc = filters['source_channel']
+                    if sc == 'blog':
+                        where_clauses.append("(source_channel LIKE '%blog%')")
+                    else:
+                        where_clauses.append("source_channel = ?")
+                        params.append(sc)
                     
                 if filters.get('update_type'):
                     where_clauses.append("update_type = ?")
@@ -826,6 +840,10 @@ class UpdateDataLayer:
                 if filters.get('product_category'):
                     where_clauses.append("product_category = ?")
                     params.append(filters['product_category'])
+                
+                if filters.get('product_subcategory'):
+                    where_clauses.append("product_subcategory = ?")
+                    params.append(filters['product_subcategory'])
                     
                 if filters.get('date_from'):
                     where_clauses.append("publish_date >= ?")
@@ -1435,4 +1453,40 @@ class UpdateDataLayer:
                 
         except Exception as e:
             self.logger.error(f"更新类型统计失败: {e}")
+            return []
+    
+    def get_source_channel_statistics(self) -> List[Dict[str, Any]]:
+        """
+        获取来源类型统计
+        
+        Returns:
+            来源类型统计列表，每项包含 value, count
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                sql = """
+                    SELECT 
+                        source_channel,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE source_channel IS NOT NULL AND source_channel != ''
+                    GROUP BY source_channel
+                    ORDER BY count DESC
+                """
+                
+                cursor.execute(sql)
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'value': row['source_channel'],
+                        'count': row['count']
+                    })
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"来源类型统计失败: {e}")
             return []

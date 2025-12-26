@@ -309,7 +309,7 @@
                 <div class="filters">
                     <div class="form-group">
                         <label>厂商</label>
-                        <select id="filter-vendor">
+                        <select id="filter-vendor" onchange="loadProductOptions()">
                             <option value="">全部</option>
                             <option value="aws">AWS</option>
                             <option value="azure">Azure</option>
@@ -320,20 +320,23 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>产品子类</label>
+                        <select id="filter-product">
+                            <option value="">全部（先选厂商）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>来源类型</label>
                         <select id="filter-source">
                             <option value="">全部</option>
-                            <option value="blog">Blog</option>
-                            <option value="whatsnew">What's New</option>
+                            <!-- 动态加载 -->
                         </select>
                     </div>
                     <div class="form-group">
                         <label>更新类型</label>
                         <select id="filter-type">
                             <option value="">全部</option>
-                            <option value="new_feature">新功能</option>
-                            <option value="enhancement">增强</option>
-                            <option value="integration">集成</option>
+                            <!-- 动态加载 -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -569,12 +572,14 @@
             params.append('page_size', document.getElementById('page-size').value);
             
             const vendor = document.getElementById('filter-vendor').value;
+            const product = document.getElementById('filter-product').value;
             const source = document.getElementById('filter-source').value;
             const type = document.getElementById('filter-type').value;
             const analyzed = document.getElementById('filter-analyzed').value;
             const keyword = document.getElementById('filter-keyword').value;
             
             if (vendor) params.append('vendor', vendor);
+            if (product) params.append('product_subcategory', product);
             if (source) params.append('source_channel', source);
             if (type) params.append('update_type', type);
             if (analyzed) params.append('has_analysis', analyzed);
@@ -858,6 +863,7 @@
         // 清空过滤器
         function clearFilters() {
             document.getElementById('filter-vendor').value = '';
+            document.getElementById('filter-product').innerHTML = '<option value="">全部（先选厂商）</option>';
             document.getElementById('filter-source').value = '';
             document.getElementById('filter-type').value = '';
             document.getElementById('filter-analyzed').value = '';
@@ -1133,8 +1139,77 @@
             container.innerHTML = html;
         }
         
+        // 动态加载来源类型枚举
+        async function loadSourceChannels() {
+            try {
+                const response = await fetch(`${API_BASE}/source-channels`);
+                const data = await response.json();
+                if (data.success) {
+                    const select = document.getElementById('filter-source');
+                    data.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.value;
+                        option.textContent = `${item.label} (${item.count})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (err) {
+                console.error('加载来源类型失败:', err);
+            }
+        }
+        
+        // 动态加载更新类型枚举
+        async function loadUpdateTypeOptions() {
+            try {
+                const response = await fetch(`${API_BASE}/update-types`);
+                const data = await response.json();
+                if (data.success) {
+                    const select = document.getElementById('filter-type');
+                    data.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.value;
+                        option.textContent = `${item.label} (${item.count})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (err) {
+                console.error('加载更新类型失败:', err);
+            }
+        }
+        
+        // 动态加载产品子类（根据厂商）
+        async function loadProductOptions() {
+            const vendor = document.getElementById('filter-vendor').value;
+            const select = document.getElementById('filter-product');
+            
+            // 清空现有选项
+            select.innerHTML = '<option value="">全部</option>';
+            
+            if (!vendor) {
+                select.innerHTML = '<option value="">全部（先选厂商）</option>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/vendors/${vendor}/products`);
+                const data = await response.json();
+                if (data.success && data.data.length > 0) {
+                    data.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.product_subcategory;
+                        option.textContent = `${item.product_subcategory} (${item.count})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (err) {
+                console.error('加载产品列表失败:', err);
+            }
+        }
+        
         // 页面加载时初始化
         window.onload = function() {
+            loadSourceChannels();
+            loadUpdateTypeOptions();
             loadStats();
             loadUpdates(1);
         };

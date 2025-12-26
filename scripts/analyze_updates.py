@@ -87,6 +87,9 @@ class AnalyzeUpdatesScript:
         if self.args.update_id:
             # 单条分析模式
             self._analyze_single()
+        elif self.args.batch:
+            # 多 ID 批量分析模式
+            self._analyze_by_ids()
         else:
             # 批量分析模式（默认）
             self._analyze_batch()
@@ -184,6 +187,76 @@ class AnalyzeUpdatesScript:
             self.logger.error(f"保存分析结果到文件失败: {e}")
             return None
     
+    def _analyze_by_ids(self):
+        """按指定 ID 列表分析"""
+        # 解析 ID 列表（支持逗号分隔）
+        id_list = [id.strip() for id in self.args.batch.split(',') if id.strip()]
+        
+        if not id_list:
+            self.logger.error("未提供有效的 ID")
+            return
+        
+        self.logger.info(f"🔄 开始分析 {len(id_list)} 条指定记录...")
+        
+        # 获取记录
+        updates = []
+        for update_id in id_list:
+            update_data = self.data_layer.get_update_by_id(update_id)
+            if update_data:
+                # 检查是否已分析
+                if update_data.get('title_translated') and not self.args.force:
+                    self.logger.warning(f"跳过已分析: {update_id}（使用 --force 强制）")
+                    continue
+                updates.append(update_data)
+            else:
+                self.logger.warning(f"未找到记录: {update_id}")
+        
+        if not updates:
+            self.logger.info("没有待处理的记录")
+            return
+        
+        # 统计变量
+        process_count = len(updates)
+        success_count = 0
+        fail_count = 0
+        start_time = time.time()
+        
+        self.logger.info(f"📊 待处理记录: {process_count} 条")
+        
+        # 并发处理
+        batch_config = self.config.get('ai_model', {}).get('batch_processing', {})
+        max_workers = batch_config.get('max_workers', 5)
+        self.logger.info(f"⚡ 并发线程数: {max_workers}")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_update = {
+                executor.submit(self._analyze_single_item, update_data): update_data
+                for update_data in updates
+            }
+            
+            for idx, future in enumerate(as_completed(future_to_update), 1):
+                update_data = future_to_update[future]
+                update_id = update_data.get('update_id', 'unknown')
+                
+                try:
+                    success = future.result()
+                    if success:
+                        success_count += 1
+                        self.logger.debug(f"✓ {idx}/{process_count} {update_id}")
+                    else:
+                        fail_count += 1
+                        self.logger.warning(f"✗ {idx}/{process_count} {update_id} - 分析失败")
+                except Exception as e:
+                    fail_count += 1
+                    self.logger.error(f"✗ {idx}/{process_count} {update_id} - 异常: {e}")
+                
+                self._print_progress(idx, process_count, success_count, fail_count, start_time)
+        
+        # 最终进度和统计
+        self._print_progress(process_count, process_count, success_count, fail_count, start_time)
+        total_time = time.time() - start_time
+        self._print_summary(process_count, success_count, fail_count, total_time)
+
     def _analyze_batch(self):
         """批量分析（并发处理）"""
         # 统计待处理数量
@@ -373,11 +446,16 @@ def main():
         '''
     )
     
-    # 单条分析选项
+    # 单条/多条分析选项
     parser.add_argument(
         '--update-id',
         type=str,
         help='分析指定 ID 的更新记录'
+    )
+    parser.add_argument(
+        '--batch',
+        type=str,
+        help='批量分析多个指定 ID（逗号分隔，如: id1,id2,id3）'
     )
     parser.add_argument(
         '--limit',

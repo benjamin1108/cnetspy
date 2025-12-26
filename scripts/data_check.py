@@ -583,7 +583,7 @@ AI 分析质量校验
         
         # 查询已分析（title_translated 不为空）但 subcategory 为空的记录
         cursor.execute("""
-            SELECT update_id, vendor, source_channel, title, publish_date, source_url
+            SELECT update_id, vendor, source_channel, title, title_translated, publish_date, source_url
             FROM updates 
             WHERE title_translated IS NOT NULL AND title_translated != ''
             AND (product_subcategory IS NULL OR product_subcategory = '')
@@ -607,11 +607,13 @@ AI 分析质量校验
             print(f"  {vendor}: {count} 条")
         print()
         
-        # 显示详细列表
+        # 显示详细列表（使用中文翻译标题）
         print("-" * 60)
         table_data = []
-        for update_id, vendor, channel, title, date, url in records:
-            table_data.append([vendor, date, title[:50], update_id[:20]])
+        for update_id, vendor, channel, title, title_translated, date, url in records:
+            # 优先显示中文翻译标题
+            display_title = title_translated if title_translated else title
+            table_data.append([vendor, date, display_title[:50], update_id[:20]])
         
         print(tabulate(table_data, headers=['厂商', '日期', '标题', 'ID'], tablefmt='simple'))
         print()
