@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudNetSpy API 测试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            min-height: 100px;
+            font-family: monospace;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button.secondary {
+            background: #95a5a6;
+        }
+        
+        button.secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        button.danger {
+            background: #e74c3c;
+        }
+        
+        button.danger:hover {
+            background: #c0392b;
+        }
+        
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .result pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .update-list {
+            display: grid;
+            gap: 10px;
+        }
+        
+        .update-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .update-item:hover {
+            border-color: #3498db;
+            background: #f8f9fa;
+        }
+        
+        .update-item h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .update-item .meta {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-right: 5px;
+        }
+        
+        .badge.success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .badge.warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+        
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #060;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .task-monitor {
+            display: grid;
+            gap: 10px;
+        }
+        
+        .task-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            transition: width 0.3s;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            border-bottom-color: #3498db;
+            color: #3498db;
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 CloudNetSpy API 测试控制台</h1>
+        
+        <!-- 全局统计 -->
+        <div class="section">
+            <h2>📊 全局统计</h2>
+            <button onclick="loadStats()">刷新统计</button>
+            <div id="stats-container" class="stats-grid" style="margin-top: 15px;"></div>
+        </div>
+        
+        <!-- 标签页 -->
+        <div class="section">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('updates')">更新列表</div>
+                <div class="tab" onclick="switchTab('detail')">更新详情</div>
+                <div class="tab" onclick="switchTab('single-analysis')">单条分析</div>
+                <div class="tab" onclick="switchTab('batch-analysis')">批量分析</div>
+                <div class="tab" onclick="switchTab('tasks')">任务监控</div>
+            </div>
+            
+            <!-- Tab 1: 更新列表 -->
+            <div id="tab-updates" class="tab-content active">
+                <h2>📋 更新列表查询</h2>
+                <div class="filters">
+                    <div class="form-group">
+                        <label>厂商</label>
+                        <select id="filter-vendor">
+                            <option value="">全部</option>
+                            <option value="aws">AWS</option>
+                            <option value="azure">Azure</option>
+                            <option value="gcp">GCP</option>
+                            <option value="huawei">华为云</option>
+                            <option value="tencentcloud">腾讯云</option>
+                            <option value="volcengine">火山引擎</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>来源类型</label>
+                        <select id="filter-source">
+                            <option value="">全部</option>
+                            <option value="blog">Blog</option>
+                            <option value="whatsnew">What's New</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>更新类型</label>
+                        <select id="filter-type">
+                            <option value="">全部</option>
+                            <option value="new_feature">新功能</option>
+                            <option value="enhancement">增强</option>
+                            <option value="integration">集成</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>是否已分析</label>
+                        <select id="filter-analyzed">
+                            <option value="">全部</option>
+                            <option value="true">已分析</option>
+                            <option value="false">未分析</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>关键词</label>
+                        <input type="text" id="filter-keyword" placeholder="搜索标题和内容">
+                    </div>
+                    <div class="form-group">
+                        <label>每页数量</label>
+                        <input type="number" id="page-size" value="10" min="1" max="100">
+                    </div>
+                </div>
+                <button onclick="loadUpdates(1)">查询</button>
+                <button class="secondary" onclick="clearFilters()">清空过滤器</button>
+                <div id="updates-result" class="result"></div>
+            </div>
+            
+            <!-- Tab 2: 更新详情 -->
+            <div id="tab-detail" class="tab-content">
+                <h2>📄 更新详情</h2>
+                <div class="form-group">
+                    <label>Update ID</label>
+                    <input type="text" id="detail-id" placeholder="输入 update_id">
+                </div>
+                <button onclick="loadDetail()">查询详情</button>
+                <button class="secondary" onclick="loadRawContent()">查看原始Markdown</button>
+                <div id="detail-result" class="result"></div>
+            </div>
+            
+            <!-- Tab 3: 单条分析 -->
+            <div id="tab-single-analysis" class="tab-content">
+                <h2>🤖 单条AI分析</h2>
+                <div class="form-group">
+                    <label>Update ID</label>
+                    <input type="text" id="analysis-id" placeholder="输入 update_id">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="force-analysis"> 强制重新分析
+                    </label>
+                </div>
+                <button onclick="analyzeSingle()">执行分析</button>
+                <div id="analysis-result" class="result"></div>
+            </div>
+            
+            <!-- Tab 4: 批量分析 -->
+            <div id="tab-batch-analysis" class="tab-content">
+                <h2>⚡ 批量分析任务</h2>
+                <div class="form-group">
+                    <label>过滤条件（JSON格式）</label>
+                    <textarea id="batch-filters" placeholder='{"vendor": "aws", "has_analysis": false}'></textarea>
+                </div>
+                <div class="form-group">
+                    <label>批处理大小</label>
+                    <input type="number" id="batch-size" value="50" min="1" max="100">
+                </div>
+                <button onclick="createBatchTask()">创建批量任务</button>
+                <div id="batch-result" class="result"></div>
+            </div>
+            
+            <!-- Tab 5: 任务监控 -->
+            <div id="tab-tasks" class="tab-content">
+                <h2>📈 任务监控</h2>
+                <button onclick="loadTasks()">刷新任务列表</button>
+                <button class="secondary" onclick="toggleAutoRefresh()">
+                    <span id="auto-refresh-text">开启自动刷新</span>
+                </button>
+                <div id="tasks-result" class="task-monitor" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8088/api/v1';
+        let currentPage = 1;
+        let autoRefreshInterval = null;
+        
+        // 切换标签页
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+        
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/stats/overview`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '加载统计失败');
+                }
+                
+                const stats = data.data;
+                const container = document.getElementById('stats-container');
+                
+                // 计算厂商总数
+                const vendorCount = Object.keys(stats.vendors).length;
+                
+                container.innerHTML = `
+                    <div class="stat-card">
+                        <h3>更新总数</h3>
+                        <div class="value">${stats.total_updates}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>厂商数量</h3>
+                        <div class="value">${vendorCount}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>分析覆盖率</h3>
+                        <div class="value">${(stats.analysis_coverage * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>最后爬取</h3>
+                        <div class="value" style="font-size: 16px;">${stats.last_crawl_time || '无数据'}</div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('stats-container').innerHTML = 
+                    `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 加载更新列表
+        async function loadUpdates(page = 1) {
+            currentPage = page;
+            const params = new URLSearchParams();
+            params.append('page', page);
+            params.append('page_size', document.getElementById('page-size').value);
+            
+            const vendor = document.getElementById('filter-vendor').value;
+            const source = document.getElementById('filter-source').value;
+            const type = document.getElementById('filter-type').value;
+            const analyzed = document.getElementById('filter-analyzed').value;
+            const keyword = document.getElementById('filter-keyword').value;
+            
+            if (vendor) params.append('vendor', vendor);
+            if (source) params.append('source_channel', source);
+            if (type) params.append('update_type', type);
+            if (analyzed) params.append('has_analysis', analyzed);
+            if (keyword) params.append('keyword', keyword);
+            
+            const resultDiv = document.getElementById('updates-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/updates?${params}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                const { items, pagination } = data.data;
+                
+                let html = '<div class="update-list">';
+                items.forEach(item => {
+                    const badge = item.has_analysis 
+                        ? '<span class="badge success">已分析</span>' 
+                        : '<span class="badge warning">未分析</span>';
+                    
+                    html += `
+                        <div class="update-item" onclick="viewDetail('${item.update_id}')">
+                            <h4>${item.title_translated || item.title}</h4>
+                            <div class="meta">
+                                ${badge}
+                                <span>${item.vendor}</span> | 
+                                <span>${item.source_channel}</span> | 
+                                <span>${item.publish_date}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                // 分页
+                html += `
+                    <div class="pagination">
+                        <button ${page <= 1 ? 'disabled' : ''} onclick="loadUpdates(${page - 1})">上一页</button>
+                        <span>第 ${pagination.page} / ${pagination.total_pages} 页（共 ${pagination.total} 条）</span>
+                        <button ${page >= pagination.total_pages ? 'disabled' : ''} onclick="loadUpdates(${page + 1})">下一页</button>
+                    </div>
+                `;
+                
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 查看详情
+        function viewDetail(updateId) {
+            document.getElementById('detail-id').value = updateId;
+            switchTab('detail');
+            document.querySelectorAll('.tab')[1].click();
+            loadDetail();
+        }
+        
+        // 加载详情
+        async function loadDetail() {
+            const updateId = document.getElementById('detail-id').value.trim();
+            if (!updateId) {
+                alert('请输入 Update ID');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('detail-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/updates/${updateId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data.data, null, 2)}</pre>`;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 加载原始内容
+        async function loadRawContent() {
+            const updateId = document.getElementById('detail-id').value.trim();
+            if (!updateId) {
+                alert('请输入 Update ID');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('detail-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/updates/${updateId}/raw`);
+                const content = await response.text();
+                
+                if (!response.ok) {
+                    throw new Error('加载失败');
+                }
+                
+                resultDiv.innerHTML = `<pre>${content}</pre>`;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 单条分析
+        async function analyzeSingle() {
+            const updateId = document.getElementById('analysis-id').value.trim();
+            if (!updateId) {
+                alert('请输入 Update ID');
+                return;
+            }
+            
+            const force = document.getElementById('force-analysis').checked;
+            const resultDiv = document.getElementById('analysis-result');
+            resultDiv.innerHTML = '<div class="loading">分析中，请稍候...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/analysis/single/${updateId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '分析失败');
+                }
+                
+                const result = data.data;
+                let html = '<div class="success">分析完成！</div>';
+                html += `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">分析失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 创建批量任务
+        async function createBatchTask() {
+            const filtersText = document.getElementById('batch-filters').value.trim();
+            const batchSize = parseInt(document.getElementById('batch-size').value);
+            
+            let filters = {};
+            if (filtersText) {
+                try {
+                    filters = JSON.parse(filtersText);
+                } catch (e) {
+                    alert('过滤条件JSON格式错误');
+                    return;
+                }
+            }
+            
+            const resultDiv = document.getElementById('batch-result');
+            resultDiv.innerHTML = '<div class="loading">创建任务中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/analysis/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filters, batch_size: batchSize })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '创建失败');
+                }
+                
+                const task = data.data;
+                let html = '<div class="success">批量任务已创建！</div>';
+                html += `<pre>${JSON.stringify(task, null, 2)}</pre>`;
+                html += `<button onclick="monitorTask('${task.task_id}')">监控此任务</button>`;
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">创建失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 监控任务
+        function monitorTask(taskId) {
+            switchTab('tasks');
+            document.querySelectorAll('.tab')[4].click();
+            loadTaskDetail(taskId);
+        }
+        
+        // 加载任务详情
+        async function loadTaskDetail(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/analysis/tasks/${taskId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                const task = data.data;
+                const progress = (task.progress * 100).toFixed(1);
+                
+                const html = `
+                    <div class="task-item">
+                        <h3>任务 ${task.task_id}</h3>
+                        <p>状态: <strong>${task.status}</strong></p>
+                        <p>总数: ${task.total_count} | 已处理: ${task.processed_count} | 成功: ${task.success_count} | 失败: ${task.fail_count}</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        <p style="text-align: center; margin-top: 5px;">${progress}%</p>
+                        <button onclick="loadTaskDetail('${task.task_id}')">刷新</button>
+                    </div>
+                `;
+                
+                document.getElementById('tasks-result').innerHTML = html;
+            } catch (err) {
+                document.getElementById('tasks-result').innerHTML = 
+                    `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 加载任务列表
+        async function loadTasks() {
+            const resultDiv = document.getElementById('tasks-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/analysis/tasks?page=1&page_size=10`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                const { items } = data.data;
+                
+                if (items.length === 0) {
+                    resultDiv.innerHTML = '<p>暂无任务</p>';
+                    return;
+                }
+                
+                let html = '';
+                items.forEach(task => {
+                    const progress = (task.progress * 100).toFixed(1);
+                    html += `
+                        <div class="task-item">
+                            <h3>任务 ${task.task_id}</h3>
+                            <p>状态: <strong>${task.status}</strong></p>
+                            <p>总数: ${task.total_count} | 已处理: ${task.processed_count} | 成功: ${task.success_count} | 失败: ${task.fail_count}</p>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <p style="text-align: center; margin-top: 5px;">${progress}%</p>
+                        </div>
+                    `;
+                });
+                
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 切换自动刷新
+        function toggleAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                document.getElementById('auto-refresh-text').textContent = '开启自动刷新';
+            } else {
+                autoRefreshInterval = setInterval(loadTasks, 3000);
+                document.getElementById('auto-refresh-text').textContent = '关闭自动刷新';
+            }
+        }
+        
+        // 清空过滤器
+        function clearFilters() {
+            document.getElementById('filter-vendor').value = '';
+            document.getElementById('filter-source').value = '';
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-analyzed').value = '';
+            document.getElementById('filter-keyword').value = '';
+        }
+        
+        // 页面加载时初始化
+        window.onload = function() {
+            loadStats();
+            loadUpdates(1);
+        };
+    </script>
+</body>
+</html>

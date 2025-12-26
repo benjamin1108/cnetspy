@@ -11,6 +11,7 @@ import os
 import sqlite3
 import logging
 import threading
+import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from contextlib import contextmanager
@@ -114,15 +115,14 @@ class UpdateDataLayer:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS analysis_tasks (
                     task_id TEXT PRIMARY KEY,
-                    update_id TEXT NOT NULL,
+                    update_id TEXT,
                     task_name TEXT NOT NULL,
                     task_status TEXT NOT NULL,
                     task_result TEXT,
                     error_message TEXT,
                     started_at DATETIME,
                     completed_at DATETIME,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (update_id) REFERENCES updates(update_id) ON DELETE CASCADE
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
@@ -601,15 +601,15 @@ class UpdateDataLayer:
     ) -> bool:
         """
         更新分析字段
-        
+            
         Args:
             update_id: 更新记录 ID
-            fields: 要更新的字段字典，支持的字段包括：
+            fields: 要更新的字段字典,支持的字段包括：
                    title_translated, content_summary, update_type,
                    product_subcategory, tags
-                   
+                       
         Returns:
-            成功返回 True，失败返回 False
+            成功返回 True,失败返回 False
         """
         allowed_fields = {
             'title_translated',
@@ -619,39 +619,601 @@ class UpdateDataLayer:
             'tags',
             'analysis_filepath'
         }
-        
+            
         # 过滤非法字段
         update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
-        
+            
         if not update_fields:
             self.logger.warning("没有有效的字段需要更新")
             return False
-        
+            
         try:
             with self.lock:
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
-                    
+                        
                     # 构建 UPDATE SQL
                     set_clauses = [f"{field} = ?" for field in update_fields.keys()]
                     set_clauses.append("updated_at = CURRENT_TIMESTAMP")
                     set_clause = ", ".join(set_clauses)
-                    
+                        
                     values = list(update_fields.values())
                     values.append(update_id)
-                    
+                        
                     sql = f"UPDATE updates SET {set_clause} WHERE update_id = ?"
-                    
+                        
                     cursor.execute(sql, values)
                     conn.commit()
-                    
+                        
                     if cursor.rowcount > 0:
                         self.logger.debug(f"更新分析字段成功: {update_id}")
                         return True
                     else:
                         self.logger.warning(f"未找到更新记录: {update_id}")
                         return False
-                    
+                        
         except Exception as e:
             self.logger.error(f"更新分析字段失败: {e}")
             return False
+        
+    # ==================== API 扩展方法 ====================
+        
+    def query_updates_paginated(
+        self,
+        filters: Dict[str, Any],
+        limit: int,
+        offset: int,
+        sort_by: str = "publish_date",
+        order: str = "desc"
+    ) -> List[Dict[str, Any]]:
+        """
+        通用分页查询方法（API专用）
+            
+        Args:
+            filters: 过滤条件字典,支持：
+                - vendor, source_channel, update_type
+                - product_name（模糊匹配）, product_category
+                - date_from, date_to
+                - has_analysis（bool）
+                - keyword（搜索title+content）
+                - tags（逗号分隔,OR匹配）
+            limit: 每页数量
+            offset: 偏移量
+            sort_by: 排序字段
+            order: 排序方向（asc/desc）
+                
+        Returns:
+            更新记录列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                    
+                where_clauses = []
+                params = []
+                    
+                # vendor过滤
+                if filters.get('vendor'):
+                    where_clauses.append("vendor = ?")
+                    params.append(filters['vendor'])
+                    
+                # source_channel过滤
+                if filters.get('source_channel'):
+                    where_clauses.append("source_channel = ?")
+                    params.append(filters['source_channel'])
+                    
+                # update_type过滤
+                if filters.get('update_type'):
+                    where_clauses.append("update_type = ?")
+                    params.append(filters['update_type'])
+                    
+                # product_name模糊匹配
+                if filters.get('product_name'):
+                    where_clauses.append("product_name LIKE ?")
+                    params.append(f"%{filters['product_name']}%")
+                    
+                # product_category过滤
+                if filters.get('product_category'):
+                    where_clauses.append("product_category = ?")
+                    params.append(filters['product_category'])
+                    
+                # 日期范围
+                if filters.get('date_from'):
+                    where_clauses.append("publish_date >= ?")
+                    params.append(filters['date_from'])
+                    
+                if filters.get('date_to'):
+                    where_clauses.append("publish_date <= ?")
+                    params.append(filters['date_to'])
+                    
+                # has_analysis过滤（增强判定）
+                if filters.get('has_analysis') is not None:
+                    if filters['has_analysis']:
+                        where_clauses.append(
+                            "title_translated IS NOT NULL "
+                            "AND title_translated != '' "
+                            "AND LENGTH(TRIM(title_translated)) >= 2 "
+                            "AND title_translated NOT IN ('N/A', '暂无', 'None', 'null')"
+                        )
+                    else:
+                        where_clauses.append(
+                            "(title_translated IS NULL "
+                            "OR title_translated = '' "
+                            "OR LENGTH(TRIM(title_translated)) < 2 "
+                            "OR title_translated IN ('N/A', '暂无', 'None', 'null'))"
+                        )
+                    
+                # keyword关键词搜索
+                if filters.get('keyword'):
+                    where_clauses.append("(title LIKE ? OR content LIKE ?)")
+                    keyword_param = f"%{filters['keyword']}%"
+                    params.extend([keyword_param, keyword_param])
+                    
+                # tags标签过滤
+                # ⚠️ 性能警告: LIKE查询无法使用索引
+                if filters.get('tags'):
+                    tag_list = [t.strip() for t in filters['tags'].split(',')]
+                    tag_conditions = []
+                    for tag in tag_list:
+                        tag_conditions.append("tags LIKE ?")
+                        # 匹配JSON数组中的字符串值
+                        params.append(f'%"{tag}"%')
+                    where_clauses.append(f"({' OR '.join(tag_conditions)})")
+                    
+                # 构建WHERE子句
+                where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+                    
+                # 验证排序字段（防SQL注入）
+                allowed_sort_fields = ['publish_date', 'crawl_time', 'update_id', 'vendor']
+                if sort_by not in allowed_sort_fields:
+                    sort_by = 'publish_date'
+                    
+                # 验证排序方向
+                order = order.upper()
+                if order not in ['ASC', 'DESC']:
+                    order = 'DESC'
+                    
+                # 构建SQL
+                sql = f"""
+                    SELECT * FROM updates
+                    WHERE {where_clause}
+                    ORDER BY {sort_by} {order}
+                    LIMIT ? OFFSET ?
+                """
+                params.extend([limit, offset])
+                    
+                cursor.execute(sql, params)
+                return [dict(row) for row in cursor.fetchall()]
+                    
+        except Exception as e:
+            self.logger.error(f"分页查询失败: {e}")
+            return []
+        
+    def count_updates_with_filters(self, **filters) -> int:
+        """
+        扩展版统计方法（支持所有过滤条件）
+            
+        Args:
+            **filters: 与 query_updates_paginated 相同的过滤条件
+                
+        Returns:
+            符合条件的记录数量
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                    
+                where_clauses = []
+                params = []
+                    
+                # 复用 query_updates_paginated 的过滤逻辑
+                if filters.get('vendor'):
+                    where_clauses.append("vendor = ?")
+                    params.append(filters['vendor'])
+                    
+                if filters.get('source_channel'):
+                    where_clauses.append("source_channel = ?")
+                    params.append(filters['source_channel'])
+                    
+                if filters.get('update_type'):
+                    where_clauses.append("update_type = ?")
+                    params.append(filters['update_type'])
+                    
+                if filters.get('product_name'):
+                    where_clauses.append("product_name LIKE ?")
+                    params.append(f"%{filters['product_name']}%")
+                    
+                if filters.get('product_category'):
+                    where_clauses.append("product_category = ?")
+                    params.append(filters['product_category'])
+                    
+                if filters.get('date_from'):
+                    where_clauses.append("publish_date >= ?")
+                    params.append(filters['date_from'])
+                    
+                if filters.get('date_to'):
+                    where_clauses.append("publish_date <= ?")
+                    params.append(filters['date_to'])
+                    
+                if filters.get('has_analysis') is not None:
+                    if filters['has_analysis']:
+                        where_clauses.append(
+                            "title_translated IS NOT NULL "
+                            "AND title_translated != '' "
+                            "AND LENGTH(TRIM(title_translated)) >= 2 "
+                            "AND title_translated NOT IN ('N/A', '暂无', 'None', 'null')"
+                        )
+                    else:
+                        where_clauses.append(
+                            "(title_translated IS NULL "
+                            "OR title_translated = '' "
+                            "OR LENGTH(TRIM(title_translated)) < 2 "
+                            "OR title_translated IN ('N/A', '暂无', 'None', 'null'))"
+                        )
+                    
+                if filters.get('keyword'):
+                    where_clauses.append("(title LIKE ? OR content LIKE ?)")
+                    keyword_param = f"%{filters['keyword']}%"
+                    params.extend([keyword_param, keyword_param])
+                    
+                if filters.get('tags'):
+                    tag_list = [t.strip() for t in filters['tags'].split(',')]
+                    tag_conditions = []
+                    for tag in tag_list:
+                        tag_conditions.append("tags LIKE ?")
+                        params.append(f'%"{tag}"%')
+                    where_clauses.append(f"({' OR '.join(tag_conditions)})")
+                    
+                where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+                sql = f"SELECT COUNT(*) as count FROM updates WHERE {where_clause}"
+                    
+                cursor.execute(sql, params)
+                result = cursor.fetchone()
+                return result['count'] if result else 0
+                    
+        except Exception as e:
+            self.logger.error(f"统计查询失败: {e}")
+            return 0
+        
+    def get_vendor_statistics(
+        self, 
+        date_from: Optional[str] = None, 
+        date_to: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        按厂商统计
+            
+        Args:
+            date_from: 开始日期（可选）
+            date_to: 结束日期（可选）
+                
+        Returns:
+            厂商统计列表,每项包含 vendor, count, analyzed
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                    
+                where_clauses = []
+                params = []
+                    
+                if date_from:
+                    where_clauses.append("publish_date >= ?")
+                    params.append(date_from)
+                    
+                if date_to:
+                    where_clauses.append("publish_date <= ?")
+                    params.append(date_to)
+                    
+                where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+                    
+                sql = f"""
+                    SELECT 
+                        vendor,
+                        COUNT(*) as count,
+                        SUM(CASE 
+                            WHEN title_translated IS NOT NULL 
+                                AND title_translated != '' 
+                                AND LENGTH(TRIM(title_translated)) >= 2
+                                AND title_translated NOT IN ('N/A', '暂无', 'None', 'null')
+                            THEN 1 
+                            ELSE 0 
+                        END) as analyzed
+                    FROM updates
+                    WHERE {where_clause}
+                    GROUP BY vendor
+                    ORDER BY count DESC
+                """
+                    
+                cursor.execute(sql, params)
+                return [dict(row) for row in cursor.fetchall()]
+                    
+        except Exception as e:
+            self.logger.error(f"厂商统计查询失败: {e}")
+            return []
+        
+    def get_analysis_coverage(self) -> float:
+        """
+        计算分析覆盖率（增强版）
+            
+        Returns:
+            分析覆盖率（0.0 - 1.0）
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                    
+                cursor.execute("SELECT COUNT(*) as total FROM updates")
+                total = cursor.fetchone()['total']
+                    
+                if total == 0:
+                    return 0.0
+                    
+                # 增强has_analysis判定,排除无效值
+                cursor.execute(
+                    "SELECT COUNT(*) as analyzed FROM updates "
+                    "WHERE title_translated IS NOT NULL "
+                    "AND title_translated != '' "
+                    "AND LENGTH(TRIM(title_translated)) >= 2 "
+                    "AND title_translated NOT IN ('N/A', '暂无', 'None', 'null')"
+                )
+                analyzed = cursor.fetchone()['analyzed']
+                    
+                return round(analyzed / total, 4)
+                    
+        except Exception as e:
+            self.logger.error(f"分析覆盖率计算失败: {e}")
+            return 0.0
+    
+    # ==================== 批量任务管理方法 ====================
+    
+    def create_analysis_task(self, task_data: Dict[str, Any]) -> bool:
+        """
+        创建批量分析任务记录
+        
+        Args:
+            task_data: 任务数据,包含:
+                - task_id: 任务ID
+                - task_name: 任务名称
+                - task_status: 任务状态
+                - vendor: 厂商(可选)
+                - total_count: 总数量
+                - started_at: 开始时间
+                
+        Returns:
+            成功返回True
+        """
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    cursor.execute('''
+                        INSERT INTO analysis_tasks (
+                            task_id, update_id, task_name, task_status,
+                            task_result, started_at
+                        ) VALUES (?, NULL, ?, ?, ?, ?)
+                    ''', (
+                        task_data['task_id'],
+                        task_data.get('task_name', 'batch_analysis'),
+                        task_data.get('task_status', 'queued'),
+                        json.dumps({
+                            'filters': task_data.get('filters', '{}'),  # 保存过滤条件
+                            'vendor': task_data.get('vendor'),
+                            'total_count': task_data.get('total_count', 0),
+                            'completed_count': 0,
+                            'success_count': 0,
+                            'fail_count': 0
+                        }),
+                        task_data.get('started_at')
+                    ))
+                    
+                    conn.commit()
+                    return True
+                    
+        except Exception as e:
+            self.logger.error(f"创建任务失败: {e}")
+            return False
+    
+    def update_task_status(
+        self, 
+        task_id: str, 
+        status: str, 
+        progress: Optional[Dict] = None,
+        error: Optional[str] = None
+    ) -> bool:
+        """
+        更新任务状态
+        
+        Args:
+            task_id: 任务ID
+            status: 任务状态
+            progress: 进度信息(可选)
+            error: 错误消息(可选)
+            
+        Returns:
+            成功返回True
+        """
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    update_fields = ['task_status = ?']
+                    params = [status]
+                    
+                    if progress:
+                        update_fields.append('task_result = ?')
+                        params.append(json.dumps(progress))
+                    
+                    if error:
+                        update_fields.append('error_message = ?')
+                        params.append(error)
+                    
+                    if status in ['completed', 'failed']:
+                        update_fields.append('completed_at = ?')
+                        params.append(datetime.now().isoformat())
+                    
+                    params.append(task_id)
+                    
+                    sql = f"UPDATE analysis_tasks SET {', '.join(update_fields)} WHERE task_id = ?"
+                    cursor.execute(sql, params)
+                    conn.commit()
+                    
+                    return cursor.rowcount > 0
+                    
+        except Exception as e:
+            self.logger.error(f"更新任务状态失败: {e}")
+            return False
+    
+    def increment_task_progress(
+        self, 
+        task_id: str, 
+        success: bool,
+        error_msg: Optional[str] = None
+    ) -> bool:
+        """
+        增加任务进度计数(线程安全)
+        
+        Args:
+            task_id: 任务ID
+            success: 是否成功
+            error_msg: 错误消息(可选)
+            
+        Returns:
+            成功返回True
+        """
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # 获取当前进度
+                    cursor.execute(
+                        'SELECT task_result, task_status FROM analysis_tasks WHERE task_id = ?',
+                        (task_id,)
+                    )
+                    row = cursor.fetchone()
+                    if not row:
+                        return False
+                    
+                    result = json.loads(row['task_result'])
+                    result['completed_count'] = result.get('completed_count', 0) + 1
+                    
+                    if success:
+                        result['success_count'] = result.get('success_count', 0) + 1
+                    else:
+                        result['fail_count'] = result.get('fail_count', 0) + 1
+                        if error_msg:
+                            errors = result.get('errors', [])
+                            errors.append(error_msg)
+                            result['errors'] = errors[-100:]  # 保留最近100条错误
+                    
+                    # 判断是否完成
+                    if result['completed_count'] >= result['total_count']:
+                        status = 'completed'
+                        completed_at = datetime.now().isoformat()
+                        cursor.execute(
+                            'UPDATE analysis_tasks SET task_status = ?, task_result = ?, completed_at = ? WHERE task_id = ?',
+                            (status, json.dumps(result), completed_at, task_id)
+                        )
+                    else:
+                        # 更新为running状态
+                        current_status = row['task_status']
+                        if current_status == 'queued':
+                            cursor.execute(
+                                'UPDATE analysis_tasks SET task_status = ?, task_result = ? WHERE task_id = ?',
+                                ('running', json.dumps(result), task_id)
+                            )
+                        else:
+                            cursor.execute(
+                                'UPDATE analysis_tasks SET task_result = ? WHERE task_id = ?',
+                                (json.dumps(result), task_id)
+                            )
+                    
+                    conn.commit()
+                    return True
+                    
+        except Exception as e:
+            self.logger.error(f"更新任务进度失败: {e}")
+            return False
+    
+    def get_task_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        根据task_id获取任务记录
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            任务数据字典,不存在返回None
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM analysis_tasks WHERE task_id = ?', (task_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    task = dict(row)
+                    # 解析task_result JSON
+                    if task.get('task_result'):
+                        task['task_result'] = json.loads(task['task_result'])
+                    return task
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"获取任务记录失败: {e}")
+            return None
+    
+    def list_tasks_paginated(
+        self, 
+        limit: int = 20, 
+        offset: int = 0,
+        status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        分页查询任务列表(按创建时间倒序)
+        
+        Args:
+            limit: 每页数量
+            offset: 偏移量
+            status: 状态过滤（可选：queued/running/completed/failed）
+            
+        Returns:
+            任务列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建SQL
+                where_clauses = ["task_name = 'batch_analysis'"]
+                params = []
+                
+                if status:
+                    where_clauses.append("status = ?")
+                    params.append(status)
+                
+                where_clause = " AND ".join(where_clauses)
+                params.extend([limit, offset])
+                
+                cursor.execute(f'''
+                    SELECT * FROM analysis_tasks
+                    WHERE {where_clause}
+                    ORDER BY created_at DESC
+                    LIMIT ? OFFSET ?
+                ''', params)
+                
+                tasks = []
+                for row in cursor.fetchall():
+                    task = dict(row)
+                    if task.get('task_result'):
+                        task['task_result'] = json.loads(task['task_result'])
+                    tasks.append(task)
+                
+                return tasks
+                
+        except Exception as e:
+            self.logger.error(f"查询任务列表失败: {e}")
+            return []

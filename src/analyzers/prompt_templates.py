@@ -30,17 +30,27 @@ class PromptTemplates:
     @classmethod
     def _get_validation_config(cls) -> Dict[str, Any]:
         """获取验证配置"""
+        # 默认配置
+        defaults = {
+            'title_max_length': 50,
+            'summary_min_length': 150,
+            'summary_max_length': 500,
+            'summary_max_items': 5,
+            'tags_min_count': 3,
+            'tags_max_count': 8,
+        }
+        
         if cls._config is None:
-            # 默认值
-            return {
-                'title_max_length': 50,
-                'summary_min_length': 150,
-                'summary_max_length': 500,
-                'summary_max_items': 5,
-                'tags_min_count': 3,
-                'tags_max_count': 8,
-            }
-        return cls._config.get('validation', {})
+            return defaults
+        
+        # 尝试从不同层级获取 validation 配置
+        validation = cls._config.get('validation', {})
+        if not validation:
+            # 尝试从 default.validation 获取
+            validation = cls._config.get('default', {}).get('validation', {})
+        
+        # 合并默认值
+        return {**defaults, **validation}
     
     @staticmethod
     def get_update_analysis_prompt(update_data: Dict[str, Any]) -> str:

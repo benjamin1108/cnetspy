@@ -34,6 +34,7 @@ show_help() {
     echo -e "  $0 <命令> [选项]"
     echo ""
     echo -e "${YELLOW}命令:${NC}"
+    echo -e "  ${GREEN}api${NC}       启动 API 服务"
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
     echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
@@ -48,6 +49,12 @@ show_help() {
     echo -e "  --force           强制重新爬取"
     echo -e "  --debug           调试模式"
     echo ""
+    echo -e "${YELLOW}api 选项:${NC}"
+    echo -e "  --dev             开发模式（自动重载，默认）"
+    echo -e "  --prod            生产模式（性能优化）"
+    echo -e "  --host <地址>     监听地址（默认: 0.0.0.0）"
+    echo -e "  --port <端口>     监听端口（默认: 8088）"
+    echo -e ""
     echo -e "${YELLOW}analyze 选项:${NC}"
     echo -e "  --update-id <ID>  分析指定 ID 的更新记录"
     echo -e "  --batch           批量分析所有未处理记录"
@@ -57,6 +64,10 @@ show_help() {
     echo -e "  --verbose         显示详细日志"
     echo ""
     echo -e "${YELLOW}示例:${NC}"
+    echo -e "  $0 api                            # 启动 API 服务（开发模式）"
+    echo -e "  $0 api --prod                     # 生产模式启动"
+    echo -e "  $0 api --port 8080                # 自定义端口"
+    echo -e ""
     echo -e "  $0 crawl                          # 爬取所有"
     echo -e "  $0 crawl --vendor aws             # 仅爬取 AWS"
     echo -e "  $0 crawl --vendor gcp --source whatsnew  # 爬取 GCP whatsnew"
@@ -143,6 +154,70 @@ do_check() {
     "$PYTHON" scripts/data_check.py
 }
 
+# 启动 API 服务
+do_api() {
+    check_venv
+    
+    # 默认参数
+    MODE="dev"
+    HOST="0.0.0.0"
+    PORT="8088"
+    
+    # 解析参数
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --dev)
+                MODE="dev"
+                shift
+                ;;
+            --prod)
+                MODE="prod"
+                shift
+                ;;
+            --host)
+                HOST="$2"
+                shift 2
+                ;;
+            --port)
+                PORT="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    
+    # 检查 .env 文件
+    if [ ! -f ".env" ]; then
+        echo -e "${YELLOW}警告: .env 文件不存在${NC}"
+        echo -e "建议运行: ${GREEN}cp .env.example .env${NC}"
+        echo -e "然后编辑 .env 配置 GEMINI_API_KEY"
+        echo ""
+    fi
+    
+    echo -e "${BLUE}启动 API 服务...${NC}"
+    echo -e "模式: ${GREEN}${MODE}${NC}"
+    echo -e "地址: ${GREEN}http://${HOST}:${PORT}${NC}"
+    echo -e "测试页面: ${GREEN}http://127.0.0.1:${PORT}/static/test.html${NC}"
+    echo -e "API 文档: ${GREEN}http://127.0.0.1:${PORT}/docs${NC}"
+    echo ""
+    
+    if [ "$MODE" = "dev" ]; then
+        # 开发模式：自动重载
+        "$PYTHON" -m uvicorn src.api.app:app \
+            --host "$HOST" \
+            --port "$PORT" \
+            --reload
+    else
+        # 生产模式：多进程
+        "$PYTHON" -m uvicorn src.api.app:app \
+            --host "$HOST" \
+            --port "$PORT" \
+            --workers 4
+    fi
+}
+
 # AI 分析
 do_analyze() {
     check_venv
@@ -172,6 +247,10 @@ do_clean() {
 
 # 主入口
 case "${1:-help}" in
+    api)
+        shift
+        do_api "$@"
+        ;;
     crawl)
         shift
         do_crawl "$@"
