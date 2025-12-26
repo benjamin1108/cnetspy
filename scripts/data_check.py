@@ -10,6 +10,7 @@ import os
 import sys
 import re
 import sqlite3
+import argparse
 from datetime import datetime
 from collections import defaultdict
 from tabulate import tabulate
@@ -570,12 +571,105 @@ AI 分析质量校验
                     for issue in self.issues[key]:
                         print(f"    - {issue}")
                     print()
+    
+    def list_empty_subcategory(self) -> list:
+        """列出所有已分析但 subcategory 为空的记录"""
+        print("=" * 60)
+        print("📊 已分析但 subcategory 为空的记录")
+        print("=" * 60)
+        
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # 查询已分析（title_translated 不为空）但 subcategory 为空的记录
+        cursor.execute("""
+            SELECT update_id, vendor, source_channel, title, publish_date, source_url
+            FROM updates 
+            WHERE title_translated IS NOT NULL AND title_translated != ''
+            AND (product_subcategory IS NULL OR product_subcategory = '')
+            ORDER BY vendor, publish_date DESC
+        """)
+        
+        records = cursor.fetchall()
+        conn.close()
+        
+        if not records:
+            print("✅ 没有已分析但 subcategory 为空的记录")
+            return []
+        
+        # 按厂商分组统计
+        vendor_stats = defaultdict(int)
+        for record in records:
+            vendor_stats[record[1]] += 1
+        
+        print(f"\n共 {len(records)} 条记录:")
+        for vendor, count in sorted(vendor_stats.items()):
+            print(f"  {vendor}: {count} 条")
+        print()
+        
+        # 显示详细列表
+        print("-" * 60)
+        table_data = []
+        for update_id, vendor, channel, title, date, url in records:
+            table_data.append([vendor, date, title[:50], update_id[:20]])
+        
+        print(tabulate(table_data, headers=['厂商', '日期', '标题', 'ID'], tablefmt='simple'))
+        print()
+        
+        return [r[0] for r in records]  # 返回 update_id 列表
+    
+    def delete_empty_subcategory(self, update_ids: list, confirmed: bool = False) -> int:
+        """删除指定的记录"""
+        if not update_ids:
+            print("没有需要删除的记录")
+            return 0
+        
+        if not confirmed:
+            print(f"\n⚠️  即将删除 {len(update_ids)} 条记录")
+            confirm = input("确认删除？(yes/no): ").strip().lower()
+            if confirm != 'yes':
+                print("已取消删除")
+                return 0
+        
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # 批量删除
+        placeholders = ','.join(['?' for _ in update_ids])
+        cursor.execute(f"DELETE FROM updates WHERE update_id IN ({placeholders})", update_ids)
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        print(f"\n✅ 已删除 {deleted_count} 条记录")
+        return deleted_count
 
 
 def main():
     """主函数"""
+    parser = argparse.ArgumentParser(description='数据质量检查工具')
+    parser.add_argument('--clean-empty', action='store_true', 
+                        help='列出并删除已分析但 subcategory 为空的记录')
+    parser.add_argument('--list-empty', action='store_true',
+                        help='仅列出已分析但 subcategory 为空的记录（不删除）')
+    parser.add_argument('-y', '--yes', action='store_true',
+                        help='跳过确认提示，直接执行')
+    
+    args = parser.parse_args()
     checker = DataChecker(DB_PATH)
-    checker.run_all_checks()
+    
+    if args.list_empty:
+        # 仅列出，不删除
+        checker.list_empty_subcategory()
+    elif args.clean_empty:
+        # 列出并删除
+        update_ids = checker.list_empty_subcategory()
+        if update_ids:
+            checker.delete_empty_subcategory(update_ids, confirmed=args.yes)
+    else:
+        # 默认运行所有检查
+        checker.run_all_checks()
 
 
 if __name__ == '__main__':

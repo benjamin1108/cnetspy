@@ -126,10 +126,16 @@ class UpdateAnalyzer(BaseAnalyzer):
         # 4. 验证 product_subcategory
         product_subcategory = result.get('product_subcategory', '')
         if product_subcategory:
-            # 验证格式：小写英文+数字+下划线
-            if not re.match(r'^[a-z0-9_]+$', product_subcategory):
-                self.logger.warning(f"product_subcategory 格式无效: {product_subcategory}，清空")
-                product_subcategory = ''
+            # 获取厂商专属枚举
+            vendor = update_data.get('vendor', '').lower()
+            valid_subcategories = PromptTemplates.get_subcategories_for_vendor(vendor)
+            
+            if valid_subcategories:
+                # 有枚举配置，验证是否在列表中
+                if product_subcategory not in valid_subcategories:
+                    self.logger.warning(f"product_subcategory '{product_subcategory}' 不在 {vendor} 枚举中，清空")
+                    product_subcategory = ''
+            # 无枚举配置时，接受任意值
         validated['product_subcategory'] = product_subcategory
         
         # 5. 验证 tags

@@ -160,11 +160,20 @@ class BaseCrawler(ABC):
             
             source_identifier = update['source_identifier']
             
-            # 如果没有 content，用 description 填充
-            content = update.get('content', '') or update.get('description', '')
+            # 统一日期格式: YYYY-MM -> YYYY-MM-01
+            publish_date = update.get('publish_date', '')
+            if publish_date and len(publish_date) == 7:  # YYYY-MM 格式
+                publish_date = f"{publish_date}-01"
+                update['publish_date'] = publish_date
+            
+            # 获取 content（不自动用 description 填充，让 _export_to_file 统一处理）
+            content = update.get('content', '')
             
             # 保存原始文件
             filepath = self._export_to_file(update, content)
+            
+            # sync_entry 的 content 字段：优先用 content，否则用 description
+            sync_content = content or update.get('description', '')
             
             # 创建同步条目
             sync_entry = {
@@ -172,11 +181,11 @@ class BaseCrawler(ABC):
                 'publish_date': update.get('publish_date', ''),
                 'source_url': update.get('source_url', ''),
                 'source_identifier': source_identifier,
-                'content': content,
+                'content': sync_content,
                 'description': update.get('description', ''),
                 'product_name': update.get('product_name', ''),
                 'crawl_time': datetime.datetime.now().isoformat(),
-                'file_hash': hashlib.md5(content.encode('utf-8')).hexdigest(),
+                'file_hash': hashlib.md5(sync_content.encode('utf-8')).hexdigest(),
                 'vendor': self.vendor,
                 'source_type': self.source_type,
                 'filepath': filepath  # 添加文件路径
@@ -255,7 +264,32 @@ class BaseCrawler(ABC):
                 "",
             ])
             
-            final_content = "\n".join(metadata_lines) + content
+            # 组装正文内容（套用 description/stage/doc_links 等扩展字段）
+            body_parts = []
+            
+            # 如果有 content，直接使用
+            if content:
+                body_parts.append(content)
+            else:
+                # 否则组装 description/stage/doc_links
+                description = update.get('description', '')
+                stage = update.get('stage', '')
+                doc_links = update.get('doc_links', [])
+                
+                if description:
+                    body_parts.append("## 内容描述\n")
+                    body_parts.append(description)
+                
+                if stage:
+                    body_parts.append("\n## 发布阶段\n")
+                    body_parts.append(stage)
+                
+                if doc_links:
+                    body_parts.append("\n## 相关文档\n")
+                    for doc_link in doc_links:
+                        body_parts.append(f"- [{doc_link.get('text', '')}]({doc_link.get('url', '')})")
+            
+            final_content = "\n".join(metadata_lines) + '\n'.join(body_parts)
             
             os.makedirs(self.output_dir, exist_ok=True)
             with open(filepath, 'w', encoding='utf-8') as f:

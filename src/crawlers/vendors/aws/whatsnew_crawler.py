@@ -24,7 +24,6 @@ import html2text
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
 
 from src.crawlers.common.base_crawler import BaseCrawler
-from src.crawlers.common.sync_decorator import sync_to_database_decorator
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +229,9 @@ class AwsWhatsnewCrawler(BaseCrawler):
                 "sort_order": "desc",
                 "size": "100",
                 "item.locale": "en_US",
-                "tags.id": "whats-new-v2#general-products#amazon-vpc|whats-new-v2#general-products#aws-direct-connect|whats-new-v2#general-products#amazon-route-53|whats-new-v2#general-products#elastic-load-balancing|whats-new-v2#general-products#amazon-cloudfront|whats-new-v2#general-products#amazon-api-gateway|whats-new-v2#marketing-marchitecture#networking|whats-new-v2#marketing-marchitecture#networking-and-content-delivery|whats-new-v2#general-products#aws-global-accelerator|whats-new-v2#general-products#aws-transit-gateway|whats-new-v2#general-products#aws-vpn|whats-new-v2#general-products#aws-site-to-site|whats-new-v2#general-products#aws-client-vpn|whats-new-v2#general-products#aws-app-mesh"
+                # 网络产品过滤：具体产品 tag + 大类 tag（networking/networking-and-content-delivery）
+                # 大类 tag 会带来一些边缘案例，AI 分析时会判断 subcategory 为空，后续通过 check --clean-empty 清理
+                "tags.id": "whats-new-v2#general-products#amazon-vpc|whats-new-v2#general-products#aws-direct-connect|whats-new-v2#general-products#amazon-route-53|whats-new-v2#general-products#elastic-load-balancing|whats-new-v2#general-products#amazon-cloudfront|whats-new-v2#general-products#amazon-api-gateway|whats-new-v2#marketing-marchitecture#networking|whats-new-v2#marketing-marchitecture#networking-and-content-delivery|whats-new-v2#general-products#aws-global-accelerator|whats-new-v2#general-products#aws-transit-gateway|whats-new-v2#general-products#aws-vpn|whats-new-v2#general-products#aws-site-to-site|whats-new-v2#general-products#aws-client-vpn|whats-new-v2#general-products#aws-app-mesh|whats-new-v2#general-products#aws-privatelink|whats-new-v2#general-products#aws-network-firewall|whats-new-v2#general-products#amazon-vpc-lattice"
             }
             
             page = 0
@@ -389,11 +390,7 @@ class AwsWhatsnewCrawler(BaseCrawler):
             是否成功
         """
         try:
-            # 生成完整的 Markdown 内容（包含链接等信息）
-            markdown_content = self._generate_markdown(update)
-            update['content'] = markdown_content
-            
-            # 调用基类的 save_update 方法入库
+            # 直接调用基类的 save_update 方法，基类会统一生成元数据头
             success = self.save_update(update)
             
             if success:
@@ -404,31 +401,6 @@ class AwsWhatsnewCrawler(BaseCrawler):
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
             return False
-    
-    def _generate_markdown(self, update: Dict[str, Any]) -> str:
-        """生成Markdown格式内容"""
-        title = update.get('title', '无标题')
-        publish_date = update.get('publish_date', '')
-        source_url = update.get('source_url', '')
-        content = update.get('content', '')
-        
-        lines = [
-            f"# {title}",
-            "",
-            f"**发布时间:** {publish_date}",
-            "",
-            f"**厂商:** AWS",
-            "",
-            f"**类型:** What's New",
-            "",
-            f"**原始链接:** {source_url}",
-            "",
-            "---",
-            "",
-            content
-        ]
-        
-        return "\n".join(lines)
 
 
 if __name__ == '__main__':

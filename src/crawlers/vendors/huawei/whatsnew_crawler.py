@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import time
-import hashlib
 import datetime
 import random
 import concurrent.futures
@@ -24,7 +23,6 @@ import requests
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
 
 from src.crawlers.common.base_crawler import BaseCrawler
-from src.crawlers.common.sync_decorator import sync_to_database_decorator
 
 logger = logging.getLogger(__name__)
 
@@ -514,125 +512,28 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         
         return filtered
     
-    def _generate_update_id(self, update: Dict[str, Any]) -> str:
-        """
-        生成更新的唯一ID
-        
-        格式：hash(source_url + date + product + title)[:12]
-        """
-        components = [
-            update.get('source_url', ''),
-            update.get('publish_date', ''),
-            update.get('product_name', ''),
-            update.get('title', '').strip()
-        ]
-        content = '|'.join(components)
-        return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
-    
     def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
         """
-        保存单条更新为Markdown文件
+        保存单条更新（使用基类方法）
         
         Args:
             update: 更新条目
             
         Returns:
-            保存的文件路径
+            是否成功
         """
         try:
-            # 生成文件名: YYYY-MM_hash.md
-            update_id = self._generate_update_id(update)
-            publish_date = update.get('publish_date', datetime.date.today().strftime('%Y-%m'))
+            # 直接调用基类的 save_update 方法，基类会统一处理 doc_links/stage 等字段
+            success = self.save_update(update)
             
-            # 统一日期格式: YYYY-MM -> YYYY-MM-01
-            if len(publish_date) == 7:  # YYYY-MM
-                publish_date = f"{publish_date}-01"
+            if success:
+                logger.debug(f"保存更新: {update['title']}")
             
-            filename = f"{publish_date}_{update_id}.md"
-            filepath = os.path.join(self.output_dir, filename)
-            
-            # 生成Markdown内容
-            markdown_content = self._generate_markdown(update)
-            
-            # 写入文件
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
-            
-            # 收集待同步数据（用于批量同步到数据库）
-            sync_entry = {
-                'title': update.get('title', ''),
-                'description': update.get('description', ''),
-                'content': markdown_content,
-                'publish_date': publish_date,
-                'product_name': update.get('product_name', ''),
-                'source_url': update.get('source_url', ''),
-                'source_identifier': update_id,
-                'filepath': filepath,
-                'crawl_time': datetime.datetime.now().isoformat(),
-                'file_hash': hashlib.md5(markdown_content.encode('utf-8')).hexdigest()
-            }
-            self._pending_sync_updates[update_id] = sync_entry
-            
-            logger.debug(f"保存更新: {update['title']}")
-            return filepath
+            return success
             
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
             return None
-    
-    def _generate_markdown(self, update: Dict[str, Any]) -> str:
-        """生成Markdown格式内容"""
-        title = update.get('title', '无标题')
-        publish_date = update.get('publish_date', '')
-        product_name = update.get('product_name', '')
-        source_url = update.get('source_url', '')
-        description = update.get('description', '')
-        stage = update.get('stage', '')
-        doc_links = update.get('doc_links', [])
-        
-        lines = [
-            f"# {title}",
-            "",
-            f"**发布时间:** {publish_date}",
-            "",
-            f"**厂商:** 华为云",
-            "",
-            f"**产品:** {product_name}",
-            "",
-            f"**类型:** 产品更新",
-            "",
-            f"**原始链接:** {source_url}",
-            "",
-            "---",
-            ""
-        ]
-        
-        if description:
-            lines.extend([
-                "## 功能描述",
-                "",
-                description,
-                ""
-            ])
-        
-        if stage:
-            lines.extend([
-                "## 发布阶段",
-                "",
-                stage,
-                ""
-            ])
-        
-        if doc_links:
-            lines.extend([
-                "## 相关文档",
-                ""
-            ])
-            for doc_link in doc_links:
-                lines.append(f"- [{doc_link['text']}]({doc_link['url']})")
-            lines.append("")
-        
-        return "\n".join(lines)
 
 
 if __name__ == '__main__':

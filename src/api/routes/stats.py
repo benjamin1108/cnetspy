@@ -4,10 +4,11 @@
 统计分析接口
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from typing import Optional, List
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from ..dependencies import get_db
-from ..schemas.analysis import StatsOverview
+from ..schemas.analysis import StatsOverview, TimelineItem, VendorStatsItem
 from ..schemas.common import ApiResponse
 from ..services.analysis_service import AnalysisService
 
@@ -32,3 +33,61 @@ async def get_stats_overview(db: UpdateDataLayer = Depends(get_db)):
     stats = service.get_stats_overview()
     
     return ApiResponse(success=True, data=stats)
+
+
+@router.get("/timeline", response_model=ApiResponse[List[TimelineItem]])
+async def get_stats_timeline(
+    granularity: str = Query("day", description="统计粒度: day/week/month"),
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    vendor: Optional[str] = Query(None, description="厂商过滤"),
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    时间线统计
+    
+    按时间维度统计更新数量，支持：
+    - 粒度选择: day(日)/week(周)/month(月)
+    - 日期范围过滤
+    - 厂商过滤
+    
+    每个时间点返回总数和各厂商分布
+    
+    用于前端图表展示（折线图/柱状图）
+    """
+    # 验证粒度参数
+    if granularity not in ['day', 'week', 'month']:
+        granularity = 'day'
+    
+    timeline = db.get_timeline_statistics(
+        granularity=granularity,
+        date_from=date_from,
+        date_to=date_to,
+        vendor=vendor
+    )
+    
+    return ApiResponse(success=True, data=timeline)
+
+
+@router.get("/vendors", response_model=ApiResponse[List[VendorStatsItem]])
+async def get_stats_vendors(
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    按厂商统计
+    
+    返回各厂商的更新统计：
+    - vendor: 厂商标识
+    - count: 更新总数
+    - analyzed: 已分析数
+    
+    用于前端饼图/对比图
+    """
+    vendor_stats = db.get_vendor_statistics(
+        date_from=date_from,
+        date_to=date_to
+    )
+    
+    return ApiResponse(success=True, data=vendor_stats)

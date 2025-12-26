@@ -76,6 +76,16 @@ show_help() {
     echo -e "  $0 analyze --update-id abc123     # 分析单条记录"
     echo -e "  $0 analyze --batch --limit 100    # 批量分析 100 条"
     echo -e "  $0 analyze --batch --vendor aws   # 仅分析 AWS 记录"
+    echo ""
+    echo -e "${YELLOW}check 选项:${NC}"
+    echo -e "  --list-empty      列出已分析但 subcategory 为空的记录"
+    echo -e "  --clean-empty     列出并删除 subcategory 为空的记录"
+    echo -e "  -y                跳过确认提示"
+    echo ""
+    echo -e "  $0 check                          # 运行全部质量检查"
+    echo -e "  $0 check --list-empty             # 列出空 subcategory 记录"
+    echo -e "  $0 check --clean-empty            # 删除空 subcategory 记录（需确认）"
+    echo -e "  $0 check --clean-empty -y         # 删除空 subcategory 记录（跳过确认）"
 }
 
 # 设置环境
@@ -151,7 +161,7 @@ do_check() {
     check_venv
     
     echo -e "${BLUE}数据质量检查...${NC}"
-    "$PYTHON" scripts/data_check.py
+    "$PYTHON" scripts/data_check.py "$@"
 }
 
 # 启动 API 服务
@@ -263,7 +273,8 @@ case "${1:-help}" in
         do_setup
         ;;
     check)
-        do_check
+        shift
+        do_check "$@"
         ;;
     clean)
         do_clean

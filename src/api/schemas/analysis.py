@@ -136,3 +136,85 @@ class StatsOverview(BaseModel):
     update_types: dict  # {type: count}
     last_crawl_time: Optional[str] = None
     analysis_coverage: float = Field(0.0, ge=0.0, le=1.0)
+
+
+class TimelineItem(BaseModel):
+    """
+    时间线统计项
+    
+    示例:
+        {
+            "date": "2024-01-01",
+            "count": 10,
+            "vendors": {"aws": 5, "azure": 5}
+        }
+    """
+    date: str
+    count: int
+    vendors: dict = Field(default_factory=dict)  # {vendor: count}
+
+
+class VendorStatsItem(BaseModel):
+    """
+    厂商统计项
+    
+    示例:
+        {
+            "vendor": "aws",
+            "count": 500,
+            "analyzed": 450
+        }
+    """
+    vendor: str
+    count: int
+    analyzed: int = 0
+
+
+class VendorInfo(BaseModel):
+    """
+    厂商信息
+    
+    示例:
+        {
+            "vendor": "aws",
+            "name": "Amazon Web Services",
+            "total_updates": 500,
+            "source_channels": ["blog", "whatsnew"]
+        }
+    """
+    vendor: str
+    name: str
+    total_updates: int
+    source_channels: List[str] = Field(default_factory=list)
+
+
+class ProductInfo(BaseModel):
+    """
+    产品子类信息
+    
+    示例:
+        {
+            "product_subcategory": "vpc",
+            "count": 100
+        }
+    """
+    product_subcategory: str
+    count: int
+
+
+class UpdateTypeInfo(BaseModel):
+    """
+    更新类型信息
+    
+    示例:
+        {
+            "value": "new_feature",
+            "label": "新功能发布",
+            "description": "现有产品新增功能",
+            "count": 300
+        }
+    """
+    value: str
+    label: str
+    description: str = ""
+    count: int = 0

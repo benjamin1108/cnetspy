@@ -13,7 +13,6 @@ from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 
 from src.crawlers.common.base_crawler import BaseCrawler
-from src.crawlers.common.sync_decorator import sync_to_database_decorator
 
 logger = logging.getLogger(__name__)
 
@@ -231,54 +230,23 @@ class AzureWhatsnewCrawler(BaseCrawler):
     
     def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
         """
-        保存单条更新为Markdown文件（使用基类方法）
+        保存单条更新（使用基类方法）
         
         Args:
             update: 更新条目
             
         Returns:
-            保存的文件路径
+            是否成功
         """
         try:
-            # 生成Markdown内容
-            markdown_content = self._generate_markdown(update)
+            # 直接调用基类的 save_update 方法，基类会统一生成元数据头
+            success = self.save_update(update)
             
-            # 使用基类的统一保存方法
-            filepath = self.save_update_file(update, markdown_content)
-            
-            if filepath:
+            if success:
                 logger.debug(f"保存更新: {update.get('title', '')}")
             
-            return filepath
+            return success
             
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
             return None
-    
-    def _generate_markdown(self, update: Dict[str, Any]) -> str:
-        """生成Markdown格式内容"""
-        title = update.get('title', '无标题')
-        publish_date = update.get('publish_date', '')
-        source_url = update.get('source_url', '')
-        content = update.get('content', '')
-        product_name = update.get('product_name', '')
-        
-        lines = [
-            f"# {title}",
-            "",
-            f"**发布时间:** {publish_date}",
-            "",
-            f"**厂商:** Azure",
-            "",
-            f"**产品:** {product_name}",
-            "",
-            f"**类型:** Updates",
-            "",
-            f"**原始链接:** {source_url}",
-            "",
-            "---",
-            "",
-            content
-        ]
-        
-        return "\n".join(lines)

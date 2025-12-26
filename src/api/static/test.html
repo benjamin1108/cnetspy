@@ -299,6 +299,8 @@
                 <div class="tab" onclick="switchTab('single-analysis')">单条分析</div>
                 <div class="tab" onclick="switchTab('batch-analysis')">批量分析</div>
                 <div class="tab" onclick="switchTab('tasks')">任务监控</div>
+                <div class="tab" onclick="switchTab('metadata')">元数据</div>
+                <div class="tab" onclick="switchTab('charts')">图表统计</div>
             </div>
             
             <!-- Tab 1: 更新列表 -->
@@ -407,6 +409,101 @@
                     <span id="auto-refresh-text">开启自动刷新</span>
                 </button>
                 <div id="tasks-result" class="task-monitor" style="margin-top: 15px;"></div>
+            </div>
+            
+            <!-- Tab 6: 元数据 -->
+            <div id="tab-metadata" class="tab-content">
+                <h2>📚 元数据查询</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 10px;">厂商列表</h3>
+                    <button onclick="loadVendors()">获取厂商列表</button>
+                    <div id="vendors-result" class="result" style="margin-top: 10px;"></div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 10px;">厂商产品列表</h3>
+                    <div class="filters" style="max-width: 400px;">
+                        <div class="form-group">
+                            <label>选择厂商</label>
+                            <select id="product-vendor">
+                                <option value="aws">AWS</option>
+                                <option value="azure">Azure</option>
+                                <option value="gcp">GCP</option>
+                                <option value="huawei">华为云</option>
+                                <option value="tencentcloud">腾讯云</option>
+                                <option value="volcengine">火山引擎</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="loadProducts()">获取产品列表</button>
+                    <div id="products-result" class="result" style="margin-top: 10px;"></div>
+                </div>
+                
+                <div>
+                    <h3 style="margin-bottom: 10px;">更新类型枚举</h3>
+                    <button onclick="loadUpdateTypes()">获取更新类型</button>
+                    <div id="types-result" class="result" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+            
+            <!-- Tab 7: 图表统计 -->
+            <div id="tab-charts" class="tab-content">
+                <h2>📊 图表统计</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 10px;">厂商统计对比</h3>
+                    <div class="filters" style="max-width: 600px;">
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="vendor-date-from">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="vendor-date-to">
+                        </div>
+                    </div>
+                    <button onclick="loadVendorStats()">查询厂商统计</button>
+                    <div id="vendor-stats-result" class="result" style="margin-top: 10px;"></div>
+                    <div id="vendor-chart" style="margin-top: 15px;"></div>
+                </div>
+                
+                <div>
+                    <h3 style="margin-bottom: 10px;">时间线趋势</h3>
+                    <div class="filters" style="max-width: 800px;">
+                        <div class="form-group">
+                            <label>统计粒度</label>
+                            <select id="timeline-granularity">
+                                <option value="day">按天</option>
+                                <option value="week">按周</option>
+                                <option value="month" selected>按月</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="timeline-date-from">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="timeline-date-to">
+                        </div>
+                        <div class="form-group">
+                            <label>厂商过滤</label>
+                            <select id="timeline-vendor">
+                                <option value="">全部</option>
+                                <option value="aws">AWS</option>
+                                <option value="azure">Azure</option>
+                                <option value="gcp">GCP</option>
+                                <option value="huawei">华为云</option>
+                                <option value="tencentcloud">腾讯云</option>
+                                <option value="volcengine">火山引擎</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="loadTimeline()">查询时间线</button>
+                    <div id="timeline-result" class="result" style="margin-top: 10px;"></div>
+                    <div id="timeline-chart" style="margin-top: 15px;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -765,6 +862,275 @@
             document.getElementById('filter-type').value = '';
             document.getElementById('filter-analyzed').value = '';
             document.getElementById('filter-keyword').value = '';
+        }
+        
+        // ==================== 元数据接口 ====================
+        
+        // 加载厂商列表
+        async function loadVendors() {
+            const resultDiv = document.getElementById('vendors-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/vendors`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                let html = '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#f0f0f0;"><th style="padding:8px; text-align:left;">厂商ID</th><th>名称</th><th>更新数</th><th>数据源</th></tr>';
+                
+                data.data.forEach(v => {
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">${v.vendor}</td>
+                        <td>${v.name}</td>
+                        <td>${v.total_updates}</td>
+                        <td>${v.source_channels.join(', ')}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 加载产品列表
+        async function loadProducts() {
+            const vendor = document.getElementById('product-vendor').value;
+            const resultDiv = document.getElementById('products-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/vendors/${vendor}/products`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                if (data.data.length === 0) {
+                    resultDiv.innerHTML = '<p>暂无产品数据</p>';
+                    return;
+                }
+                
+                let html = '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#f0f0f0;"><th style="padding:8px; text-align:left;">产品子类</th><th>更新数</th></tr>';
+                
+                data.data.slice(0, 30).forEach(p => {
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">${p.product_subcategory}</td>
+                        <td>${p.count}</td>
+                    </tr>`;
+                });
+                
+                if (data.data.length > 30) {
+                    html += `<tr><td colspan="2" style="padding:8px; color:#999;">… 还有 ${data.data.length - 30} 个产品</td></tr>`;
+                }
+                
+                html += '</table>';
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 加载更新类型
+        async function loadUpdateTypes() {
+            const resultDiv = document.getElementById('types-result');
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/update-types`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                let html = '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#f0f0f0;"><th style="padding:8px; text-align:left;">枚举值</th><th>中文标签</th><th>描述</th><th>使用数</th></tr>';
+                
+                data.data.forEach(t => {
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;"><code>${t.value}</code></td>
+                        <td>${t.label}</td>
+                        <td>${t.description}</td>
+                        <td>${t.count}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // ==================== 图表统计接口 ====================
+        
+        // 加载厂商统计
+        async function loadVendorStats() {
+            const dateFrom = document.getElementById('vendor-date-from').value;
+            const dateTo = document.getElementById('vendor-date-to').value;
+            const resultDiv = document.getElementById('vendor-stats-result');
+            const chartDiv = document.getElementById('vendor-chart');
+            
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            chartDiv.innerHTML = '';
+            
+            const params = new URLSearchParams();
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            
+            try {
+                const response = await fetch(`${API_BASE}/stats/vendors?${params}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                // 表格展示
+                let html = '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#f0f0f0;"><th style="padding:8px; text-align:left;">厂商</th><th>更新数</th><th>已分析</th><th>覆盖率</th></tr>';
+                
+                data.data.forEach(v => {
+                    const coverage = v.count > 0 ? ((v.analyzed / v.count) * 100).toFixed(1) : 0;
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">${v.vendor}</td>
+                        <td>${v.count}</td>
+                        <td>${v.analyzed}</td>
+                        <td>${coverage}%</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                resultDiv.innerHTML = html;
+                
+                // 简单柱状图
+                renderVendorChart(data.data, chartDiv);
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 渲染厂商柱状图
+        function renderVendorChart(data, container) {
+            const maxCount = Math.max(...data.map(d => d.count));
+            
+            let html = '<div style="display: flex; align-items: flex-end; height: 200px; gap: 10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">';
+            
+            const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+            
+            data.forEach((v, i) => {
+                const height = (v.count / maxCount) * 160;
+                const color = colors[i % colors.length];
+                html += `
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                        <div style="font-size: 12px; margin-bottom: 5px;">${v.count}</div>
+                        <div style="width: 100%; height: ${height}px; background: ${color}; border-radius: 4px 4px 0 0;"></div>
+                        <div style="font-size: 11px; margin-top: 5px; text-align: center;">${v.vendor}</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // 加载时间线
+        async function loadTimeline() {
+            const granularity = document.getElementById('timeline-granularity').value;
+            const dateFrom = document.getElementById('timeline-date-from').value;
+            const dateTo = document.getElementById('timeline-date-to').value;
+            const vendor = document.getElementById('timeline-vendor').value;
+            
+            const resultDiv = document.getElementById('timeline-result');
+            const chartDiv = document.getElementById('timeline-chart');
+            
+            resultDiv.innerHTML = '<div class="loading">加载中...</div>';
+            chartDiv.innerHTML = '';
+            
+            const params = new URLSearchParams();
+            params.append('granularity', granularity);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            if (vendor) params.append('vendor', vendor);
+            
+            try {
+                const response = await fetch(`${API_BASE}/stats/timeline?${params}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '查询失败');
+                }
+                
+                if (data.data.length === 0) {
+                    resultDiv.innerHTML = '<p>暂无数据</p>';
+                    return;
+                }
+                
+                // 表格展示（取前20条）
+                let html = '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#f0f0f0;"><th style="padding:8px; text-align:left;">日期</th><th>总数</th><th>厂商分布</th></tr>';
+                
+                data.data.slice(0, 20).forEach(t => {
+                    const vendorStr = Object.entries(t.vendors).map(([k, v]) => `${k}:${v}`).join(', ');
+                    html += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:8px;">${t.date}</td>
+                        <td>${t.count}</td>
+                        <td style="font-size: 12px;">${vendorStr}</td>
+                    </tr>`;
+                });
+                
+                if (data.data.length > 20) {
+                    html += `<tr><td colspan="3" style="padding:8px; color:#999;">… 还有 ${data.data.length - 20} 条数据</td></tr>`;
+                }
+                
+                html += '</table>';
+                resultDiv.innerHTML = html;
+                
+                // 简单折线图
+                renderTimelineChart(data.data.slice(0, 12).reverse(), chartDiv);
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+            }
+        }
+        
+        // 渲染时间线图表
+        function renderTimelineChart(data, container) {
+            if (data.length === 0) return;
+            
+            const maxCount = Math.max(...data.map(d => d.count));
+            const width = 100 / data.length;
+            
+            let html = '<div style="padding: 10px; background: #f9f9f9; border-radius: 8px;">';
+            html += '<div style="display: flex; align-items: flex-end; height: 150px; gap: 2px;">';
+            
+            data.forEach(t => {
+                const height = maxCount > 0 ? (t.count / maxCount) * 130 : 0;
+                html += `
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                        <div style="font-size: 10px; margin-bottom: 2px;">${t.count}</div>
+                        <div style="width: 80%; height: ${height}px; background: linear-gradient(to top, #3498db, #2ecc71); border-radius: 3px 3px 0 0;"></div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            html += '<div style="display: flex; gap: 2px; margin-top: 5px;">';
+            
+            data.forEach(t => {
+                const label = t.date.length > 7 ? t.date.slice(5) : t.date;
+                html += `<div style="flex: 1; font-size: 9px; text-align: center; overflow: hidden;">${label}</div>`;
+            });
+            
+            html += '</div></div>';
+            container.innerHTML = html;
         }
         
         // 页面加载时初始化

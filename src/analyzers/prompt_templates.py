@@ -7,6 +7,8 @@ Prompt 模板管理模块
 """
 
 from typing import Dict, Any, List
+import yaml
+from pathlib import Path
 from src.models.update import UpdateType
 
 
@@ -17,10 +19,32 @@ class PromptTemplates:
     注：需要通过 set_config() 设置配置后才能使用
     """
     
-    VERSION = "v1.0"
+    VERSION = "v1.1"
     
     # 类级配置
     _config = None
+    _subcategory_config = None
+    
+    @classmethod
+    def _load_subcategory_config(cls) -> Dict[str, List[str]]:
+        """加载 subcategory 枚举配置"""
+        if cls._subcategory_config is not None:
+            return cls._subcategory_config
+        
+        config_path = Path(__file__).parent.parent.parent / "config" / "subcategory.yaml"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cls._subcategory_config = yaml.safe_load(f) or {}
+        else:
+            cls._subcategory_config = {}
+        
+        return cls._subcategory_config
+    
+    @classmethod
+    def get_subcategories_for_vendor(cls, vendor: str) -> List[str]:
+        """获取指定厂商的 subcategory 枚举列表"""
+        config = cls._load_subcategory_config()
+        return config.get(vendor.lower(), [])
     
     @classmethod
     def set_config(cls, config: Dict[str, Any]):
@@ -91,6 +115,13 @@ class PromptTemplates:
         if len(content) > max_content_length:
             content = content[:max_content_length] + "..."
         
+        # 获取厂商专属 subcategory 枚举
+        subcategories = PromptTemplates.get_subcategories_for_vendor(vendor)
+        if subcategories:
+            subcategory_enum = '\n'.join([f"     * {cat}" for cat in subcategories])
+        else:
+            subcategory_enum = "     * (无预定义枚举，请基于内容动态判定，使用小写英文+下划线格式)"
+        
         prompt = f"""你是一个专业的云计算技术分析专家，负责分析云厂商的产品更新信息。
 
 【任务目标】
@@ -117,7 +148,7 @@ class PromptTemplates:
   "title_translated": "string (≤{validation['title_max_length']}字)",
   "content_summary": "markdown string ({validation['summary_min_length']}-{validation['summary_max_length']}字)",
   "update_type": "enum (从 UpdateType 枚举中选择)",
-  "product_subcategory": "string (小写英文+数字+下划线)",
+  "product_subcategory": "string (从枚举中原样选择)",
   "tags": ["string", ...] ({validation['tags_min_count']}-{validation['tags_max_count']}个关键词)
 }}
 
@@ -159,8 +190,10 @@ class PromptTemplates:
    - 不确定时选择 other
 
 4. product_subcategory:
-   - 基于 content 和 product_name 动态判定
-   - 使用小写英文+下划线（如 peering, alb, edge_cache）
+   - 必须从以下枚举值中选择（{vendor} 专用）：
+{subcategory_enum}
+   - 必须原样输出枚举值，不要转换格式
+   - 选择最匹配 content 和 product_name 的值
    - 无法确定时输出空字符串
 
 5. tags:

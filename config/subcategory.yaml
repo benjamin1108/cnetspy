@@ -1,0 +1,113 @@
+# Product Subcategory 枚举配置
+# 按厂商分组，AI 分析时只注入对应厂商的枚举值
+
+aws:
+  - Amazon API Gateway
+  - Amazon AppFlow
+  - Amazon CloudFront
+  - Amazon CloudWatch
+  - Amazon EC2 (Networking)
+  - Amazon ECS (Networking)
+  - Amazon EKS (Networking)
+  - Amazon EventBridge
+  - Amazon Inspector
+  - Amazon Route 53
+  - Amazon Route 53 Application Recovery Controller
+  - Amazon VPC
+  - Amazon VPC Lattice
+  - AWS App Mesh
+  - AWS Client VPN
+  - AWS Cloud Map
+  - AWS Cloud WAN
+  - AWS Direct Connect
+  - AWS Firewall Manager
+  - AWS Global Accelerator
+  - AWS Network Firewall
+  - AWS Outposts
+  - AWS Private 5G
+  - AWS PrivateLink
+  - AWS Shield
+  - AWS Site-to-Site VPN
+  - AWS Transit Gateway
+  - AWS Verified Access
+  - AWS WAF
+  - Elastic Fabric Adapter (EFA)
+  - Elastic Load Balancing
+
+azure:
+  - Azure Application Gateway
+  - Azure Bastion
+  - Azure CDN
+  - Azure Container Networking
+  - Azure Copilot
+  - Azure DDoS Protection
+  - Azure DNS
+  - Azure ExpressRoute
+  - Azure Firewall
+  - Azure Firewall Manager
+  - Azure Front Door
+  - Azure Load Balancer
+  - Azure Monitor
+  - Azure NAT Gateway
+  - Azure Network Watcher
+  - Azure Private Link
+  - Azure Route Server
+  - Azure Traffic Manager
+  - Azure Virtual Network
+  - Azure Virtual Network Manager
+  - Azure Virtual WAN
+  - Azure VPN Gateway
+  - Azure Web Application Firewall (WAF)
+
+gcp:
+  - Cloud Armor
+  - Cloud CDN
+  - Cloud DNS
+  - Cloud Interconnect
+  - Cloud Load Balancing
+  - Cloud NAT
+  - Cloud Router
+  - Cloud Service Mesh
+  - Cloud VPN
+  - Google Cloud VPC
+  - Network Connectivity Center
+  - Network Intelligence Center
+  - Network Service Tiers
+
+huawei:
+  - Cloud Connect (CC)
+  - Cloud Enterprise Network (Central Network)
+  - Direct Connect
+  - Elastic IP (EIP)
+  - Elastic Load Balance (ELB)
+  - Enterprise Router (ER)
+  - Global Accelerator (GA)
+  - NAT Gateway
+  - Virtual Private Cloud (VPC)
+  - Virtual Private Network (VPN)
+  - VPC Endpoint (VPCEP)
+
+tencentcloud:
+  - Anycast EIP
+  - Cloud Connect Network (CCN)
+  - Cloud Load Balancer (CLB)
+  - Direct Connect
+  - Elastic IP (EIP)
+  - Gateway Load Balancer (GWLB)
+  - Global Application Acceleration Platform (GAAP)
+  - NAT Gateway
+  - Private Link
+  - Virtual Private Cloud (VPC)
+  - VPN Connection
+
+volcengine:
+  - Cloud Enterprise Network (CEN)
+  - Cloud Load Balancer (CLB)
+  - Direct Connect
+  - Elastic IP (EIP)
+  - NAT Gateway
+  - Network Intelligence Center
+  - Private Link
+  - Transit Router
+  - Virtual Private Cloud (VPC)
+  - VPN Connection

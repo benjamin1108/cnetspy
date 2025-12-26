@@ -1217,3 +1217,222 @@ class UpdateDataLayer:
         except Exception as e:
             self.logger.error(f"查询任务列表失败: {e}")
             return []
+    
+    # ==================== 统计与元数据方法 ====================
+    
+    def get_timeline_statistics(
+        self,
+        granularity: str = "day",
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        vendor: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取时间线统计数据
+        
+        Args:
+            granularity: 粒度 (day/week/month)
+            date_from: 开始日期
+            date_to: 结束日期
+            vendor: 厂商过滤
+            
+        Returns:
+            时间线统计列表，每项包含 date, count, vendors
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 根据粒度确定日期格式
+                if granularity == "month":
+                    date_format = "%Y-%m"
+                    date_expr = "strftime('%Y-%m', publish_date)"
+                elif granularity == "week":
+                    # SQLite 周统计：年-周号
+                    date_format = "%Y-W%W"
+                    date_expr = "strftime('%Y-W%W', publish_date)"
+                else:  # day
+                    date_format = "%Y-%m-%d"
+                    date_expr = "DATE(publish_date)"
+                
+                where_clauses = ["publish_date IS NOT NULL"]
+                params = []
+                
+                if date_from:
+                    where_clauses.append("publish_date >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_clauses.append("publish_date <= ?")
+                    params.append(date_to)
+                
+                if vendor:
+                    where_clauses.append("vendor = ?")
+                    params.append(vendor)
+                
+                where_clause = " AND ".join(where_clauses)
+                
+                # 按日期和厂商分组
+                sql = f"""
+                    SELECT 
+                        {date_expr} as date,
+                        vendor,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE {where_clause}
+                    GROUP BY {date_expr}, vendor
+                    ORDER BY date DESC
+                """
+                
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                
+                # 聚合结果：按日期分组，厂商统计合并
+                date_stats = {}
+                for row in rows:
+                    date = row['date']
+                    if date not in date_stats:
+                        date_stats[date] = {'date': date, 'count': 0, 'vendors': {}}
+                    date_stats[date]['count'] += row['count']
+                    date_stats[date]['vendors'][row['vendor']] = row['count']
+                
+                # 转换为列表并按日期倒序
+                result = list(date_stats.values())
+                result.sort(key=lambda x: x['date'], reverse=True)
+                
+                return result
+                
+        except Exception as e:
+            self.logger.error(f"时间线统计查询失败: {e}")
+            return []
+    
+    def get_vendors_list(self) -> List[Dict[str, Any]]:
+        """
+        获取厂商列表及元数据
+        
+        Returns:
+            厂商列表，每项包含 vendor, name, total_updates, source_channels
+        """
+        # 厂商名称映射
+        vendor_names = {
+            'aws': 'Amazon Web Services',
+            'azure': 'Microsoft Azure',
+            'gcp': 'Google Cloud Platform',
+            'huawei': '华为云',
+            'tencentcloud': '腾讯云',
+            'volcengine': '火山引擎'
+        }
+        
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 统计每个厂商的更新数和来源渠道
+                sql = """
+                    SELECT 
+                        vendor,
+                        COUNT(*) as total_updates,
+                        GROUP_CONCAT(DISTINCT source_channel) as source_channels
+                    FROM updates
+                    GROUP BY vendor
+                    ORDER BY total_updates DESC
+                """
+                
+                cursor.execute(sql)
+                results = []
+                
+                for row in cursor.fetchall():
+                    vendor = row['vendor']
+                    channels = row['source_channels'].split(',') if row['source_channels'] else []
+                    results.append({
+                        'vendor': vendor,
+                        'name': vendor_names.get(vendor, vendor.title()),
+                        'total_updates': row['total_updates'],
+                        'source_channels': channels
+                    })
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"厂商列表查询失败: {e}")
+            return []
+    
+    def get_vendor_products(
+        self,
+        vendor: str
+    ) -> List[Dict[str, Any]]:
+        """
+        获取指定厂商的产品子类列表
+        
+        Args:
+            vendor: 厂商标识
+            
+        Returns:
+            产品子类列表，每项包含 product_subcategory, count
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                sql = """
+                    SELECT 
+                        product_subcategory,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE vendor = ?
+                        AND product_subcategory IS NOT NULL
+                        AND product_subcategory != ''
+                    GROUP BY product_subcategory
+                    ORDER BY count DESC
+                """
+                
+                cursor.execute(sql, (vendor,))
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'product_subcategory': row['product_subcategory'],
+                        'count': row['count']
+                    })
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"厂商产品列表查询失败: {e}")
+            return []
+    
+    def get_update_type_statistics(self) -> List[Dict[str, Any]]:
+        """
+        获取更新类型统计
+        
+        Returns:
+            更新类型统计列表，每项包含 value, count
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                sql = """
+                    SELECT 
+                        update_type,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE update_type IS NOT NULL AND update_type != ''
+                    GROUP BY update_type
+                    ORDER BY count DESC
+                """
+                
+                cursor.execute(sql)
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'value': row['update_type'],
+                        'count': row['count']
+                    })
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"更新类型统计失败: {e}")
+            return []

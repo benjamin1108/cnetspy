@@ -41,7 +41,7 @@ default:
   # 批量分析配置
   batch_processing:
     # 并发线程数
-    max_workers: 10
+    max_workers: 50
   
   # 字段验证规则
   validation:

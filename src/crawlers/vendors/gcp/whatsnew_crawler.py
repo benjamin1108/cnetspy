@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import time
-import hashlib
 import datetime
 import concurrent.futures
 from typing import Dict, Any, List, Optional
@@ -23,7 +22,6 @@ import requests
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
 
 from src.crawlers.common.base_crawler import BaseCrawler
-from src.crawlers.common.sync_decorator import sync_to_database_decorator
 
 logger = logging.getLogger(__name__)
 
@@ -362,21 +360,6 @@ class GcpWhatsnewCrawler(BaseCrawler):
         
         return filtered
     
-    def _generate_update_id(self, update: Dict[str, Any]) -> str:
-        """
-        生成更新的唯一ID
-        
-        格式：hash(source_url + date + product + title)[:12]
-        """
-        components = [
-            update.get('source_url', ''),
-            update.get('publish_date', ''),
-            update.get('product_name', ''),
-            update.get('title', '').strip()
-        ]
-        content = '|'.join(components)
-        return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
-    
     def _get_identifier_strategy(self) -> str:
         """GCP使用content-based策略"""
         return 'content_based'
@@ -409,11 +392,7 @@ class GcpWhatsnewCrawler(BaseCrawler):
             是否成功
         """
         try:
-            # 生成完整的 Markdown 内容（包含链接等信息）
-            markdown_content = self._generate_markdown(update)
-            update['content'] = markdown_content
-            
-            # 调用基类的 save_update 方法入库
+            # 直接调用基类的 save_update 方法，基类会统一生成元数据头
             success = self.save_update(update)
             
             if success:
@@ -424,52 +403,6 @@ class GcpWhatsnewCrawler(BaseCrawler):
         except Exception as e:
             logger.error(f"保存更新失败: {e}")
             return False
-    
-    def _generate_markdown(self, update: Dict[str, Any]) -> str:
-        """生成Markdown格式内容"""
-        title = update.get('title', '无标题')
-        publish_date = update.get('publish_date', '')
-        product_name = update.get('product_name', '')
-        source_url = update.get('source_url', '')
-        description = update.get('description', '')
-        update_type = update.get('update_type', '')
-        doc_links = update.get('doc_links', [])
-        
-        lines = [
-            f"# {title}",
-            "",
-            f"**发布时间:** {publish_date}",
-            "",
-            f"**厂商:** GCP",
-            "",
-            f"**产品:** {product_name}",
-            "",
-            f"**类型:** {update_type}",
-            "",
-            f"**原始链接:** {source_url}",
-            "",
-            "---",
-            ""
-        ]
-        
-        if description:
-            lines.extend([
-                "## 描述",
-                "",
-                description,
-                ""
-            ])
-        
-        if doc_links:
-            lines.extend([
-                "## 相关文档",
-                ""
-            ])
-            for doc_link in doc_links:
-                lines.append(f"- [{doc_link['text']}]({doc_link['url']})")
-            lines.append("")
-        
-        return "\n".join(lines)
 
 
 if __name__ == '__main__':
