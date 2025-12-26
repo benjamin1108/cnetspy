@@ -88,7 +88,10 @@ class DataChecker:
         # 8. 异常值检查
         self.check_anomalies()
         
-        # 9. 输出问题汇总
+        # 9. AI 分析质量校验
+        self.check_ai_quality()
+        
+        # 10. 输出问题汇总
         self.print_issues_summary()
     
     def check_basic_stats(self):
@@ -377,6 +380,139 @@ class DataChecker:
         
         conn.close()
     
+    def check_ai_quality(self):
+        """
+AI 分析质量校验
+        
+        校验规则：
+        1. 翻译标题不含中文
+        2. 摘要为空
+        3. update_type 无效
+        4. 必填字段缺失
+        """
+        print("🤖 9. AI 分析质量校验")
+        print("-" * 40)
+        
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # 统计已分析数据
+        cursor.execute("""
+            SELECT COUNT(*) FROM updates 
+            WHERE title_translated IS NOT NULL
+        """)
+        total_analyzed = cursor.fetchone()[0]
+        
+        if total_analyzed == 0:
+            print("  无已分析数据")
+            print()
+            conn.close()
+            return
+        
+        print(f"  已分析记录数: {total_analyzed}")
+        print()
+        
+        quality_issues = []
+        
+        # 1. 检查翻译标题不含中文
+        cursor.execute("""
+            SELECT vendor, COUNT(*) FROM updates 
+            WHERE title_translated IS NOT NULL
+            GROUP BY vendor
+        """)
+        vendor_analyzed = {vendor: count for vendor, count in cursor.fetchall()}
+        
+        no_chinese_records = []
+        for vendor, analyzed_count in vendor_analyzed.items():
+            # 使用 Python 正则检查中文
+            cursor.execute("""
+                SELECT update_id, title, title_translated, publish_date, source_url FROM updates 
+                WHERE vendor = ? AND title_translated IS NOT NULL
+            """, (vendor,))
+            
+            for update_id, title, title_translated, date, url in cursor.fetchall():
+                if not re.search(r'[一-鿿]', title_translated or ''):
+                    no_chinese_records.append({
+                        'vendor': vendor,
+                        'update_id': update_id,
+                        'title': title,
+                        'title_translated': title_translated,
+                        'date': date,
+                        'url': url
+                    })
+        
+        if no_chinese_records:
+            for record in no_chinese_records:
+                quality_issues.append(f"{record['vendor']}: 翻译标题不含中文")
+                print(f"\n  ❌ {record['vendor']}: 翻译标题不含中文")
+                print(f"     ID: {record['update_id']}")
+                print(f"     日期: {record['date']}")
+                print(f"     原标题: {record['title'][:80]}")
+                print(f"     翻译后: {record['title_translated'][:80]}")
+                print(f"     URL: {record['url']}")
+        
+        # 2. 检查摘要为空
+        cursor.execute("""
+            SELECT vendor, update_id, title, publish_date FROM updates 
+            WHERE title_translated IS NOT NULL 
+            AND (content_summary IS NULL OR content_summary = '')
+        """)
+        empty_summary_records = cursor.fetchall()
+        
+        if empty_summary_records:
+            for vendor, update_id, title, date in empty_summary_records:
+                quality_issues.append(f"{vendor}: 摘要为空")
+                print(f"\n  ❌ {vendor}: 摘要为空")
+                print(f"     ID: {update_id}")
+                print(f"     日期: {date}")
+                print(f"     标题: {title[:80]}")
+        
+        # 3. 检查 update_type 无效
+        valid_types = [
+            'new_product', 'new_feature', 'enhancement', 'deprecation', 
+            'pricing', 'region', 'security', 'fix', 'performance', 
+            'compliance', 'integration', 'other'
+        ]
+        placeholders = ','.join(['?' for _ in valid_types])
+        cursor.execute(f"""
+            SELECT vendor, update_id, title, update_type, publish_date FROM updates 
+            WHERE title_translated IS NOT NULL 
+            AND (update_type IS NULL OR update_type = '' OR update_type NOT IN ({placeholders}))
+        """, valid_types)
+        
+        invalid_type_records = cursor.fetchall()
+        if invalid_type_records:
+            for vendor, update_id, title, update_type, date in invalid_type_records:
+                quality_issues.append(f"{vendor}: update_type无效")
+                print(f"\n  ❌ {vendor}: update_type无效")
+                print(f"     ID: {update_id}")
+                print(f"     日期: {date}")
+                print(f"     标题: {title[:80]}")
+                print(f"     当前值: '{update_type}'")
+        
+        # 4. 检查必填字段缺失（已分析但字段为空）
+        ai_required_fields = ['title_translated', 'content_summary', 'update_type']
+        for field in ai_required_fields:
+            cursor.execute(f"""
+                SELECT vendor, COUNT(*) FROM updates 
+                WHERE title_translated IS NOT NULL 
+                AND ({field} IS NULL OR {field} = '')
+                GROUP BY vendor
+            """)
+            for vendor, count in cursor.fetchall():
+                if count > 0 and field != 'title_translated':  # title_translated 已在上面检查
+                    quality_issues.append(f"{vendor}: {count}条{field}为空")
+        
+        # 输出结果汇总
+        if quality_issues:
+            for issue in quality_issues:
+                self.issues['ai_quality'].append(issue)
+        else:
+            print("  ✓ AI 分析质量合格")
+        print()
+        
+        conn.close()
+    
     def print_short_titles(self, conn, short_title_vendors):
         """打印过短标题详情"""
         print("📝 8.1 短标题记录（仅信息）")
@@ -424,7 +560,8 @@ class DataChecker:
                 'invalid_date': '日期格式错误',
                 'invalid_url': 'URL格式错误',
                 'duplicates': '重复数据',
-                'anomalies': '数据异常'
+                'anomalies': '数据异常',
+                'ai_quality': 'AI分析质量问题'
             }
             
             for key, label in issue_types.items():

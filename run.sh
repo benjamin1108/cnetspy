@@ -35,6 +35,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}命令:${NC}"
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
+    echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
     echo -e "  ${GREEN}clean${NC}     清理临时文件"
@@ -47,11 +48,23 @@ show_help() {
     echo -e "  --force           强制重新爬取"
     echo -e "  --debug           调试模式"
     echo ""
+    echo -e "${YELLOW}analyze 选项:${NC}"
+    echo -e "  --update-id <ID>  分析指定 ID 的更新记录"
+    echo -e "  --batch           批量分析所有未处理记录"
+    echo -e "  --limit <数量>    限制批量处理数量"
+    echo -e "  --vendor <厂商>   仅分析指定厂商的记录"
+    echo -e "  --dry-run         预览模式，不实际写入数据库"
+    echo -e "  --verbose         显示详细日志"
+    echo ""
     echo -e "${YELLOW}示例:${NC}"
     echo -e "  $0 crawl                          # 爬取所有"
     echo -e "  $0 crawl --vendor aws             # 仅爬取 AWS"
     echo -e "  $0 crawl --vendor gcp --source whatsnew  # 爬取 GCP whatsnew"
     echo -e "  $0 crawl --limit 10               # 每个源最多10篇"
+    echo ""
+    echo -e "  $0 analyze --update-id abc123     # 分析单条记录"
+    echo -e "  $0 analyze --batch --limit 100    # 批量分析 100 条"
+    echo -e "  $0 analyze --batch --vendor aws   # 仅分析 AWS 记录"
 }
 
 # 设置环境
@@ -130,6 +143,16 @@ do_check() {
     "$PYTHON" scripts/data_check.py
 }
 
+# AI 分析
+do_analyze() {
+    check_venv
+    
+    echo -e "${BLUE}启动 AI 分析...${NC}"
+    
+    # 直接传递所有参数
+    "$PYTHON" scripts/analyze_updates.py "$@"
+}
+
 # 清理临时文件
 do_clean() {
     echo -e "${BLUE}清理临时文件...${NC}"
@@ -152,6 +175,10 @@ case "${1:-help}" in
     crawl)
         shift
         do_crawl "$@"
+        ;;
+    analyze)
+        shift
+        do_analyze "$@"
         ;;
     setup)
         do_setup

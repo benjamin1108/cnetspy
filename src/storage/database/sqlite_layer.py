@@ -487,3 +487,171 @@ class UpdateDataLayer:
                 'file_size_mb': 0,
                 'db_path': self.db_path
             }
+    
+    def get_unanalyzed_updates(
+        self, 
+        limit: Optional[int] = None, 
+        vendor: Optional[str] = None,
+        include_analyzed: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        获取未分析的更新记录
+        
+        Args:
+            limit: 最大返回数量，None 表示不限制
+            vendor: 指定厂商，None 表示所有厂商
+            include_analyzed: 是否包含已分析的记录（用于 --force）
+            
+        Returns:
+            未分析的更新记录列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建查询条件
+                where_clauses = [
+                    "content IS NOT NULL",
+                    "content != ''"
+                ]
+                
+                # 如果不包含已分析的，添加未分析条件
+                if not include_analyzed:
+                    where_clauses.append("title_translated IS NULL")
+                
+                params = []
+                
+                if vendor:
+                    where_clauses.append("vendor = ?")
+                    params.append(vendor)
+                
+                where_clause = " AND ".join(where_clauses)
+                
+                # 构建查询 SQL
+                sql = f'''
+                    SELECT update_id, vendor, source_channel, title, content,
+                           product_name, product_category
+                    FROM updates
+                    WHERE {where_clause}
+                    ORDER BY publish_date DESC
+                '''
+                
+                if limit:
+                    sql += f" LIMIT {limit}"
+                
+                cursor.execute(sql, params)
+                
+                results = [dict(row) for row in cursor.fetchall()]
+                record_type = "记录" if include_analyzed else "未分析记录"
+                self.logger.debug(f"查询到 {len(results)} 条{record_type}")
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"获取更新记录失败: {e}")
+            return []
+    
+    def count_unanalyzed_updates(self, vendor: Optional[str] = None, include_analyzed: bool = False) -> int:
+        """
+        统计未分析的更新记录数量
+        
+        Args:
+            vendor: 指定厂商，None 表示所有厂商
+            include_analyzed: 是否包含已分析的记录（用于 --force）
+            
+        Returns:
+            未分析记录数量
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建查询条件
+                where_clauses = [
+                    "content IS NOT NULL",
+                    "content != ''"
+                ]
+                
+                # 如果不包含已分析的，添加未分析条件
+                if not include_analyzed:
+                    where_clauses.append("title_translated IS NULL")
+                
+                params = []
+                
+                if vendor:
+                    where_clauses.append("vendor = ?")
+                    params.append(vendor)
+                
+                where_clause = " AND ".join(where_clauses)
+                
+                sql = f"SELECT COUNT(*) as count FROM updates WHERE {where_clause}"
+                cursor.execute(sql, params)
+                
+                result = cursor.fetchone()
+                return result['count'] if result else 0
+                
+        except Exception as e:
+            self.logger.error(f"统计未分析记录失败: {e}")
+            return 0
+    
+    def update_analysis_fields(
+        self, 
+        update_id: str, 
+        fields: Dict[str, Any]
+    ) -> bool:
+        """
+        更新分析字段
+        
+        Args:
+            update_id: 更新记录 ID
+            fields: 要更新的字段字典，支持的字段包括：
+                   title_translated, content_summary, update_type,
+                   product_subcategory, tags
+                   
+        Returns:
+            成功返回 True，失败返回 False
+        """
+        allowed_fields = {
+            'title_translated',
+            'content_summary',
+            'update_type',
+            'product_subcategory',
+            'tags',
+            'analysis_filepath'
+        }
+        
+        # 过滤非法字段
+        update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
+        
+        if not update_fields:
+            self.logger.warning("没有有效的字段需要更新")
+            return False
+        
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # 构建 UPDATE SQL
+                    set_clauses = [f"{field} = ?" for field in update_fields.keys()]
+                    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+                    set_clause = ", ".join(set_clauses)
+                    
+                    values = list(update_fields.values())
+                    values.append(update_id)
+                    
+                    sql = f"UPDATE updates SET {set_clause} WHERE update_id = ?"
+                    
+                    cursor.execute(sql, values)
+                    conn.commit()
+                    
+                    if cursor.rowcount > 0:
+                        self.logger.debug(f"更新分析字段成功: {update_id}")
+                        return True
+                    else:
+                        self.logger.warning(f"未找到更新记录: {update_id}")
+                        return False
+                    
+        except Exception as e:
+            self.logger.error(f"更新分析字段失败: {e}")
+            return False
