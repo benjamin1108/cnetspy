@@ -103,3 +103,5 @@ coverage.xml
 
 
 .web.pid
+.mcp.pid
+mcp_config.json
