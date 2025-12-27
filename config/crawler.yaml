@@ -15,6 +15,10 @@ crawler:
   headers:
     User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
+# AWS博客爬虫配置
+aws_blog:
+  crawl_until_year: 2025  # 爬取截止年份（只爬取该年份及以后的文章）
+
 # 反爬虫策略配置
 anti_crawler:
   # 并发控制

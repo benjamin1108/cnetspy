@@ -26,6 +26,7 @@ aws:
   - AWS Outposts
   - AWS Private 5G
   - AWS PrivateLink
+  - AWS RTB Fabric
   - AWS Shield
   - AWS Site-to-Site VPN
   - AWS Transit Gateway

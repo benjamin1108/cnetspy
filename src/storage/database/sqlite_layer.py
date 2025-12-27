@@ -257,6 +257,34 @@ class UpdateDataLayer:
             self.logger.error(f"插入Update记录失败: {e}")
             return False
     
+    def delete_update(self, update_id: str) -> bool:
+        """
+        删除单条Update记录
+        
+        Args:
+            update_id: 记录ID
+            
+        Returns:
+            成功返回True,失败返回False
+        """
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('DELETE FROM updates WHERE update_id = ?', (update_id,))
+                    conn.commit()
+                    
+                    if cursor.rowcount > 0:
+                        self.logger.info(f"删除Update记录: {update_id}")
+                        return True
+                    else:
+                        self.logger.warning(f"Update记录不存在: {update_id}")
+                        return False
+                        
+        except Exception as e:
+            self.logger.error(f"删除Update记录失败: {e}")
+            return False
+    
     def batch_insert_updates(self, updates_data: List[Dict[str, Any]], force_update: bool = False) -> Tuple[int, int]:
         """
         批量插入Update记录
@@ -393,7 +421,7 @@ class UpdateDataLayer:
     
     def count_updates(self, **filters) -> int:
         """
-        统计符合条件的Update数量
+        统计符合条件的Update数量（只统计whatsnew）
         
         Args:
             **filters: 过滤条件(vendor, update_type, date_from, date_to等)
@@ -405,7 +433,7 @@ class UpdateDataLayer:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
-                where_clauses = []
+                where_clauses = ["source_channel = 'whatsnew'"]  # 默认只统计whatsnew
                 params = []
                 
                 if filters.get('vendor'):
@@ -446,22 +474,24 @@ class UpdateDataLayer:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 总记录数
-                cursor.execute('SELECT COUNT(*) as total FROM updates')
+                # 总记录数（只统计whatsnew）
+                cursor.execute("SELECT COUNT(*) as total FROM updates WHERE source_channel = 'whatsnew'")
                 total_updates = cursor.fetchone()['total']
                 
-                # 按厂商统计
+                # 按厂商统计（只统计whatsnew）
                 cursor.execute('''
                     SELECT vendor, COUNT(*) as count 
                     FROM updates 
+                    WHERE source_channel = 'whatsnew'
                     GROUP BY vendor
                 ''')
                 vendor_stats = {row['vendor']: row['count'] for row in cursor.fetchall()}
                 
-                # 按类型统计
+                # 按类型统计（只统计whatsnew）
                 cursor.execute('''
                     SELECT update_type, COUNT(*) as count 
                     FROM updates 
+                    WHERE source_channel = 'whatsnew'
                     GROUP BY update_type
                     ORDER BY count DESC
                     LIMIT 10
@@ -960,6 +990,9 @@ class UpdateDataLayer:
                     where_clauses.append("publish_date <= ?")
                     params.append(date_to)
                     
+                # 只统计whatsnew，不统计blog
+                where_clauses.append("source_channel = 'whatsnew'")
+                
                 where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
                     
                 sql = f"""
@@ -1034,11 +1067,11 @@ class UpdateDataLayer:
         prev_from = prev_start.strftime('%Y-%m-%d')
         prev_to = prev_end.strftime('%Y-%m-%d')
         
-        # 查询上一周期数据
+        # 查询上一周期数据（只统计whatsnew）
         prev_sql = """
             SELECT vendor, COUNT(*) as count
             FROM updates
-            WHERE publish_date >= ? AND publish_date <= ?
+            WHERE source_channel = 'whatsnew' AND publish_date >= ? AND publish_date <= ?
             GROUP BY vendor
         """
         cursor.execute(prev_sql, [prev_from, prev_to])
@@ -1083,7 +1116,8 @@ class UpdateDataLayer:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                     
-                cursor.execute("SELECT COUNT(*) as total FROM updates")
+                # 只统计whatsnew，不统计blog
+                cursor.execute("SELECT COUNT(*) as total FROM updates WHERE source_channel = 'whatsnew'")
                 total = cursor.fetchone()['total']
                     
                 if total == 0:
@@ -1092,7 +1126,8 @@ class UpdateDataLayer:
                 # 增强has_analysis判定,排除无效值
                 cursor.execute(
                     "SELECT COUNT(*) as analyzed FROM updates "
-                    "WHERE title_translated IS NOT NULL "
+                    "WHERE source_channel = 'whatsnew' "
+                    "AND title_translated IS NOT NULL "
                     "AND title_translated != '' "
                     "AND LENGTH(TRIM(title_translated)) >= 2 "
                     "AND title_translated NOT IN ('N/A', '暂无', 'None', 'null')"
@@ -1126,7 +1161,8 @@ class UpdateDataLayer:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
-                where_clauses = ["update_type IS NOT NULL", "update_type != ''"]
+                # 只统计whatsnew，不统计blog
+                where_clauses = ["source_channel = 'whatsnew'", "update_type IS NOT NULL", "update_type != ''"]
                 params = []
                 
                 if date_from:
@@ -1456,7 +1492,8 @@ class UpdateDataLayer:
                     date_format = "%Y-%m-%d"
                     date_expr = "DATE(publish_date)"
                 
-                where_clauses = ["publish_date IS NOT NULL"]
+                # 只统计whatsnew，不统计blog
+                where_clauses = ["source_channel = 'whatsnew'", "publish_date IS NOT NULL"]
                 params = []
                 
                 if date_from:
@@ -1690,6 +1727,7 @@ class UpdateDataLayer:
                 cursor = conn.cursor()
                 
                 where_clauses = [
+                    "source_channel = 'whatsnew'",  # 只统计whatsnew
                     "product_subcategory IS NOT NULL",
                     "product_subcategory != ''"
                 ]
@@ -1769,6 +1807,7 @@ class UpdateDataLayer:
         
         # 查询上一周期数据
         where_clauses = [
+            "source_channel = 'whatsnew'",  # 只统计whatsnew
             "product_subcategory IS NOT NULL",
             "product_subcategory != ''",
             "publish_date >= ?",

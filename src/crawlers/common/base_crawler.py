@@ -70,6 +70,9 @@ class BaseCrawler(ABC):
         # 初始化待同步的数据列表（用于批量同步到数据库）
         self._pending_sync_updates = {}
         
+        # 分批入库阈值，每累积这么多条就入库一次
+        self._batch_sync_size = 50
+        
         # 初始化数据库层（延迟加载）
         self._data_layer = None
     
@@ -193,6 +196,11 @@ class BaseCrawler(ABC):
             
             # 收集待同步数据
             self._pending_sync_updates[source_identifier] = sync_entry
+            
+            # 达到阈值时自动入库
+            if len(self._pending_sync_updates) >= self._batch_sync_size:
+                logger.info(f"已累积 {len(self._pending_sync_updates)} 条，执行分批入库...")
+                self.batch_sync_to_database()  # 装饰器会清空 _pending_sync_updates
             
             logger.debug(f"已收集更新: {update.get('title', '')[:30]}...")
             return True

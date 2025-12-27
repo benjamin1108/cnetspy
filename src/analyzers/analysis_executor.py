@@ -25,7 +25,11 @@ class AnalysisExecutor:
     1. 调用 UpdateAnalyzer 进行AI分析
     2. 保存分析结果到文件（可选）
     3. 更新数据库字段
+    4. 删除非网络相关内容并记录报告
     """
+    
+    # 删除报告收集器（类级别，用于批量分析后统一输出）
+    deleted_records = []
     
     def __init__(self, analyzer, data_layer, config: Dict[str, Any]):
         """
@@ -46,6 +50,9 @@ class AnalysisExecutor:
         # 文件保存配置
         self.enable_file_save = config.get('enable_file_save', True)
         self.output_base_dir = config.get('output_base_dir', 'data/analyzed')
+        
+        # 每次初始化时清空删除报告
+        AnalysisExecutor.deleted_records = []
     
     def execute_analysis(
         self, 
@@ -77,6 +84,12 @@ class AnalysisExecutor:
             if not result:
                 self.logger.error(f"AI分析失败: {update_id}")
                 return None
+            
+            # 1.5 检查是否与网络相关，不相关则删除
+            is_network_related = result.get('is_network_related', True)
+            if not is_network_related:
+                self._handle_non_network_content(update_id, update_data)
+                return {'deleted': True, 'reason': 'not_network_related'}
             
             # 2. 保存到文件（如果启用）
             should_save_file = save_to_file if save_to_file is not None else self.enable_file_save
@@ -157,3 +170,74 @@ class AnalysisExecutor:
         except Exception as e:
             self.logger.error(f"保存分析文件失败: {e}")
             return None
+    
+    def _handle_non_network_content(self, update_id: str, update_data: Dict[str, Any]) -> None:
+        """
+        处理非网络相关内容：删除记录并记录到报告
+        
+        Args:
+            update_id: 记录ID
+            update_data: 更新数据
+        """
+        title = update_data.get('title', '')
+        source_url = update_data.get('source_url', '')
+        raw_filepath = update_data.get('raw_filepath', '')
+        
+        # 1. 删除数据库记录
+        try:
+            self.data_layer.delete_update(update_id)
+        except Exception as e:
+            self.logger.error(f"删除数据库记录失败: {e}")
+        
+        # 2. 删除原始文件
+        if raw_filepath and os.path.exists(raw_filepath):
+            try:
+                os.remove(raw_filepath)
+                self.logger.debug(f"删除原始文件: {raw_filepath}")
+            except Exception as e:
+                self.logger.error(f"删除原始文件失败: {e}")
+        
+        # 3. 记录到删除报告
+        AnalysisExecutor.deleted_records.append({
+            'update_id': update_id,
+            'title': title,
+            'source_url': source_url
+        })
+        
+        self.logger.info(f"删除非网络内容: {title[:50]}...")
+    
+    @classmethod
+    def print_deletion_report(cls) -> None:
+        """
+        输出删除报告
+        """
+        if not cls.deleted_records:
+            logger.info("本次分析无删除记录")
+            return
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"删除报告: 共删除 {len(cls.deleted_records)} 条非网络相关内容")
+        logger.info(f"{'='*60}")
+        
+        for idx, record in enumerate(cls.deleted_records, 1):
+            logger.info(f"{idx}. {record['title']}")
+            logger.info(f"   链接: {record['source_url']}")
+        
+        logger.info(f"{'='*60}\n")
+    
+    @classmethod
+    def get_deletion_report(cls) -> list:
+        """
+        获取删除报告列表
+        
+        Returns:
+            删除记录列表
+        """
+        return cls.deleted_records.copy()
+    
+    @classmethod
+    def clear_deletion_report(cls) -> None:
+        """
+        清空删除报告
+        """
+        cls.deleted_records = []

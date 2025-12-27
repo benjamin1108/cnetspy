@@ -8,6 +8,7 @@ import sys
 import time
 import hashlib
 import datetime
+import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
@@ -23,14 +24,35 @@ from src.crawlers.common.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
 
+# 保留的博客频道（网络主频道 + 云产品相关频道）
+ALLOWED_BLOG_CHANNELS = {
+    # 网络主频道
+    'networking-and-content-delivery',
+    # 云产品相关频道
+    'aws',           # AWS主博客，发布产品更新
+    'containers',    # 容器
+    'compute',       # 计算
+    'security',      # 安全
+    'storage',       # 存储
+    'database',      # 数据库
+    'architecture',  # 架构
+    'hpc',           # 高性能计算
+    'infrastructure-and-automation',  # 基础设施自动化
+}
+
+
 class AwsNetworkBlogCrawler(BaseCrawler):
-    """AWS网络博客爬虫实现"""
+    """AWS网络博客爬虫实现 - 使用API方式爬取"""
     
     def __init__(self, config: Dict[str, Any], vendor: str, source_type: str):
         """初始化AWS博客爬虫"""
         super().__init__(config, vendor, source_type)
         self.source_config = config.get('sources', {}).get(vendor, {}).get(source_type, {})
         self.start_url = self.source_config.get('url')
+        self.api_url = "https://aws.amazon.com/api/dirs/items/search"
+        # 获取截止年份配置
+        aws_blog_config = config.get('aws_blog', {})
+        self.crawl_until_year = aws_blog_config.get('crawl_until_year', 2025)
     
     def _get_identifier_strategy(self) -> str:
         """AWS Network Blog使用url-based策略"""
@@ -40,319 +62,233 @@ class AwsNetworkBlogCrawler(BaseCrawler):
         """AWS Network Blog: hash(source_url)"""
         return [update.get('source_url', '')]
     
+    def _is_networking_blog(self, url: str) -> bool:
+        """检查文章URL是否属于允许的博客频道"""
+        # 从 URL 提取博客频道: /blogs/xxx/ -> xxx
+        if '/blogs/' in url:
+            parts = url.split('/blogs/')[1].split('/')
+            if parts:
+                channel = parts[0]
+                return channel in ALLOWED_BLOG_CHANNELS
+        return False
+    
+    def _fetch_blog_items_from_api(self, page: int = 0, size: int = 100) -> Dict[str, Any]:
+        """通过API获取博客文章列表（使用官方networking分类tag预过滤）"""
+        params = {
+            "item.directoryId": "blog-posts",
+            "item.locale": "en_US",
+            "sort_by": "item.dateCreated",
+            "sort_order": "desc",
+            "size": size,
+            "page": page,
+            "tags.id": "blog-posts#category#networking-content-delivery"  # 官方networking分类
+        }
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
+        try:
+            resp = requests.get(self.api_url, params=params, headers=headers, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.error(f"API请求失败: {e}")
+            return {}
+    
     def _crawl(self) -> List[str]:
         """
-        爬取AWS博客
+        通过API爬取AWS网络相关博客
         
         Returns:
             保存的文件路径列表
         """
-        if not self.start_url:
-            logger.error("未配置起始URL")
-            return []
-        
         saved_files = []
         
         try:
-            # 获取博客列表页
-            logger.info(f"获取AWS博客列表页: {self.start_url}")
-            
-            # 先尝试使用requests库获取页面内容(优先使用更稳定的方式)
-            html = None
-            try:
-                logger.debug("使用requests库获取页面内容")
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Cache-Control': 'max-age=0'
-                }
-                response = requests.get(self.start_url, headers=headers, timeout=30)
-                if response.status_code == 200:
-                    html = response.text
-                    logger.debug("使用requests库成功获取到页面内容")
-                else:
-                    logger.error(f"请求返回非成功状态码: {response.status_code}")
-            except Exception as e:
-                logger.error(f"使用requests库获取页面失败: {e}")
-            
-            # 只有在requests失败时才尝试使用Selenium
-            if not html:
-                logger.debug("requests获取失败，尝试使用Selenium")
-                html = self._get_selenium(self.start_url)
-            
-            if not html:
-                logger.error(f"获取博客列表页失败: {self.start_url}")
-                return []
-            
-            # 解析博客列表，获取文章链接
-            article_links = self._parse_article_links(html)
-            logger.info(f"解析到 {len(article_links)} 篇文章链接")
-            
-            # 如果是测试模式或有文章数量限制，截取所需数量的文章链接
+            # 获取配置
             test_mode = self.source_config.get('test_mode', False)
-            article_limit = self.crawler_config.get('article_limit')
+            article_limit = self.crawler_config.get('article_limit', 50)
+            force_mode = self.crawler_config.get('force', False)
             
             if test_mode:
-                logger.info("爬取模式：限制爬取1篇文章")
-                article_links = article_links[:1]
-            elif article_limit > 0:
+                article_limit = 1
+                logger.info("测试模式：限制爬取1篇文章")
+            else:
                 logger.info(f"爬取模式：限制爬取{article_limit}篇文章")
-                article_links = article_links[:article_limit]
             
-            # 检查是否启用了强制模式
-            force_mode = self.crawler_config.get('force', False)
             if force_mode:
                 logger.info("强制模式已启用，将重新爬取所有文章")
-                filtered_article_links = article_links
-                logger.info(f"强制模式下爬取所有 {len(filtered_article_links)} 篇文章")
-            else:
-                # 非强制模式下，过滤已存在的文章链接（使用数据库去重）
-                filtered_article_links = []
-                already_crawled_count = 0
+            
+            # 通过API获取文章并过滤网络相关的
+            network_articles = []
+            page = 0
+            total_scanned = 0
+            
+            logger.info("开始通过API获取AWS博客数据...")
+            logger.info(f"截止年份: {self.crawl_until_year}（只爬取{self.crawl_until_year}年及以后的文章）")
+            
+            reached_cutoff = False  # 是否达到截止年份
+            
+            while len(network_articles) < article_limit and not reached_cutoff:
+                data = self._fetch_blog_items_from_api(page=page, size=100)
+                items = data.get("items", [])
                 
-                for title, url in article_links:
-                    # 生成source_identifier用于数据库查询
-                    temp_update = {'source_url': url}
+                if not items:
+                    logger.info(f"API返回空数据，停止获取")
+                    break
+                
+                total_scanned += len(items)
+                
+                # 过滤属于Networking博客频道的文章（用URL路径判断）
+                for item in items:
+                    if len(network_articles) >= article_limit:
+                        break
+                    
+                    item_data = item.get("item", {})
+                    additional = item_data.get("additionalFields", {})
+                    
+                    # 获取文章发布日期，检查是否达到截止年份
+                    date_created = item_data.get('dateCreated', '')
+                    if date_created:
+                        article_year = int(date_created[:4]) if date_created[:4].isdigit() else 9999
+                        if article_year < self.crawl_until_year:
+                            logger.info(f"达到截止年份 {self.crawl_until_year}，停止爬取（当前文章: {article_year}年）")
+                            reached_cutoff = True
+                            break
+                    
+                    title = additional.get("title", "")
+                    url = additional.get("link", "")
+                    
+                    # 只保留URL路径包含 /blogs/networking-and-content-delivery/ 的文章
+                    if title and url and self._is_networking_blog(url):
+                        tags = item.get("tags", [])
+                        tag_names = [t.get('name', '') for t in tags[:5]]
+                        network_articles.append({
+                            'title': title,
+                            'url': url,
+                            'tags': tag_names,
+                            'date': additional.get('displayDate', '')
+                        })
+                
+                metadata = data.get("metadata", {})
+                total_hits = metadata.get("totalHits", 0)
+                
+                logger.info(f"第{page + 1}页: 扫描{len(items)}篇，找到{len(network_articles)}篇网络相关文章")
+                
+                if total_scanned >= total_hits:
+                    break
+                
+                page += 1
+                time.sleep(0.3)
+            
+            logger.info(f"总共扫描{total_scanned}篇文章，找到{len(network_articles)}篇网络相关文章")
+            
+            # 过滤已存在的文章
+            if not force_mode:
+                filtered_articles = []
+                already_crawled = 0
+                
+                for article in network_articles:
+                    temp_update = {'source_url': article['url']}
                     source_identifier = self.generate_source_identifier(temp_update)
                     
-                    # 检查数据库是否已存在
-                    if self.check_exists_in_db(url, source_identifier):
-                        already_crawled_count += 1
-                        logger.debug(f"跳过已爬取的文章: {title} ({url})")
+                    if self.check_exists_in_db(article['url'], source_identifier):
+                        already_crawled += 1
+                        logger.debug(f"跳过已爬取: {article['title']}")
                     else:
-                        filtered_article_links.append((title, url))
+                        filtered_articles.append(article)
                 
-                logger.info(f"过滤后: {len(filtered_article_links)} 篇新文章需要爬取，{already_crawled_count} 篇文章已存在")
+                logger.info(f"过滤后: {len(filtered_articles)}篇新文章需要爬取，{already_crawled}篇已存在")
+                network_articles = filtered_articles
             
-            # 爬取每篇新文章
-            for idx, (title, url) in enumerate(filtered_article_links, 1):
-                logger.info(f"正在爬取第 {idx}/{len(filtered_article_links)} 篇文章: {title}")
+            # 使用线程池并行爬取每篇文章内容
+            all_updates = []
+            if network_articles:
+                max_workers = min(10, len(network_articles))  # 最多10个并发
+                logger.info(f"使用 {max_workers} 个线程并行爬取")
                 
-                try:
-                    # 尝试获取文章内容 - 优先使用requests
-                    article_html = None
-                    try:
-                        logger.debug(f"使用requests库获取文章内容: {url}")
-                        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-                        response = requests.get(url, headers=headers, timeout=30)
-                        if response.status_code == 200:
-                            article_html = response.text
-                            logger.debug("使用requests库成功获取到文章内容")
-                        else:
-                            logger.error(f"请求返回非成功状态码: {response.status_code}")
-                    except Exception as e:
-                        logger.error(f"使用requests库获取文章失败: {e}")
-                    
-                    # 如果requests失败，才尝试Selenium
-                    if not article_html:
-                        logger.debug(f"尝试使用Selenium获取文章内容: {url}")
-                        article_html = self._get_selenium(url)
-                    
-                    if not article_html:
-                        logger.warning(f"获取文章内容失败: {url}")
-                        continue
-                    
-                    # 解析文章内容和发布日期
-                    article_content_and_date = self._parse_article_content(url, article_html)
-                    content, pub_date = article_content_and_date
-                    
-                    # 构建 update 字典并调用 save_update
-                    update = {
-                        'source_url': url,
-                        'title': title,
-                        'content': content,
-                        'publish_date': pub_date.replace('_', '-') if pub_date else '',
-                        'product_name': 'AWS Networking'
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # 提交所有任务
+                    future_to_article = {
+                        executor.submit(self._crawl_single_article, article): article
+                        for article in network_articles
                     }
+                    
+                    # 处理完成的任务
+                    completed = 0
+                    for future in concurrent.futures.as_completed(future_to_article):
+                        article = future_to_article[future]
+                        completed += 1
+                        try:
+                            update = future.result()
+                            if update:
+                                all_updates.append(update)
+                                logger.info(f"[{completed}/{len(network_articles)}] 成功: {article['title'][:50]}")
+                            else:
+                                logger.warning(f"[{completed}/{len(network_articles)}] 失败: {article['title'][:50]}")
+                        except Exception as e:
+                            logger.error(f"[{completed}/{len(network_articles)}] 异常 [{article['title'][:30]}]: {e}")
+            
+            logger.info(f"总共收集到 {len(all_updates)} 篇博客文章")
+            
+            # 保存每篇文章
+            for update in all_updates:
+                try:
                     success = self.save_update(update)
                     if success:
-                        saved_files.append(url)
-                    logger.info(f"已保存文章: {title}")
-                    
-                    # 间隔一段时间再爬取下一篇
-                    if idx < len(filtered_article_links):
-                        time.sleep(self.interval)
-                    
+                        saved_files.append(update.get('source_url', ''))
                 except Exception as e:
-                    logger.error(f"爬取文章失败: {url} - {e}")
+                    logger.error(f"保存更新失败 [{update.get('title', 'Unknown')[:30]}]: {e}")
             
+            logger.info(f"成功保存 {len(saved_files)} 篇博客文章")
             return saved_files
+            
         except Exception as e:
             logger.error(f"爬取AWS博客过程中发生错误: {e}")
             return saved_files
         finally:
-            # 关闭WebDriver
             self._close_driver()
     
-    def _parse_article_links(self, html: str) -> List[Tuple[str, str]]:
+    def _crawl_single_article(self, article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        从博客列表页解析文章链接
+        爬取单篇文章内容（用于线程池并行调用）
         
         Args:
-            html: 博客列表页HTML
+            article: 文章信息字典，包含 title, url, tags, date
             
         Returns:
-            文章链接列表，每项为(标题, URL)元组
+            update字典，失败返回None
         """
-        soup = BeautifulSoup(html, 'lxml')
-        articles = []
-        
-        # 打印页面的标题，便于调试
-        page_title = soup.find('title')
-        if page_title:
-            logger.debug(f"页面标题: {page_title.text.strip()}")
+        url = article['url']
+        title = article['title']
         
         try:
-            # 新版AWS博客页面的文章选择器
-            # 先尝试获取所有可能的文章容器
-            article_containers = soup.select('.blog-post, .blog-card, .aws-card, .aws-card-blog, .lb-card, article, .blog-media, .blog-entry, .aws-blog-post, .blog-post-group, .blog-post-card')
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            response = requests.get(url, headers=headers, timeout=30)
             
-            if not article_containers:
-                # 使用更通用的选择器
-                logger.warning("未找到指定文章容器，尝试使用通用选择器")
-                
-                # 首先尝试找到博客主区域
-                content_area = (
-                    soup.select_one('main, .main-content, #main, .content, .blog-content, #content') or 
-                    soup.select_one('.lb-main, .aws-main, .blog-list') or 
-                    soup.body
-                )
-                
-                # 从主区域中找到所有链接
-                all_links = content_area.find_all('a', href=True) if content_area else soup.find_all('a', href=True)
-                
-                # 筛选博客文章链接
-                blog_links = []
-                for link in all_links:
-                    href = link.get('href', '')
-                    # AWS博客文章URL通常包含 /blogs/ 或 /blog/ 路径
-                    if '/blogs/' in href or '/blog/' in href or 'aws.amazon.com' in href and '/post/' in href:
-                        if not any(x in href for x in ['category', 'tag', 'archive', 'author', 'about', 'contact', 'feed']):
-                            # 获取标题文本
-                            title = link.get_text(strip=True)
-                            if not title or len(title) < 5:  # 忽略太短的标题
-                                continue
-                                
-                            # 构建完整URL
-                            url = href if href.startswith('http') else urljoin(self.start_url, href)
-                            
-                            # 避免重复
-                            if url not in [x[1] for x in blog_links]:
-                                blog_links.append((title, url))
-                
-                # 使用URL模式进一步筛选链接
-                for title, url in blog_links:
-                    if self._is_likely_blog_post(url):
-                        articles.append((title, url))
-            else:
-                # 处理找到的文章容器
-                for container in article_containers:
-                    # 尝试找到标题元素
-                    title_elem = (
-                        container.select_one('h1, h2, h3, h4, h5, .lb-txt-bold, .blog-title, .aws-blog-title, .blog-post-title') or 
-                        container.select_one('.title, .post-title, .entry-title') or
-                        container.select_one('a')
-                    )
-                    
-                    if title_elem:
-                        # 获取标题
-                        title = title_elem.get_text(strip=True)
-                        
-                        # 获取链接元素
-                        link_elem = None
-                        if title_elem.name == 'a':
-                            link_elem = title_elem
-                        else:
-                            # 在标题元素或容器中查找链接
-                            link_elem = title_elem.find('a') or container.find('a', href=True)
-                        
-                        if link_elem and link_elem.get('href'):
-                            href = link_elem['href']
-                            # 构建完整URL
-                            url = href if href.startswith('http') else urljoin(self.start_url, href)
-                            
-                            # 检查是否为有效的博客文章URL
-                            if self._is_likely_blog_post(url):
-                                # 避免重复
-                                if url not in [x[1] for x in articles]:
-                                    articles.append((title, url))
+            if response.status_code != 200:
+                logger.warning(f"获取文章失败: {url} - HTTP {response.status_code}")
+                return None
             
-            logger.info(f"找到 {len(articles)} 篇潜在的博客文章链接")
+            article_html = response.text
             
-            # 如果没有找到任何文章，尝试直接爬取当前页面
-            if not articles and self._is_likely_blog_post(self.start_url):
-                page_title = soup.find('title')
-                title = page_title.text.strip() if page_title else "AWS Blog Post"
-                articles.append((title, self.start_url))
-                logger.info(f"未找到文章列表，将当前页面作为博客文章处理: {title}")
-        
+            # 解析文章内容和发布日期
+            content, pub_date = self._parse_article_content(url, article_html)
+            
+            # 构建 update 字典
+            update = {
+                'source_url': url,
+                'title': title,
+                'content': content,
+                'publish_date': pub_date.replace('_', '-') if pub_date else '',
+                'product_name': 'AWS Networking'
+            }
+            
+            return update
+            
         except Exception as e:
-            logger.error(f"解析文章链接出错: {e}")
-        
-        # 判断是否为测试模式
-        test_mode = self.source_config.get('test_mode', False)
-        
-        # 如果是测试模式，只爬取1篇文章
-        if test_mode:
-            logger.info("测试模式：仅爬取1篇文章")
-            return articles[:1]
-        
-        # 否则根据配置的限制数量爬取
-        limit = self.crawler_config.get('article_limit')
-        logger.info(f"爬取模式：限制爬取{limit}篇文章")
-        return articles[:limit]
-    
-    def _is_likely_blog_post(self, url: str) -> bool:
-        """
-        判断URL是否可能是博客文章
-        
-        Args:
-            url: 要检查的URL
-            
-        Returns:
-            True如果URL可能是博客文章，否则False
-        """
-        # 移除协议和域名部分
-        parsed = urlparse(url)
-        path = parsed.path
-        
-        # AWS博客文章URL的常见模式
-        blog_patterns = [
-            r'/blogs/[^/]+/[^/]+',  # 如 /blogs/networking-and-content-delivery/article-name
-            r'/blog/[^/]+',         # 如 /blog/article-name
-            r'/post/[^/]+',         # 如 /post/article-name
-            r'/\d{4}/\d{2}/[^/]+',  # 如 /2022/01/article-name (日期格式)
-            r'/news/[^/]+',         # 如 /news/article-name
-            r'/announcements/[^/]+', # 如 /announcements/article-name
-        ]
-        
-        # 检查是否匹配任何博客文章模式
-        for pattern in blog_patterns:
-            if re.search(pattern, path):
-                return True
-        
-        # 排除常见的非文章页面
-        exclude_patterns = [
-            r'/tag/', r'/tags/', r'/category/', r'/categories/',
-            r'/author/', r'/about/', r'/contact/', r'/feed/',
-            r'/archive/', r'/archives/', r'/page/\d+', r'/search/'
-        ]
-        
-        for pattern in exclude_patterns:
-            if re.search(pattern, path):
-                return False
-                
-        # 检查是否在URL路径中包含特定关键词
-        blog_keywords = ['post', 'article', 'blog', 'news', 'announcement']
-        for keyword in blog_keywords:
-            if keyword in path.lower():
-                return True
-                
-        # 默认返回False，宁可错过也不要误报
-        return False
+            logger.error(f"爬取文章失败: {url} - {e}")
+            return None
     
     def _parse_article_content(self, url: str, html: str) -> Tuple[str, Optional[str]]:
         """
@@ -365,7 +301,7 @@ class AwsNetworkBlogCrawler(BaseCrawler):
         Returns:
             (Markdown内容, 发布日期)元组，如果找不到日期则日期为None
         """
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')  # 使用更宽容的解析器避免lxml错误
         
         # 提取发布日期
         pub_date = self._extract_publish_date(soup)
@@ -710,8 +646,13 @@ class AwsNetworkBlogCrawler(BaseCrawler):
         # 保留文章主体内容
         article_html = str(article)
         
-        # 使用html2text转换为Markdown
-        article_md = self.html_converter.handle(article_html)
+        # 为线程安全，每次创建新的html2text实例
+        converter = html2text.HTML2Text()
+        converter.ignore_links = False
+        converter.ignore_images = False
+        converter.ignore_emphasis = False
+        converter.body_width = 0
+        article_md = converter.handle(article_html)
         
         # 清理Markdown
         article_md = self._clean_markdown(article_md)

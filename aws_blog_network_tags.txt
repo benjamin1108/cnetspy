@@ -1,0 +1,131 @@
+networking-content-delivery	656
+aws-partner-network	655
+Networking & Content Delivery	626
+amazon-cloudfront	233
+Amazon API Gateway	220
+amazon-api-gateway-application-services	204
+Amazon CloudFront	186
+Amazon VPC	143
+amazon-vpc	128
+aws-direct-connect	127
+amazon-bedrock-knowledge-bases	120
+amazon-route-53	115
+aws-waf	97
+AWS Direct Connect	95
+Amazon Route 53	93
+aws-transit-gateway	80
+amazon-vpc-networking-content-delivery	67
+Elastic Load Balancing (ELB)	67
+AWS WAF	64
+amazon-api-gateway	59
+AWS Transit Gateway	58
+aws-network-firewall	42
+networking	38
+edge	28
+aws-site-to-site-vpn	26
+amazon-vpc-lattice	25
+aws-vpn	25
+Edge Computing	21
+aws-firewall-manager	21
+aws-global-accelerator	19
+natural-language-processing	18
+aws-partner-network-apn	16
+AWS Global Accelerator	15
+gateway-load-balancer	15
+AWS Firewall Manager	14
+aws-digital-sovereignty-pledge	10
+lambdaedge	10
+aws-snowball-edge	10
+doit-international	9
+palo-alto-networks	9
+aws-transit-gateway-network-manager	8
+aws-client-vpn	8
+edge-computing	8
+networking-and-content-delivery	7
+network-load-balancer	7
+AWS Snowball Edge	7
+aws-app-mesh	6
+vpc	6
+dynatrace	5
+route-53-resolver	5
+AWS App Mesh	5
+application-load-balancer	5
+amazon-quantum-ledger-database	5
+network-security	4
+iot-edge	4
+united-nations	4
+Amazon Quantum Ledger Database (QLDB)	4
+api-gateway	4
+eccom-network-system	4
+network	4
+amazon-vpc-ip-address-manager	3
+global-knowledge	3
+route-53	3
+aws-direct-connect-sitelink	3
+firewall	3
+technative	3
+dns	2
+amazon-virtual-private-cloud-amazon-vpc	2
+content-delivery-network	2
+hybrid-networking	2
+application-networking	2
+amazon-cloudfront-functions	2
+vpn	2
+cloudfront	2
+vpc-endpoint	2
+sonatype	2
+7edge	2
+react-native	2
+aws-center-for-quantum-networking	2
+cloudnation	2
+cj-olivenetworks	2
+skyarch-networks	2
+f5-networks	2
+vpc-cni	2
+sony-biz-networks	2
+vpc-flow-logs	2
+aws-vpc	2
+virtual-public-cloud-vpc	1
+netec-global-knowledge	1
+amazon-vpc-endpoints	1
+client-vpn	1
+network-and-infrastructure-security	1
+vpc-endpoints	1
+elb	1
+core-network	1
+aws-transit-gateway-connect	1
+pinnacle-technology-partners	1
+national-institute-of-standards-and-technology	1
+aws-web-application-firewall	1
+waf	1
+international-traffic-in-arms-regulations	1
+newedge-services	1
+sonata-software	1
+edge-intelligence	1
+knowledge-graph	1
+cdn	1
+osam-international-company	1
+megaport-cloud-router	1
+virtual-router-service	1
+juniper-networks	1
+interface-endpoint	1
+cloudhedge	1
+amazon-route53	1
+global-accelerator	1
+sparks-network-services	1
+citic-telecom-international-cpc	1
+network-and-content-delivery	1
+chuan-kai-international	1
+arista-networks	1
+international-womens-day	1
+saturn-networking-solutions	1
+digitalroute	1
+load-balancer	1
+edge-signal	1
+revinate	1
+i2k2-networks	1
+edge-to-cloud	1
+the-climate-pledge	1
+security-groups	1
+container-networking	1
+network-perimeter	1

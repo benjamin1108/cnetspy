@@ -56,6 +56,9 @@ class AnalyzeUpdatesScript:
         except Exception as e:
             self.logger.error(f"分析器初始化失败: {e}")
             sys.exit(1)
+        
+        # 初始化删除报告收集器
+        self.deleted_records = []
     
     def _load_config(self):
         """加载配置文件"""
@@ -353,6 +356,13 @@ class AnalyzeUpdatesScript:
             result = self.analyzer.analyze(update_data)
             
             if result:
+                # 检查是否与网络相关
+                is_network_related = result.get('is_network_related', True)
+                if not is_network_related:
+                    # 删除非网络内容
+                    self._delete_non_network_content(update_id, update_data)
+                    return True  # 返回 True 表示处理成功（删除也是成功）
+                
                 # 保存分析结果到文件
                 file_path = self._save_analysis_to_file(update_id, update_data, result)
                 if file_path:
@@ -388,6 +398,41 @@ class AnalyzeUpdatesScript:
         print(f"\r[{bar}] {current}/{total} ({percent:.1f}%) | "
               f"成功: {success} | 失败: {fail} | 耗时: {elapsed_str}", end='', flush=True)
     
+    def _delete_non_network_content(self, update_id: str, update_data: dict) -> None:
+        """
+        删除非网络相关内容
+        
+        Args:
+            update_id: 记录ID
+            update_data: 更新数据
+        """
+        title = update_data.get('title', '')
+        source_url = update_data.get('source_url', '')
+        raw_filepath = update_data.get('raw_filepath', '')
+        
+        # 1. 删除数据库记录
+        if not self.args.dry_run:
+            try:
+                self.data_layer.delete_update(update_id)
+            except Exception as e:
+                self.logger.error(f"删除数据库记录失败: {e}")
+        
+        # 2. 删除原始文件
+        if not self.args.dry_run and raw_filepath and os.path.exists(raw_filepath):
+            try:
+                os.remove(raw_filepath)
+            except Exception as e:
+                self.logger.error(f"删除原始文件失败: {e}")
+        
+        # 3. 记录到删除报告
+        self.deleted_records.append({
+            'update_id': update_id,
+            'title': title,
+            'source_url': source_url
+        })
+        
+        self.logger.debug(f"删除非网络内容: {title[:50]}...")
+    
     def _print_summary(self, total, success, fail, elapsed):
         """打印统计摘要"""
         print("\n")  # 换行
@@ -396,6 +441,24 @@ class AnalyzeUpdatesScript:
         self.logger.info(f"成功: {success} 条 ({success/total*100:.1f}%)")
         self.logger.info(f"失败: {fail} 条 ({fail/total*100:.1f}%)")
         self.logger.info(f"总耗时: {self._format_time(elapsed)}")
+        
+        # 输出删除报告
+        self._print_deletion_report()
+    
+    def _print_deletion_report(self):
+        """输出删除报告"""
+        if not self.deleted_records:
+            return
+        
+        print("\n" + "=" * 60)
+        self.logger.info(f"🗑️  删除报告: 共删除 {len(self.deleted_records)} 条非网络相关内容")
+        print("=" * 60)
+        
+        for idx, record in enumerate(self.deleted_records, 1):
+            print(f"{idx}. {record['title']}")
+            print(f"   链接: {record['source_url']}")
+        
+        print("=" * 60 + "\n")
     
     def _format_time(self, seconds):
         """格式化时间"""
