@@ -27,7 +27,7 @@ import {
   Circle,
   Copy,
   Check,
-  Sparkles,
+  //Sparkles,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -98,7 +98,7 @@ export function UpdateDetailPage() {
   }, [update?.content_translated, update?.content, showTranslated, hasBothLanguages]);
 
   // 当前显示的是翻译内容
-  const isShowingTranslated = hasBothLanguages ? showTranslated : !!update?.content_translated;
+  //const isShowingTranslated = hasBothLanguages ? showTranslated : !!update?.content_translated;
   
   // 处理复制链接
   const handleCopyLink = async () => {
