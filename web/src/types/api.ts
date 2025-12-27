@@ -97,11 +97,33 @@ export interface TimelineItem {
   vendors: Record<string, number>;
 }
 
+// 环比趋势数据
+export interface TrendData {
+  change_percent: number;
+  direction: 'up' | 'down' | 'flat';
+  current_period: number;
+  previous_period: number;
+}
+
 // 厂商统计项
 export interface VendorStatsItem {
   vendor: string;
   count: number;
   analyzed: number;
+  trend?: TrendData;
+}
+
+// 厂商-更新类型矩阵项
+export interface VendorTypeMatrixItem {
+  vendor: string;
+  total: number;
+  update_types: Record<string, number>;
+}
+
+// 产品热度项
+export interface ProductHotnessItem {
+  product_subcategory: string;
+  count: number;
 }
 
 // 厂商信息

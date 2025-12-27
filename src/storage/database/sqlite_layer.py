@@ -471,13 +471,22 @@ class UpdateDataLayer:
                 # 文件大小
                 file_size = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
                 
+                # 最后爬取时间
+                cursor.execute('''
+                    SELECT MAX(crawl_time) as latest_crawl_time 
+                    FROM updates
+                ''')
+                row = cursor.fetchone()
+                latest_crawl_time = row['latest_crawl_time'] if row else None
+                
                 return {
                     'total_updates': total_updates,
                     'vendor_stats': vendor_stats,
                     'type_stats': type_stats,
                     'file_size_bytes': file_size,
                     'file_size_mb': round(file_size / 1024 / 1024, 2),
-                    'db_path': self.db_path
+                    'db_path': self.db_path,
+                    'latest_crawl_time': latest_crawl_time
                 }
                 
         except Exception as e:
@@ -918,7 +927,8 @@ class UpdateDataLayer:
     def get_vendor_statistics(
         self, 
         date_from: Optional[str] = None, 
-        date_to: Optional[str] = None
+        date_to: Optional[str] = None,
+        include_trend: bool = False
     ) -> List[Dict[str, Any]]:
         """
         按厂商统计
@@ -926,9 +936,10 @@ class UpdateDataLayer:
         Args:
             date_from: 开始日期（可选）
             date_to: 结束日期（可选）
+            include_trend: 是否包含环比趋势数据
                 
         Returns:
-            厂商统计列表,每项包含 vendor, count, analyzed
+            厂商统计列表,每项包含 vendor, count, analyzed, trend(可选)
         """
         try:
             with self._get_connection() as conn:
@@ -966,11 +977,96 @@ class UpdateDataLayer:
                 """
                     
                 cursor.execute(sql, params)
-                return [dict(row) for row in cursor.fetchall()]
+                results = [dict(row) for row in cursor.fetchall()]
+                
+                # 如果需要环比趋势
+                if include_trend and results:
+                    results = self._add_vendor_trend(cursor, results, date_from, date_to)
+                
+                return results
                     
         except Exception as e:
             self.logger.error(f"厂商统计查询失败: {e}")
             return []
+    
+    def _add_vendor_trend(
+        self, 
+        cursor, 
+        current_results: List[Dict[str, Any]],
+        date_from: Optional[str],
+        date_to: Optional[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        为厂商统计添加环比趋势数据
+        
+        对比周期逻辑：
+        - 未指定日期：近30天 vs 前30天
+        - 指定日期范围：该周期 vs 等长上一周期
+        """
+        from datetime import datetime, timedelta
+        
+        # 计算对比周期
+        if date_from and date_to:
+            # 有指定日期范围
+            try:
+                current_start = datetime.strptime(date_from, '%Y-%m-%d')
+                current_end = datetime.strptime(date_to, '%Y-%m-%d')
+                period_days = (current_end - current_start).days + 1
+                prev_end = current_start - timedelta(days=1)
+                prev_start = prev_end - timedelta(days=period_days - 1)
+            except ValueError:
+                # 日期解析失败，默认30天
+                current_end = datetime.now()
+                current_start = current_end - timedelta(days=30)
+                prev_end = current_start - timedelta(days=1)
+                prev_start = prev_end - timedelta(days=29)
+        else:
+            # 未指定日期，默认近30天 vs 前30天
+            current_end = datetime.now()
+            current_start = current_end - timedelta(days=30)
+            prev_end = current_start - timedelta(days=1)
+            prev_start = prev_end - timedelta(days=29)
+        
+        prev_from = prev_start.strftime('%Y-%m-%d')
+        prev_to = prev_end.strftime('%Y-%m-%d')
+        
+        # 查询上一周期数据
+        prev_sql = """
+            SELECT vendor, COUNT(*) as count
+            FROM updates
+            WHERE publish_date >= ? AND publish_date <= ?
+            GROUP BY vendor
+        """
+        cursor.execute(prev_sql, [prev_from, prev_to])
+        prev_data = {row['vendor']: row['count'] for row in cursor.fetchall()}
+        
+        # 为每个厂商添加趋势数据
+        for item in current_results:
+            vendor = item['vendor']
+            current_count = item['count']
+            prev_count = prev_data.get(vendor, 0)
+            
+            if prev_count > 0:
+                change_percent = ((current_count - prev_count) / prev_count) * 100
+            else:
+                change_percent = 100.0 if current_count > 0 else 0.0
+            
+            # 确定方向
+            if change_percent > 0:
+                direction = 'up'
+            elif change_percent < 0:
+                direction = 'down'
+            else:
+                direction = 'flat'
+            
+            item['trend'] = {
+                'change_percent': round(change_percent, 1),
+                'direction': direction,
+                'current_period': current_count,
+                'previous_period': prev_count
+            }
+        
+        return current_results
         
     def get_analysis_coverage(self) -> float:
         """
@@ -1329,7 +1425,7 @@ class UpdateDataLayer:
         获取时间线统计数据
         
         Args:
-            granularity: 粒度 (day/week/month)
+            granularity: 粒度 (day/week/month/year)
             date_from: 开始日期
             date_to: 结束日期
             vendor: 厂商过滤
@@ -1342,7 +1438,10 @@ class UpdateDataLayer:
                 cursor = conn.cursor()
                 
                 # 根据粒度确定日期格式
-                if granularity == "month":
+                if granularity == "year":
+                    date_format = "%Y"
+                    date_expr = "strftime('%Y', publish_date)"
+                elif granularity == "month":
                     date_format = "%Y-%m"
                     date_expr = "strftime('%Y-%m', publish_date)"
                 elif granularity == "week":
@@ -1559,4 +1658,224 @@ class UpdateDataLayer:
                 
         except Exception as e:
             self.logger.error(f"来源类型统计失败: {e}")
+            return []
+
+    def get_product_subcategory_statistics(
+        self,
+        vendor: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        limit: int = 20,
+        include_trend: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        获取产品子类热度统计（按更新数量排名）
+        
+        Args:
+            vendor: 厂商过滤（可选）
+            date_from: 开始日期（可选）
+            date_to: 结束日期（可选）
+            limit: 返回数量限制
+            include_trend: 是否包含环比趋势数据
+            
+        Returns:
+            产品子类统计列表，每项包含 product_subcategory, count, trend(可选)
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clauses = [
+                    "product_subcategory IS NOT NULL",
+                    "product_subcategory != ''"
+                ]
+                params = []
+                
+                if vendor:
+                    where_clauses.append("vendor = ?")
+                    params.append(vendor)
+                
+                if date_from:
+                    where_clauses.append("publish_date >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_clauses.append("publish_date <= ?")
+                    params.append(date_to)
+                
+                where_clause = " AND ".join(where_clauses)
+                params.append(limit)
+                
+                sql = f"""
+                    SELECT 
+                        product_subcategory,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE {where_clause}
+                    GROUP BY product_subcategory
+                    ORDER BY count DESC
+                    LIMIT ?
+                """
+                
+                cursor.execute(sql, params)
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'product_subcategory': row['product_subcategory'],
+                        'count': row['count']
+                    })
+                
+                # 如果需要环比趋势
+                if include_trend and results and date_from and date_to:
+                    results = self._add_product_trend(cursor, results, vendor, date_from, date_to)
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"产品子类统计失败: {e}")
+            return []
+    
+    def _add_product_trend(
+        self,
+        cursor,
+        current_results: List[Dict[str, Any]],
+        vendor: Optional[str],
+        date_from: str,
+        date_to: str
+    ) -> List[Dict[str, Any]]:
+        """
+        为产品热度添加环比趋势数据
+        
+        对比周期逻辑：该年 vs 去年同期
+        """
+        from datetime import datetime, timedelta
+        
+        try:
+            current_start = datetime.strptime(date_from, '%Y-%m-%d')
+            current_end = datetime.strptime(date_to, '%Y-%m-%d')
+            period_days = (current_end - current_start).days + 1
+            prev_end = current_start - timedelta(days=1)
+            prev_start = prev_end - timedelta(days=period_days - 1)
+        except ValueError:
+            return current_results
+        
+        prev_from = prev_start.strftime('%Y-%m-%d')
+        prev_to = prev_end.strftime('%Y-%m-%d')
+        
+        # 查询上一周期数据
+        where_clauses = [
+            "product_subcategory IS NOT NULL",
+            "product_subcategory != ''",
+            "publish_date >= ?",
+            "publish_date <= ?"
+        ]
+        params = [prev_from, prev_to]
+        
+        if vendor:
+            where_clauses.append("vendor = ?")
+            params.append(vendor)
+        
+        prev_sql = f"""
+            SELECT product_subcategory, COUNT(*) as count
+            FROM updates
+            WHERE {' AND '.join(where_clauses)}
+            GROUP BY product_subcategory
+        """
+        cursor.execute(prev_sql, params)
+        prev_data = {row['product_subcategory']: row['count'] for row in cursor.fetchall()}
+        
+        # 为每个产品添加趋势数据
+        for item in current_results:
+            product = item['product_subcategory']
+            current_count = item['count']
+            prev_count = prev_data.get(product, 0)
+            
+            if prev_count > 0:
+                change_percent = ((current_count - prev_count) / prev_count) * 100
+            else:
+                change_percent = 100.0 if current_count > 0 else 0.0
+            
+            if change_percent > 0:
+                direction = 'up'
+            elif change_percent < 0:
+                direction = 'down'
+            else:
+                direction = 'flat'
+            
+            item['trend'] = {
+                'change_percent': round(change_percent, 1),
+                'direction': direction,
+                'current_period': current_count,
+                'previous_period': prev_count
+            }
+        
+        return current_results
+
+    def get_vendor_update_type_matrix(
+        self,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取厂商-更新类型交叉统计矩阵
+        
+        Args:
+            date_from: 开始日期（可选）
+            date_to: 结束日期（可选）
+            
+        Returns:
+            厂商统计列表，每项包含 vendor, total, update_types: {type: count}
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clauses = [
+                    "update_type IS NOT NULL",
+                    "update_type != ''"
+                ]
+                params = []
+                
+                if date_from:
+                    where_clauses.append("publish_date >= ?")
+                    params.append(date_from)
+                
+                if date_to:
+                    where_clauses.append("publish_date <= ?")
+                    params.append(date_to)
+                
+                where_clause = " AND ".join(where_clauses)
+                
+                sql = f"""
+                    SELECT 
+                        vendor,
+                        update_type,
+                        COUNT(*) as count
+                    FROM updates
+                    WHERE {where_clause}
+                    GROUP BY vendor, update_type
+                    ORDER BY vendor, count DESC
+                """
+                
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                
+                # 聚合结果：按厂商分组，更新类型统计合并
+                vendor_stats = {}
+                for row in rows:
+                    vendor = row['vendor']
+                    if vendor not in vendor_stats:
+                        vendor_stats[vendor] = {'vendor': vendor, 'total': 0, 'update_types': {}}
+                    vendor_stats[vendor]['total'] += row['count']
+                    vendor_stats[vendor]['update_types'][row['update_type']] = row['count']
+                
+                # 转换为列表并按总数排序
+                result = list(vendor_stats.values())
+                result.sort(key=lambda x: x['total'], reverse=True)
+                
+                return result
+                
+        except Exception as e:
+            self.logger.error(f"厂商更新类型矩阵查询失败: {e}")
             return []

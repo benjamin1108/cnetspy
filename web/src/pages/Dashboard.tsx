@@ -1,288 +1,560 @@
 /**
- * 仪表盘页面
+ * 仪表盘页面 - 竞争情报大盘风格
  */
 
-import { useStatsOverview, useStatsTimeline, useVendorStats, useUpdateTypeStats } from '@/hooks';
+import { useStatsOverview, useVendorStats, useProductHotness, useVendorTypeMatrix, useAvailableYears } from '@/hooks';
 import { Card, CardContent, CardHeader, CardTitle, Loading } from '@/components/ui';
-import { formatNumber, formatPercent, getVendorColor, getChartThemeColors } from '@/lib/utils';
+import { formatNumber, formatPercent, getVendorColor, cn, getChartThemeColors } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS } from '@/types';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-} from 'recharts';
-import { format, subDays } from 'date-fns';
-import { TrendingUp, Database, CheckCircle, Clock, Filter } from 'lucide-react';
-import { useState } from 'react';
-import { Select } from '@/components/ui';
+import type { TrendData } from '@/types';
+import { format } from 'date-fns';
+import { 
+  Layers, Activity, Calendar, TrendingUp, TrendingDown, Minus,
+  Sparkles, Zap, Archive, DollarSign, Globe, 
+  Shield, Wrench, Gauge, FileCheck, Package
+} from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+
+// 更新类型图标和颜色配置
+const UPDATE_TYPE_CONFIG: Record<string, { icon: React.ReactNode; colorClass: string }> = {
+  new_product: { icon: <Package className="h-12 w-12" />, colorClass: 'text-emerald-500' },
+  new_feature: { icon: <Sparkles className="h-12 w-12" />, colorClass: 'text-amber-500' },
+  enhancement: { icon: <TrendingUp className="h-12 w-12" />, colorClass: 'text-blue-500' },
+  deprecation: { icon: <Archive className="h-12 w-12" />, colorClass: 'text-slate-500' },
+  pricing: { icon: <DollarSign className="h-12 w-12" />, colorClass: 'text-green-500' },
+  region: { icon: <Globe className="h-12 w-12" />, colorClass: 'text-cyan-500' },
+  security: { icon: <Shield className="h-12 w-12" />, colorClass: 'text-red-500' },
+  fix: { icon: <Wrench className="h-12 w-12" />, colorClass: 'text-orange-500' },
+  performance: { icon: <Gauge className="h-12 w-12" />, colorClass: 'text-purple-500' },
+  compliance: { icon: <FileCheck className="h-12 w-12" />, colorClass: 'text-indigo-500' },
+};
+
+const DEFAULT_TYPE_CONFIG = { icon: <Zap className="h-12 w-12" />, colorClass: 'text-primary' };
+
+// 趋势标签组件
+function TrendBadge({ trend }: { trend?: TrendData }) {
+  if (!trend) return null;
+  
+  const { change_percent, direction } = trend;
+  
+  if (direction === 'up') {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs text-emerald-500">
+        <TrendingUp className="h-3 w-3" />
+        +{change_percent.toFixed(0)}%
+      </span>
+    );
+  } else if (direction === 'down') {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs text-red-500">
+        <TrendingDown className="h-3 w-3" />
+        {change_percent.toFixed(0)}%
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+      <Minus className="h-3 w-3" />
+      0%
+    </span>
+  );
+}
+
+// 进度条组件
+interface ProgressBarProps {
+  value: number;
+  max: number;
+  color: string;
+  label: string;
+  count: number;
+  delay?: number;
+  size?: 'sm' | 'md' | 'lg';
+  showPercent?: boolean;
+  trend?: TrendData;
+}
+
+function ProgressBar({ 
+  value, 
+  max, 
+  color, 
+  label, 
+  count, 
+  delay = 0,
+  size = 'md',
+  showPercent = true,
+  trend
+}: ProgressBarProps) {
+  const percent = max > 0 ? (value / max) * 100 : 0;
+  const heightClass = size === 'sm' ? 'h-1.5' : size === 'lg' ? 'h-4' : 'h-3';
+  
+  return (
+    <div className="group">
+      <div className="flex justify-between text-sm mb-1.5">
+        <span className="font-medium text-foreground">{label}</span>
+        <div className="flex items-center gap-2">
+          {trend && <TrendBadge trend={trend} />}
+          <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+            {formatNumber(count)}{showPercent && ` (${percent.toFixed(0)}%)`}
+          </span>
+        </div>
+      </div>
+      <div className={cn('progress-track', heightClass)}>
+        <div 
+          className={cn('h-full rounded-full progress-bar-animated', heightClass)}
+          style={{ 
+            backgroundColor: color,
+            '--progress-width': `${percent}%`,
+            '--progress-delay': `${delay}ms`
+          } as React.CSSProperties}
+        />
+      </div>
+    </div>
+  );
+}
+
+// 统计数字卡片
+interface StatBlockProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  progress?: {
+    value: number;
+    max: number;
+    label?: string;
+  };
+  children?: React.ReactNode;
+}
+
+function StatBlock({ title, value, subtitle, icon, progress, children }: StatBlockProps) {
+  return (
+    <div className="glass-card rounded-2xl p-6 fade-in-up h-full flex flex-col">
+      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+        {icon}
+        <span className="text-sm font-medium">{title}</span>
+      </div>
+      <div className="text-4xl font-bold text-foreground mt-2">{value}</div>
+      {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
+      {progress && (
+        <div className="mt-6">
+          <div className="text-sm text-muted-foreground mb-2">{progress.label || '覆盖率'}</div>
+          <div className="progress-track h-2">
+            <div 
+              className="h-full rounded-full progress-bar-animated bg-primary"
+              style={{ 
+                '--progress-width': `${progress.max > 0 ? (progress.value / progress.max) * 100 : 0}%`
+              } as React.CSSProperties}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground mt-2">
+            <span>已完成</span>
+            <span className="text-foreground font-medium">
+              {formatPercent(progress.max > 0 ? progress.value / progress.max : 0)}
+            </span>
+          </div>
+        </div>
+      )}
+      {children && <div className="mt-auto pt-6">{children}</div>}
+    </div>
+  );
+}
+
+// 策略热力卡片
+interface StrategyCardProps {
+  title: string;
+  icon: React.ReactNode;
+  iconColor: string;
+  items: Array<{
+    label: string;
+    value: number;
+    color: string;
+  }>;
+  maxValue: number;
+  description?: string;
+}
+
+function StrategyCard({ title, icon, iconColor, items, maxValue, description }: StrategyCardProps) {
+  return (
+    <div className="bg-card/50 rounded-2xl p-5 border border-border relative overflow-hidden group hover:border-primary/30 transition-colors">
+      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className={cn('text-6xl', iconColor)}>{icon}</div>
+      </div>
+      <div className="relative z-10">
+        <h4 className={cn('text-lg font-semibold mb-4', iconColor)}>{title}</h4>
+        <div className="space-y-3">
+          {items.map((item, idx) => (
+            <div key={item.label}>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-foreground/80">{item.label}</span>
+                {idx === 0 && item.value > 0 && (
+                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+                    High Activity
+                  </span>
+                )}
+              </div>
+              <div className="progress-track h-1.5 mt-1">
+                <div 
+                  className="h-full rounded-full progress-bar-animated"
+                  style={{ 
+                    backgroundColor: item.color,
+                    '--progress-width': `${maxValue > 0 ? (item.value / maxValue) * 100 : 0}%`,
+                    '--progress-delay': `${idx * 100}ms`
+                  } as React.CSSProperties}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-3 line-clamp-2">{description}</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   // 主题
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'dark';
-  
-  // 图表颜色
   const chartColors = getChartThemeColors(isDark);
+
+  // 全局筛选器状态
+  const [selectedYear, setSelectedYear] = useState('');
   
-  // 过滤器状态
-  const [dateRange, setDateRange] = useState('30'); // 默认30天
-  const [selectedVendor, setSelectedVendor] = useState('');
+  // 产品热度排行榜独立的厂商筛选
+  const [productVendorFilter, setProductVendorFilter] = useState('');
+
+  // 获取可用年份（动态查询）
+  const { data: yearsData } = useAvailableYears();
+  const availableYears = yearsData?.data || [];
 
   // 计算日期范围
-  const dateFrom = dateRange ? format(subDays(new Date(), parseInt(dateRange)), 'yyyy-MM-dd') : undefined;
+  const dateRange = useMemo(() => {
+    if (!selectedYear) return {};
+    return {
+      date_from: `${selectedYear}-01-01`,
+      date_to: `${selectedYear}-12-31`,
+    };
+  }, [selectedYear]);
 
   // 获取统计概览
   const { data: overviewData, isLoading: overviewLoading } = useStatsOverview();
 
-  // 获取时间线数据
-  const { data: timelineData, isLoading: timelineLoading } = useStatsTimeline({
-    granularity: 'day',
-    date_from: dateFrom,
-    vendor: selectedVendor || undefined,
-  });
-
-  // 获取厂商统计（根据日期过滤）
+  // 获取厂商统计（应用日期筛选 + 选择年份时包含趋势数据）
   const { data: vendorData, isLoading: vendorLoading } = useVendorStats({
-    date_from: dateFrom,
+    ...dateRange,
+    include_trend: !!selectedYear  // 只有选择了具体年份才显示趋势
   });
 
-  // 获取更新类型统计（根据过滤器联动）
-  const { data: updateTypeStatsData, isLoading: updateTypeLoading } = useUpdateTypeStats({
-    date_from: dateFrom,
-    vendor: selectedVendor || undefined,
+  // 获取产品热度排行（使用独立的厂商筛选 + 全局日期筛选 + 选择年份时包含趋势）
+  const { data: productHotnessData, isLoading: productLoading } = useProductHotness({
+    vendor: productVendorFilter || undefined,
+    limit: 10,
+    ...dateRange,
+    include_trend: !!selectedYear  // 只有选择了具体年份才显示趋势
   });
 
-  if (overviewLoading) {
+  // 获取厂商更新类型矩阵（应用日期筛选）
+  const { data: vendorTypeData, isLoading: vendorTypeLoading } = useVendorTypeMatrix(dateRange);
+
+  // 厂商数据处理
+  const vendors = vendorData?.data || [];
+  const totalUpdates = vendors.reduce((sum, v) => sum + v.count, 0);
+  
+  // 按更新数量排序的厂商列表
+  const sortedVendors = useMemo(() => {
+    return [...vendors].sort((a, b) => b.count - a.count);
+  }, [vendors]);
+
+  // 主要厂商（前3）和次要厂商
+  const majorVendors = sortedVendors.slice(0, 3);
+  const minorVendors = sortedVendors.slice(3, 6);
+
+  // 产品热度数据
+  const productHotness = productHotnessData?.data || [];
+  const maxProductCount = productHotness.length > 0 ? productHotness[0].count : 0;
+
+  // 更新类型统计聚合
+  const typeStats = useMemo(() => {
+    const matrix = vendorTypeData?.data || [];
+    const aggregated: Record<string, { total: number; byVendor: Record<string, number> }> = {};
+    
+    matrix.forEach((vendor) => {
+      Object.entries(vendor.update_types).forEach(([type, count]) => {
+        if (!aggregated[type]) {
+          aggregated[type] = { total: 0, byVendor: {} };
+        }
+        aggregated[type].total += count;
+        aggregated[type].byVendor[vendor.vendor] = count;
+      });
+    });
+    
+    return Object.entries(aggregated)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 6);
+  }, [vendorTypeData]);
+
+
+
+  // 初始加载状态（仅在首次加载无数据时显示全局Loading）
+  const isInitialLoading = overviewLoading && !overviewData;
+  if (isInitialLoading) {
     return <Loading message="加载仪表盘数据..." />;
   }
 
   const overview = overviewData?.data;
-  const timeline = timelineData?.data || [];
-  const vendors = vendorData?.data || [];
-
-  // 准备厂商饼图数据
-  const vendorPieData = vendors.map((v) => ({
-    name: VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor,
-    value: v.count,
-    color: getVendorColor(v.vendor),
-  }));
-
-  // 准备更新类型柱状图数据
-  const updateTypes = updateTypeStatsData?.data || {};
-  const updateTypeChartData = Object.entries(updateTypes)
-    .map(([type, count]) => ({
-      type: UPDATE_TYPE_LABELS[type] || type,
-      count,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
-
-  // 准备时间线图表数据
-  const timelineChartData = timeline.map((item) => ({
-    date: format(new Date(item.date), 'MM-dd'),
-    count: item.count,
-    ...item.vendors,
-  }));
 
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">仪表盘</h1>
-        <p className="text-muted-foreground mt-1">云计算竞争情报概览</p>
-      </div>
-
-      {/* 过滤器 */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">筛选</span>
-            </div>
-            <Select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="w-40"
-            >
-              <option value="7">近 7 天</option>
-              <option value="30">近 30 天</option>
-              <option value="90">近 90 天</option>
-              <option value="180">近 180 天</option>
-              <option value="365">近 1 年</option>
-              <option value="">全部时间</option>
-            </Select>
-            <Select
-              value={selectedVendor}
-              onChange={(e) => setSelectedVendor(e.target.value)}
-              className="w-40"
-            >
-              <option value="">全部厂商</option>
-              {vendors.map((v) => (
-                <option key={v.vendor} value={v.vendor}>
-                  {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
-                </option>
-              ))}
-            </Select>
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 fade-in-up">
+        <div>
+          <div className="text-xs font-bold tracking-widest text-primary uppercase mb-1">
+            Competitive Intelligence
           </div>
-        </CardContent>
-      </Card>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+            CloudNetSpy
+            <span className="block text-xl md:text-2xl text-muted-foreground font-medium mt-1">
+              云厂商竞争态势雷达
+            </span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground bg-card/50 px-4 py-2 rounded-full border border-border">
+          <span className="w-2 h-2 rounded-full bg-success pulse-dot" />
+          Last updated: {overview?.last_crawl_time 
+            ? format(new Date(overview.last_crawl_time), 'MM-dd HH:mm')
+            : 'N/A'}
+        </div>
+      </header>
 
-      {/* 统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="更新总数"
-          value={formatNumber(overview?.total_updates || 0)}
-          icon={<Database className="h-5 w-5" />}
-          description="所有厂商更新记录"
-        />
-        <StatCard
-          title="已分析"
-          value={formatPercent(overview?.analysis_coverage || 0)}
-          icon={<CheckCircle className="h-5 w-5" />}
-          description="AI分析覆盖率"
-        />
-        <StatCard
-          title="厂商数量"
-          value={Object.keys(overview?.vendors || {}).length.toString()}
-          icon={<TrendingUp className="h-5 w-5" />}
-          description="监控的云厂商"
-        />
-        <StatCard
-          title="最后更新"
-          value={overview?.last_crawl_time ? format(new Date(overview.last_crawl_time), 'MM-dd HH:mm') : '-'}
-          icon={<Clock className="h-5 w-5" />}
-          description="最后爬取时间"
-        />
-      </div>
-
-      {/* 图表区域 */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* 时间趋势图 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>更新趋势{dateRange ? `（近${dateRange}天）` : '（全部）'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {timelineLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <Loading />
+      {/* 主统计区 */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        {/* 左侧：总数统计 + 全局筛选器 */}
+        <div className="md:col-span-4">
+          <StatBlock
+            title="全网监测更新数"
+            value={formatNumber(totalUpdates)}
+            icon={<Layers className="h-4 w-4" />}
+            progress={{
+              value: Math.round((overview?.analysis_coverage || 0) * (overview?.total_updates || 0)),
+              max: overview?.total_updates || 0,
+              label: 'AI 分析覆盖率'
+            }}
+          >
+            {/* 年份筛选按钮 */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                <span>年份筛选</span>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={timelineChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                  <XAxis dataKey="date" fontSize={12} stroke={chartColors.textMuted} />
-                  <YAxis fontSize={12} stroke={chartColors.textMuted} />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: chartColors.background,
-                      border: `1px solid ${chartColors.border}`,
-                      borderRadius: '6px',
-                      color: chartColors.text
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="count"
-                    stroke={chartColors.primary}
-                    fill={chartColors.primaryFill}
-                    fillOpacity={0.6}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 厂商分布饼图 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>厂商分布</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {vendorLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <Loading />
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={vendorPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                    }
-                    labelLine={false}
+              <div className="flex flex-wrap gap-2 justify-center">
+                <button
+                  onClick={() => setSelectedYear('')}
+                  className={cn(
+                    'px-3 py-1.5 text-xs rounded-lg border transition-colors',
+                    selectedYear === ''
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+                  )}
+                >
+                  全部
+                </button>
+                {availableYears.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year === Number(selectedYear) ? '' : String(year))}
+                    className={cn(
+                      'px-3 py-1.5 text-xs rounded-lg border transition-colors',
+                      String(year) === selectedYear
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+                    )}
                   >
-                    {vendorPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: chartColors.background,
-                      border: `1px solid ${chartColors.border}`,
-                      borderRadius: '6px',
-                      color: chartColors.text
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </StatBlock>
+        </div>
 
-      {/* 更新类型分布 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>更新类型分布</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {updateTypeLoading ? (
-            <div className="h-[300px] flex items-center justify-center">
+        {/* 右侧：厂商活跃度份额 */}
+        <div className="md:col-span-8 glass-card rounded-2xl p-6 fade-in-up-delay-1">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-foreground">厂商活跃度份额</h3>
+            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+              {selectedYear ? `${selectedYear} 年` : '累计数据'}
+            </span>
+          </div>
+          
+          {vendorLoading ? (
+            <div className="h-[200px] flex items-center justify-center">
               <Loading />
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={updateTypeChartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                <XAxis type="number" fontSize={12} stroke={chartColors.textMuted} />
-                <YAxis type="category" dataKey="type" fontSize={12} width={100} stroke={chartColors.textMuted} />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: chartColors.background,
-                    border: `1px solid ${chartColors.border}`,
-                    borderRadius: '6px',
-                    color: chartColors.text
-                  }}
-                />
-                <Bar dataKey="count" fill={chartColors.primary} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              {/* 主要厂商 */}
+              <div className="space-y-4">
+                {majorVendors.map((vendor, idx) => (
+                  <ProgressBar
+                    key={vendor.vendor}
+                    label={VENDOR_DISPLAY_NAMES[vendor.vendor] || vendor.vendor}
+                    value={vendor.count}
+                    max={totalUpdates}
+                    count={vendor.count}
+                    color={getVendorColor(vendor.vendor)}
+                    delay={idx * 100}
+                    size="md"
+                    trend={vendor.trend}
+                  />
+                ))}
+              </div>
+              
+              {/* 次要厂商 - 一行显示 */}
+              {minorVendors.length > 0 && (
+                <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
+                  {minorVendors.map((vendor, idx) => (
+                    <ProgressBar
+                      key={vendor.vendor}
+                      label={VENDOR_DISPLAY_NAMES[vendor.vendor] || vendor.vendor}
+                      value={vendor.count}
+                      max={totalUpdates}
+                      count={vendor.count}
+                      color={getVendorColor(vendor.vendor)}
+                      delay={300 + idx * 100}
+                      size="sm"
+                      trend={vendor.trend}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* 厂商详情表格 */}
-      <Card>
+      {/* 产品热度排行 */}
+      <div className="glass-card rounded-2xl p-6 fade-in-up-delay-2">
+        <div className="flex flex-col md:flex-row justify-between md:items-start mb-6 gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-foreground">产品热度排行榜</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              按更新数量排名，反映各产品领域的活跃程度
+            </p>
+          </div>
+          {/* 厂商快捷筛选按钮 */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setProductVendorFilter('')}
+              className={cn(
+                'px-3 py-1 text-xs rounded-full border transition-colors',
+                productVendorFilter === ''
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+              )}
+            >
+              全部
+            </button>
+            {sortedVendors.slice(0, 6).map((v) => (
+              <button
+                key={v.vendor}
+                onClick={() => setProductVendorFilter(v.vendor === productVendorFilter ? '' : v.vendor)}
+                className={cn(
+                  'px-3 py-1 text-xs rounded-full border transition-colors',
+                  productVendorFilter === v.vendor
+                    ? 'text-white border-transparent'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                )}
+                style={productVendorFilter === v.vendor ? { backgroundColor: getVendorColor(v.vendor) } : undefined}
+              >
+                {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {productLoading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <Loading />
+          </div>
+        ) : productHotness.length === 0 ? (
+          <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+            暂无数据
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {productHotness.map((item, idx) => (
+              <ProgressBar
+                key={item.product_subcategory}
+                label={item.product_subcategory}
+                value={item.count}
+                max={maxProductCount}
+                count={item.count}
+                color={productVendorFilter ? getVendorColor(productVendorFilter) : chartColors.primary}
+                delay={idx * 50}
+                size="sm"
+                showPercent={false}
+                trend={item.trend}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 更新类型战略分布 */}
+      <div className="glass-card rounded-2xl p-6 fade-in-up-delay-3">
+        <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-foreground">更新类型战略分布</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              基于更新内容的语义分析，识别各类型的更新热度
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">按更新数量排序</span>
+          </div>
+        </div>
+
+        {vendorTypeLoading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <Loading />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {typeStats.map(([type, data]) => {
+              // 获取该类型下前2个厂商
+              const topVendors = Object.entries(data.byVendor)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 2);
+              
+              // 获取类型配置
+              const typeConfig = UPDATE_TYPE_CONFIG[type] || DEFAULT_TYPE_CONFIG;
+              
+              return (
+                <StrategyCard
+                  key={type}
+                  title={UPDATE_TYPE_LABELS[type] || type}
+                  icon={typeConfig.icon}
+                  iconColor={typeConfig.colorClass}
+                  maxValue={typeStats[0]?.[1].total || 100}
+                  items={topVendors.map(([vendor, count]) => ({
+                    label: VENDOR_DISPLAY_NAMES[vendor] || vendor,
+                    value: count,
+                    color: getVendorColor(vendor),
+                  }))}
+                  description={`共 ${formatNumber(data.total)} 次更新`}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 厂商统计详情 */}
+      <Card className="fade-in-up-delay-3">
         <CardHeader>
           <CardTitle>厂商统计详情</CardTitle>
         </CardHeader>
@@ -294,12 +566,15 @@ export function DashboardPage() {
                   <th className="py-3 px-4 text-left font-medium text-muted-foreground">厂商</th>
                   <th className="py-3 px-4 text-right font-medium text-muted-foreground">更新总数</th>
                   <th className="py-3 px-4 text-right font-medium text-muted-foreground">已分析</th>
-                  <th className="py-3 px-4 text-right font-medium text-muted-foreground">覆盖率</th>
+                  <th className="py-3 px-4 text-left font-medium text-muted-foreground w-1/3">占比</th>
                 </tr>
               </thead>
               <tbody>
-                {vendors.map((vendor) => (
-                  <tr key={vendor.vendor} className="border-b border-border hover:bg-accent/50 transition-colors">
+                {sortedVendors.map((vendor, vendorIdx) => (
+                  <tr 
+                    key={vendor.vendor} 
+                    className="border-b border-border hover:bg-accent/50 transition-colors"
+                  >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <div
@@ -309,10 +584,24 @@ export function DashboardPage() {
                         {VENDOR_DISPLAY_NAMES[vendor.vendor] || vendor.vendor}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-right">{formatNumber(vendor.count)}</td>
+                    <td className="py-3 px-4 text-right font-medium">{formatNumber(vendor.count)}</td>
                     <td className="py-3 px-4 text-right">{formatNumber(vendor.analyzed)}</td>
-                    <td className="py-3 px-4 text-right">
-                      {formatPercent(vendor.count > 0 ? vendor.analyzed / vendor.count : 0)}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 progress-track h-2">
+                          <div 
+                            className="h-full rounded-full progress-bar-animated"
+                            style={{ 
+                              backgroundColor: getVendorColor(vendor.vendor),
+                              '--progress-width': `${totalUpdates > 0 ? (vendor.count / totalUpdates) * 100 : 0}%`,
+                              '--progress-delay': `${vendorIdx * 50}ms`
+                            } as React.CSSProperties}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-12 text-right">
+                          {formatPercent(totalUpdates > 0 ? vendor.count / totalUpdates : 0)}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -322,30 +611,5 @@ export function DashboardPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// 统计卡片组件
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  description: string;
-}
-
-function StatCard({ title, value, icon, description }: StatCardProps) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">{description}</p>
-          </div>
-          <div className="text-primary">{icon}</div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

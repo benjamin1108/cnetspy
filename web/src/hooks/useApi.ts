@@ -21,6 +21,8 @@ export const queryKeys = {
     vendors: (params?: Record<string, unknown>) => ['stats', 'vendors', params] as const,
     updateTypes: (params?: Record<string, unknown>) => ['stats', 'updateTypes', params] as const,
     years: ['stats', 'years'] as const,
+    productHotness: (params?: Record<string, unknown>) => ['stats', 'productHotness', params] as const,
+    vendorTypeMatrix: (params?: Record<string, unknown>) => ['stats', 'vendorTypeMatrix', params] as const,
   },
   vendors: {
     all: ['vendors'] as const,
@@ -101,7 +103,7 @@ export function useStatsOverview() {
  * 时间线统计 Hook
  */
 export function useStatsTimeline(params: {
-  granularity?: 'day' | 'week' | 'month';
+  granularity?: 'day' | 'week' | 'month' | 'year';
   date_from?: string;
   date_to?: string;
   vendor?: string;
@@ -119,6 +121,7 @@ export function useStatsTimeline(params: {
 export function useVendorStats(params: {
   date_from?: string;
   date_to?: string;
+  include_trend?: boolean;
 } = {}) {
   return useQuery({
     queryKey: queryKeys.stats.vendors(params),
@@ -150,6 +153,37 @@ export function useAvailableYears() {
     queryKey: queryKeys.stats.years,
     queryFn: () => statsApi.getAvailableYears(),
     staleTime: 1000 * 60 * 60, // 1 hour
+  });
+}
+
+/**
+ * 产品热度排行 Hook
+ */
+export function useProductHotness(params: {
+  vendor?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  include_trend?: boolean;
+} = {}) {
+  return useQuery({
+    queryKey: queryKeys.stats.productHotness(params),
+    queryFn: () => statsApi.getProductHotness(params),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+/**
+ * 厂商-更新类型矩阵 Hook
+ */
+export function useVendorTypeMatrix(params: {
+  date_from?: string;
+  date_to?: string;
+} = {}) {
+  return useQuery({
+    queryKey: queryKeys.stats.vendorTypeMatrix(params),
+    queryFn: () => statsApi.getVendorTypeMatrix(params),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
 

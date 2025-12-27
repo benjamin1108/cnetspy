@@ -522,3 +522,93 @@ body {
     linear-gradient(hsl(var(--border) / 0.2) 1px, transparent 1px),
     linear-gradient(90deg, hsl(var(--border) / 0.2) 1px, transparent 1px);
 }
+
+/* ===== 玻璃拟态卡片 ===== */
+.glass-card {
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+.dark .glass-card {
+  background: hsl(var(--card) / 0.4);
+  border: 1px solid hsl(var(--border) / 0.3);
+}
+
+/* ===== 进度条动画 ===== */
+@keyframes progressFill {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--progress-width, 0%);
+  }
+}
+
+.progress-bar-animated {
+  width: 0;
+  animation: progressFill 1s ease-out forwards;
+  animation-delay: var(--progress-delay, 0ms);
+}
+
+/* 进度条轨道 */
+.progress-track {
+  background: hsl(var(--muted));
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.dark .progress-track {
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* ===== 淡入上浮动画 ===== */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.fade-in-up-delay-1 {
+  animation: fadeInUp 0.6s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.fade-in-up-delay-2 {
+  animation: fadeInUp 0.6s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.fade-in-up-delay-3 {
+  animation: fadeInUp 0.6s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+/* ===== 脉冲圆点 ===== */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse-dot {
+  animation: pulse 2s ease-in-out infinite;
+}

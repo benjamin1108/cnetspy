@@ -18,6 +18,8 @@ import type {
   UpdateTypeInfo,
   AnalysisResult,
   AnalysisTaskStatus,
+  VendorTypeMatrixItem,
+  TrendData,
 } from '@/types';
 
 // 创建 axios 实例
@@ -87,9 +89,9 @@ export const statsApi = {
     return response.data;
   },
 
-  // 获取时间线统计
+  // 获取时间线统计（支持 day/week/month/year 粒度）
   async getTimeline(params: {
-    granularity?: 'day' | 'week' | 'month';
+    granularity?: 'day' | 'week' | 'month' | 'year';
     date_from?: string;
     date_to?: string;
     vendor?: string;
@@ -102,6 +104,7 @@ export const statsApi = {
   async getVendorStats(params: {
     date_from?: string;
     date_to?: string;
+    include_trend?: boolean;
   } = {}): Promise<ApiResponse<VendorStatsItem[]>> {
     const response = await apiClient.get('/stats/vendors', { params });
     return response.data;
@@ -120,6 +123,27 @@ export const statsApi = {
   // 获取可用年份列表
   async getAvailableYears(): Promise<ApiResponse<number[]>> {
     const response = await apiClient.get('/stats/years');
+    return response.data;
+  },
+
+  // 获取产品热度排行榜
+  async getProductHotness(params: {
+    vendor?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    include_trend?: boolean;
+  } = {}): Promise<ApiResponse<{ product_subcategory: string; count: number; trend?: TrendData }[]>> {
+    const response = await apiClient.get('/stats/product-hotness', { params });
+    return response.data;
+  },
+
+  // 获取厂商-更新类型矩阵
+  async getVendorTypeMatrix(params: {
+    date_from?: string;
+    date_to?: string;
+  } = {}): Promise<ApiResponse<VendorTypeMatrixItem[]>> {
+    const response = await apiClient.get('/stats/vendor-type-matrix', { params });
     return response.data;
   },
 };

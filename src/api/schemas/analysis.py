@@ -154,6 +154,16 @@ class TimelineItem(BaseModel):
     vendors: dict = Field(default_factory=dict)  # {vendor: count}
 
 
+class TrendData(BaseModel):
+    """
+    环比趋势数据
+    """
+    change_percent: float
+    direction: str  # 'up' | 'down' | 'flat'
+    current_period: int
+    previous_period: int
+
+
 class VendorStatsItem(BaseModel):
     """
     厂商统计项
@@ -162,12 +172,14 @@ class VendorStatsItem(BaseModel):
         {
             "vendor": "aws",
             "count": 500,
-            "analyzed": 450
+            "analyzed": 450,
+            "trend": {...}
         }
     """
     vendor: str
     count: int
     analyzed: int = 0
+    trend: Optional[TrendData] = None
 
 
 class VendorInfo(BaseModel):
