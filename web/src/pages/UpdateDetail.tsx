@@ -17,6 +17,7 @@ import {
 import { formatDate, formatDateTime, getVendorColor, cn, copyToClipboard } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS, SOURCE_CHANNEL_LABELS } from '@/types';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   ArrowLeft,
   ExternalLink,
@@ -295,7 +296,27 @@ export function UpdateDetailPage() {
         <CardContent>
           <div className="prose prose-sm max-w-none prose-gray">
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
+                // 表格样式
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-4">
+                    <table className="min-w-full border-collapse border border-gray-300">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-gray-100">{children}</thead>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-gray-300 px-4 py-2">{children}</td>
+                ),
                 // 自定义链接在新窗口打开
                 a: ({ href, children }) => (
                   <a
