@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import "./styles/article.css";
 
 /* 平滑滚动 */
 html {

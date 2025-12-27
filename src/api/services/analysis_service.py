@@ -430,3 +430,139 @@ class AnalysisService:
             'last_crawl_time': last_crawl,
             'analysis_coverage': coverage
         }
+    
+    def _strip_metadata_header(self, content: str) -> str:
+        """
+        过滤内容开头的元数据（发布时间、厂商、产品等）
+        
+        Args:
+            content: 原始内容
+            
+        Returns:
+            过滤后的内容
+        """
+        import re
+        
+        # 匹配英文格式: **发布时间:** xxx ... ---
+        content = re.sub(r'\n+(?:\*\*[^*]+\*\*.*\n+)+---\n+', '\n\n', content)
+        
+        # 匹配中文/英文元数据字段（开头部分）
+        # 匹配: 发布时间: xxx、厂商: xxx、产品: xxx 等
+        metadata_pattern = re.compile(
+            r'^(?:(?:发布时间|厂商|产品|类型|原始链接|描述|'
+            r'Published|Vendor|Product|Type|Original Link|Description)'
+            r'[:：]\s*[^\n]*\n*)+',
+            re.MULTILINE | re.IGNORECASE
+        )
+        content = metadata_pattern.sub('', content)
+        
+        return content.strip()
+    
+    def translate_content(self, update_id: str) -> Dict:
+        """
+        翻译单条更新的内容
+        
+        Args:
+            update_id: 更新ID
+            
+        Returns:
+            翻译结果字典
+        """
+        import os
+        
+        # 1. 查询更新记录
+        update_data = self.db.get_update_by_id(update_id)
+        if not update_data:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': '更新记录不存在'
+            }
+        
+        # 2. 检查是否已有翻译
+        content_translated = update_data.get('content_translated') or ''
+        if content_translated.strip():
+            return {
+                'update_id': update_id,
+                'success': True,
+                'content_translated': content_translated,
+                'skipped': True,
+                'message': '已有翻译内容，跳过'
+            }
+        
+        # 3. 检查原文内容
+        content = (update_data.get('content') or '').strip()
+        if not content:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': '无原文内容可翻译'
+            }
+        
+        # 3.1 过滤元数据头部（发布时间、厂商、产品等）
+        content = self._strip_metadata_header(content)
+        
+        # 3.2 获取已翻译的标题
+        title_translated = (update_data.get('title_translated') or '').strip()
+        
+        # 4. 加载翻译 prompt
+        prompt_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'analyzers', 'prompts', 'content_translation.prompt.txt'
+        )
+        
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': '翻译 Prompt 模板不存在'
+            }
+        
+        # 5. 初始化 Gemini 客户端
+        from src.utils.config import get_config
+        from src.analyzers.gemini_client import GeminiClient
+        
+        config = get_config()
+        ai_config = config.get('ai_model', {})
+        
+        try:
+            client = GeminiClient(ai_config)
+        except Exception as e:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': f'AI 客户端初始化失败: {str(e)}'
+            }
+        
+        # 6. 执行翻译（传入已翻译的标题）
+        prompt = prompt_template.replace('{content}', content).replace('{title}', title_translated or '（无，请根据内容生成）')
+        
+        try:
+            translated_content = client.generate_text(prompt)
+        except Exception as e:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': f'翻译失败: {str(e)}'
+            }
+        
+        # 7. 保存翻译结果
+        try:
+            self.db.update_analysis_fields(update_id, {'content_translated': translated_content})
+        except Exception as e:
+            return {
+                'update_id': update_id,
+                'success': False,
+                'error': f'保存翻译结果失败: {str(e)}'
+            }
+        
+        logger.info(f"翻译完成: {update_id}, 长度: {len(translated_content)}")
+        
+        return {
+            'update_id': update_id,
+            'success': True,
+            'content_translated': translated_content
+        }

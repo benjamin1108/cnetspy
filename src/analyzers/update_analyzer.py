@@ -109,7 +109,7 @@ class UpdateAnalyzer(BaseAnalyzer):
             self.logger.info(f"[全文翻译] 开始翻译博客内容: {update_data.get('update_id', 'unknown')} (原文长度: {len(content)})")
             
             # 构建翻译 Prompt
-            prompt = PromptTemplates.get_blog_translation_prompt(content)
+            prompt = PromptTemplates.get_content_translation_prompt(content)
             
             # 调用 Gemini API 进行翻译（使用纯文本模式）
             translated_content = self.gemini_client.generate_text(prompt)

@@ -174,25 +174,21 @@ class PromptTemplates:
         return prompt
     
     @staticmethod
-    def get_blog_translation_prompt(content: str) -> str:
+    def get_content_translation_prompt(content: str, title: str = '') -> str:
         """
-        获取博客全文翻译的 Prompt
+        获取内容全文翻译的 Prompt
         
         Args:
-            content: 原始英文博客内容
+            content: 原始英文内容
+            title: 已翻译的标题（可选）
             
         Returns:
             完整的翻译 Prompt 字符串
         """
-        # 截断过长的内容（防止超过 token 限制）
-        max_content_length = 30000
-        if len(content) > max_content_length:
-            content = content[:max_content_length] + "\n\n[内容过长，已截断]"
-        
         # 加载 Prompt 模板并填充参数
-        template = PromptTemplates._load_prompt_template('blog_translation')
+        template = PromptTemplates._load_prompt_template('content_translation')
         
-        prompt = template.format(content=content)
+        prompt = template.format(content=content, title=title or '（无，请根据内容生成）')
         
         return prompt
     

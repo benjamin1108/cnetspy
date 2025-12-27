@@ -17,6 +17,9 @@ NC='\033[0m'
 VENV_DIR="$SCRIPT_DIR/venv"
 PYTHON="$VENV_DIR/bin/python"
 
+# PID 文件
+WEB_PID_FILE="$SCRIPT_DIR/.web.pid"
+
 # 检查虚拟环境
 check_venv() {
     if [ ! -f "$PYTHON" ]; then
@@ -34,7 +37,10 @@ show_help() {
     echo -e "  $0 <命令> [选项]"
     echo ""
     echo -e "${YELLOW}命令:${NC}"
+    echo -e "  ${GREEN}start${NC}     一键启动前后端（前端后台 + 后端前台）"
+    echo -e "  ${GREEN}stop${NC}      停止所有服务"
     echo -e "  ${GREEN}api${NC}       启动 API 服务"
+    echo -e "  ${GREEN}web${NC}       启动前端服务"
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
     echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
@@ -66,9 +72,12 @@ show_help() {
     echo -e "  --verbose         显示详细日志"
     echo ""
     echo -e "${YELLOW}示例:${NC}"
+    echo -e "  $0 start                          # 一键启动前后端"
+    echo -e "  $0 stop                           # 停止所有服务"
     echo -e "  $0 api                            # 启动 API 服务（开发模式）"
     echo -e "  $0 api --prod                     # 生产模式启动"
     echo -e "  $0 api --port 8080                # 自定义端口"
+    echo -e "  $0 web                            # 单独启动前端"
     echo -e ""
     echo -e "  $0 crawl                          # 爬取所有"
     echo -e "  $0 crawl --vendor aws             # 仅爬取 AWS"
@@ -243,6 +252,92 @@ do_analyze() {
     "$PYTHON" scripts/analyze_updates.py "$@"
 }
 
+# 启动前端服务
+do_web() {
+    echo -e "${BLUE}启动前端服务...${NC}"
+    
+    cd "$SCRIPT_DIR/web"
+    
+    # 检查 node_modules
+    if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}安装前端依赖...${NC}"
+        npm install
+    fi
+    
+    echo -e "前端地址: ${GREEN}http://localhost:5173${NC}"
+    npm run dev
+}
+
+# 后台启动前端
+start_web_background() {
+    local ORIG_DIR="$(pwd)"
+    cd "$SCRIPT_DIR/web"
+    
+    # 检查 node_modules
+    if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}安装前端依赖...${NC}"
+        npm install
+    fi
+    
+    # 后台启动，日志写入文件
+    nohup npm run dev > "$SCRIPT_DIR/logs/web.log" 2>&1 &
+    echo $! > "$WEB_PID_FILE"
+    echo -e "前端已后台启动 (PID: $!)"
+    echo -e "前端地址: ${GREEN}http://localhost:5173${NC}"
+    echo -e "前端日志: ${GREEN}logs/web.log${NC}"
+    
+    # 切回原目录
+    cd "$ORIG_DIR"
+}
+
+# 停止前端服务
+stop_web() {
+    if [ -f "$WEB_PID_FILE" ]; then
+        WEB_PID=$(cat "$WEB_PID_FILE")
+        if kill -0 "$WEB_PID" 2>/dev/null; then
+            kill "$WEB_PID" 2>/dev/null
+            echo -e "前端服务已停止 (PID: $WEB_PID)"
+        fi
+        rm -f "$WEB_PID_FILE"
+    fi
+    # 清理可能的 vite 残留进程
+    pkill -f "vite.*5173" 2>/dev/null
+}
+
+# 一键启动前后端
+do_start() {
+    check_venv
+    
+    # 确保 logs 目录存在
+    mkdir -p "$SCRIPT_DIR/logs"
+    
+    echo -e "${BLUE}一键启动前后端...${NC}"
+    echo ""
+    
+    # 后台启动前端
+    start_web_background
+    echo ""
+    
+    # 设置退出时清理前端
+    trap 'echo ""; echo -e "${YELLOW}正在停止服务...${NC}"; stop_web; exit 0' INT TERM
+    
+    # 前台启动后端
+    do_api "$@"
+}
+
+# 停止所有服务
+do_stop() {
+    echo -e "${BLUE}停止所有服务...${NC}"
+    
+    # 停止前端
+    stop_web
+    
+    # 停止后端 (uvicorn)
+    pkill -f "uvicorn.*src.api.app" 2>/dev/null && echo -e "后端服务已停止" || echo -e "后端服务未运行"
+    
+    echo -e "${GREEN}所有服务已停止${NC}"
+}
+
 # 清理临时文件
 do_clean() {
     echo -e "${BLUE}清理临时文件...${NC}"
@@ -262,9 +357,19 @@ do_clean() {
 
 # 主入口
 case "${1:-help}" in
+    start)
+        shift
+        do_start "$@"
+        ;;
+    stop)
+        do_stop
+        ;;
     api)
         shift
         do_api "$@"
+        ;;
+    web)
+        do_web
         ;;
     crawl)
         shift

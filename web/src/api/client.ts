@@ -187,6 +187,12 @@ export const analysisApi = {
     const response = await apiClient.get('/analysis/tasks', { params });
     return response.data;
   },
+
+  // 翻译单条更新内容
+  async translateContent(updateId: string): Promise<ApiResponse<{ update_id: string; success: boolean; content_translated?: string; error?: string }>> {
+    const response = await apiClient.post(`/analysis/translate/${updateId}`, {}, { timeout: 120000 });
+    return response.data;
+  },
 };
 
 /**

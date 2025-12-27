@@ -175,10 +175,12 @@ export const UPDATE_TYPE_LABELS: Record<string, string> = {
   other: '其他',
 };
 
-// 来源渠道显示名称
+// 来源渠道显示名称 - 对用户只暴露 "公告" 和 "博客"
 export const SOURCE_CHANNEL_LABELS: Record<string, string> = {
   whatsnew: '公告',
+  // 所有 blog 类型统一显示为"博客"
+  blog: '博客',
   'network-blog': '博客',
   'tech-blog': '博客',
-  blog: '博客',
+  'infra-blog': '博客',
 };

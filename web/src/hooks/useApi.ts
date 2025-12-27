@@ -195,6 +195,7 @@ export function useProductSubcategories(vendor?: string) {
   return useQuery({
     queryKey: ['productSubcategories', vendor] as const,
     queryFn: () => vendorsApi.getProductSubcategories(vendor),
+    enabled: !!vendor,
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 }
@@ -238,6 +239,21 @@ export function useAnalysisTask(taskId: string) {
       // 如果任务还在运行，每2秒刷新一次
       const status = query.state.data?.data?.status;
       return status === 'queued' || status === 'running' ? 2000 : false;
+    },
+  });
+}
+
+/**
+ * 翻译单条更新内容 Mutation
+ */
+export function useTranslateContent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (updateId: string) => analysisApi.translateContent(updateId),
+    onSuccess: (_, updateId) => {
+      // 刷新更新详情缓存
+      queryClient.invalidateQueries({ queryKey: queryKeys.updates.detail(updateId) });
     },
   });
 }

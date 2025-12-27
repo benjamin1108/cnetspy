@@ -199,7 +199,7 @@ export function UpdatesPage() {
       });
     }
     
-    // 来源类型
+    // 来源类型 - 对用户只暴露 "公告" 和 "博客"，不区分底层的具体 blog 类型
     if (queryParams.source_channel) {
       const channelLabel = queryParams.source_channel === 'whatsnew' ? '公告' : '博客';
       tags.push({
@@ -570,7 +570,12 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
 
             {/* 来源渠道 - 可点击 */}
             <ClickableBadge
-              onClick={() => onFilter({ source_channel: update.source_channel })}
+              onClick={() => {
+                // blog 类型统一使用 'blog' 进行筛选（后端会模糊匹配所有 *-blog）
+                // whatsnew 使用精确匹配
+                const channelFilter = update.source_channel === 'whatsnew' ? 'whatsnew' : 'blog';
+                onFilter({ source_channel: channelFilter });
+              }}
               className="bg-gray-100 text-gray-600"
             >
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}

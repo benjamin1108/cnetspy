@@ -50,6 +50,31 @@ async def analyze_single_update(
     return ApiResponse(success=True, data=result)
 
 
+@router.post("/translate/{update_id}", response_model=ApiResponse)
+async def translate_update_content(
+    update_id: str,
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    翻译单条更新内容
+    
+    将指定更新的原文内容翻译为中文，并保存到 content_translated 字段。
+    如果已有翻译内容，则跳过。
+    
+    参数：
+    - update_id: 更新记录ID
+    
+    返回：翻译结果
+    """
+    service = AnalysisService(db)
+    result = service.translate_content(update_id)
+    
+    if not result['success']:
+        raise HTTPException(status_code=500, detail=result.get('error', '翻译失败'))
+    
+    return ApiResponse(success=True, data=result)
+
+
 @router.post("/batch", response_model=ApiResponse[AnalysisTaskDetail])
 async def create_batch_analysis_task(
     request: AnalysisTaskCreate,

@@ -35,6 +35,10 @@
    - 简洁明了，突出更新的核心价值
    - 不超过 50 个字
    - 避免模糊表达（如"新功能上线"），突出具体内容
+   - **产品/功能名称保留英文**：云服务商的产品名、功能名、服务组件名必须保留英文原名，禁止逐字意译
+     示例："AWS Shield Network Security Director" → "AWS Shield Network Security Director 支持多账号分析"
+     错误："AWS Shield 网络安全总监/主管 支持..."（director 不是"总监/主管"）
+   - 判断标准：首字母大写的专有名词应保留英文
 
 2. content_summary:
    - 使用固定 Markdown 格式：

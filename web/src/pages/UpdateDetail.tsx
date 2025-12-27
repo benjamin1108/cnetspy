@@ -3,12 +3,10 @@
  */
 
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useUpdateDetail, useAnalyzeSingle } from '@/hooks';
+import { useUpdateDetail, useAnalyzeSingle, useTranslateContent } from '@/hooks';
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Loading,
   EmptyState,
   Badge,
@@ -35,24 +33,34 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
+// 检测内容是否主要是中文（中文字符占比超过30%）
+function isChineseContent(content: string): boolean {
+  if (!content) return false;
+  const chineseChars = content.match(/[\u4e00-\u9fff]/g) || [];
+  const totalChars = content.replace(/\s/g, '').length;
+  return totalChars > 0 && chineseChars.length / totalChars > 0.3;
+}
+
 // 过滤元数据（保留标题，移除元信息 + 分隔线）
 function stripMetadataHeader(content: string): string {
-  // 匹配格式：
-  // # 标题              <- 保留
-  // **发布时间:** xxx  <- 移除
-  // **厂商:** xxx       <- 移除
-  // ...                  <- 移除
-  // ---                  <- 移除
-  // 实际内容
-  const metadataRegex = /\n+(?:\*\*[^*]+\*\*.*\n+)+---\n+/;
-  return content.replace(metadataRegex, '\n\n').trim();
+  // 匹配英文格式: **发布时间:** xxx ... ---
+  const metadataRegexEn = /\n+(?:\*\*[^*]+\*\*.*\n+)+---\n+/;
+  
+  // 匹配中文格式: 发布时间: xxx\n\n厂商: xxx\n\n...描述\n\n正文
+  const metadataRegexZh = new RegExp('^(?:(?:发布时间|厂商|产品|类型|原始链接|描述)[:：][^\n]*\n*)+', 'm');
+  
+  let result = content.replace(metadataRegexEn, '\n\n');
+  result = result.replace(metadataRegexZh, '');
+  return result.trim();
 }
 
 export function UpdateDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);  // AI摘要默认收起
+  const [contentExpanded, setContentExpanded] = useState(true);   // 文章内容默认展开
+  const [showTranslated, setShowTranslated] = useState(true);     // 默认显示中文
 
   // 获取更新详情
   const { data, isLoading, error } = useUpdateDetail(id || '');
@@ -60,22 +68,38 @@ export function UpdateDetailPage() {
   // AI 分析 mutation
   const analyzeMutation = useAnalyzeSingle();
 
+  // 翻译 mutation
+  const translateMutation = useTranslateContent();
+
   const update = data?.data;
 
-  // 展示内容：优先显示翻译内容，没有则显示原文
+  // 检查是否同时有中文和英文内容
+  const hasBothLanguages = !!(update?.content_translated && update?.content);
+
+  // 检查是否可以翻译（有原文但没有翻译，且原文不是中文）
+  const canTranslate = !!(update?.content && !update?.content_translated && !isChineseContent(update.content));
+
+  // 展示内容：根据切换状态显示
   const displayContent = useMemo(() => {
-    // 优先使用翻译内容
-    if (update?.content_translated) {
-      return update.content_translated;
+    if (hasBothLanguages && update?.content_translated && update?.content) {
+      // 有两种语言时，根据切换状态显示
+      if (showTranslated) {
+        return stripMetadataHeader(update.content_translated);
+      } else {
+        return stripMetadataHeader(update.content);
+      }
     }
-    // 否则使用原始内容（过滤元数据头部）
+    // 只有一种语言时，优先显示翻译内容
+    if (update?.content_translated) {
+      return stripMetadataHeader(update.content_translated);
+    }
     if (!update?.content) return '';
     return stripMetadataHeader(update.content);
-  }, [update?.content_translated, update?.content]);
+  }, [update?.content_translated, update?.content, showTranslated, hasBothLanguages]);
 
-  // 是否显示的是翻译内容
-  const isTranslatedContent = !!update?.content_translated;
-
+  // 当前显示的是翻译内容
+  const isShowingTranslated = hasBothLanguages ? showTranslated : !!update?.content_translated;
+  
   // 处理复制链接
   const handleCopyLink = async () => {
     const url = window.location.href;
@@ -113,7 +137,7 @@ export function UpdateDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto">
       {/* 返回按钮 */}
       <div className="flex items-center justify-between">
         <Link
@@ -240,17 +264,35 @@ export function UpdateDetailPage() {
 
       {/* AI 分析结果 - 可折叠 */}
       {update.has_analysis && update.content_summary ? (
-        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50/50 overflow-hidden">
+        <Card className="border-cyan-200/50 bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/50 overflow-hidden">
           <button
             onClick={() => setSummaryExpanded(!summaryExpanded)}
             className="w-full"
           >
-            <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-blue-100/50 transition-colors">
-              <div className="flex items-center gap-2 text-blue-800 font-semibold">
-                <Sparkles className="h-5 w-5" />
-                AI 分析摘要
+            <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-cyan-50/50 transition-colors">
+              <div className="flex items-center gap-2 font-semibold">
+                <div className="relative">
+                  {/* 图标使用SVG渐变 - 蓝绿科技色 */}
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="url(#ai-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <defs>
+                      <linearGradient id="ai-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#0ea5e9" />
+                        <stop offset="50%" stopColor="#06b6d4" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                    <path d="M20 3v4"/>
+                    <path d="M22 5h-4"/>
+                    <path d="M4 17v2"/>
+                    <path d="M5 18H3"/>
+                  </svg>
+                </div>
+                <span className="bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 bg-clip-text text-transparent">
+                  AI 分析摘要
+                </span>
               </div>
-              <div className="flex items-center gap-2 text-blue-600">
+              <div className="flex items-center gap-2 text-cyan-600">
                 <span className="text-sm font-normal">
                   {summaryExpanded ? '收起' : '展开查看'}
                 </span>
@@ -268,16 +310,46 @@ export function UpdateDetailPage() {
             }`}
           >
             <div className="px-6 pb-6">
-              <div className="prose prose-sm max-w-none prose-blue">
-                <ReactMarkdown>{update.content_summary}</ReactMarkdown>
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {update.content_summary}
+                </ReactMarkdown>
               </div>
             </div>
           </div>
         </Card>
       ) : (
-        <Card className="border-gray-200 bg-gray-50/50">
+        <Card className="border-gray-200 bg-gradient-to-br from-gray-50 to-slate-50/50">
           <CardContent className="py-8 text-center">
-            <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+            <div className="relative inline-block mb-3">
+              <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="url(#ai-gradient-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <defs>
+                  <linearGradient id="ai-gradient-gray" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#9ca3af" />
+                    <stop offset="50%" stopColor="#d1d5db" />
+                    <stop offset="100%" stopColor="#9ca3af" />
+                  </linearGradient>
+                </defs>
+                <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                <path d="M20 3v4"/>
+                <path d="M22 5h-4"/>
+                <path d="M4 17v2"/>
+                <path d="M5 18H3"/>
+              </svg>
+            </div>
             <p className="text-gray-600 mb-4">该更新尚未进行 AI 分析</p>
             <Button
               onClick={handleAnalyze}
@@ -296,78 +368,130 @@ export function UpdateDetailPage() {
         </Card>
       )}
 
-      {/* 正文内容 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {isTranslatedContent ? '中文译文' : '原始内容'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="prose prose-sm max-w-none prose-gray">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                // 表格样式
-                table: ({ children }) => (
-                  <div className="overflow-x-auto my-4">
-                    <table className="min-w-full border-collapse border border-gray-300">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                thead: ({ children }) => (
-                  <thead className="bg-gray-100">{children}</thead>
-                ),
-                th: ({ children }) => (
-                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="border border-gray-300 px-4 py-2">{children}</td>
-                ),
-                // 自定义链接在新窗口打开
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
+      {/* 正文内容 - 可折叠 */}
+      <Card className="overflow-hidden">
+        <button
+          onClick={() => setContentExpanded(!contentExpanded)}
+          className="w-full"
+        >
+          <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-semibold text-gray-900">
+                文章内容
+              </span>
+              {/* 语言切换按钮 - 仅当两种语言都存在时显示 */}
+              {hasBothLanguages && (
+                <div 
+                  className="flex items-center bg-gray-100 rounded-lg p-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTranslated(true);
+                    }}
+                    className={`px-2.5 py-1 text-xs rounded-md transition-all ${
+                      showTranslated
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
-                    {children}
-                  </a>
-                ),
-                // 自定义图片样式
-                img: ({ src, alt }) => (
-                  <img
-                    src={src}
-                    alt={alt}
-                    className="max-w-full h-auto rounded-lg shadow-md"
-                  />
-                ),
-                // 自定义代码块样式
-                pre: ({ children }) => (
-                  <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto">
-                    {children}
-                  </pre>
-                ),
-                code: ({ children, className }) => {
-                  const isInline = !className;
-                  return isInline ? (
-                    <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm">
-                      {children}
-                    </code>
+                    中文
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTranslated(false);
+                    }}
+                    className={`px-2.5 py-1 text-xs rounded-md transition-all ${
+                      !showTranslated
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              )}
+              {/* 翻译按钮 - 仅当没有翻译内容时显示 */}
+              {canTranslate && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (id != null) {
+                      translateMutation.mutate(id);
+                    }
+                  }}
+                  disabled={translateMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-cyan-50 text-cyan-700 rounded-lg hover:bg-cyan-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {translateMutation.isPending ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      翻译中...
+                    </>
                   ) : (
-                    <code className={className}>{children}</code>
-                  );
-                },
-              }}
-            >
-              {displayContent}
-            </ReactMarkdown>
+                    <>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6" />
+                      </svg>
+                      翻译全文
+                    </>
+                  )}
+                </button>
+              )}
+              {translateMutation.isError && (
+                <span className="text-xs text-red-500">翻译失败</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="text-sm">
+                {contentExpanded ? '收起' : '展开查看'}
+              </span>
+              {contentExpanded ? (
+                <ChevronUp className="h-5 w-5" />
+              ) : (
+                <ChevronDown className="h-5 w-5" />
+              )}
+            </div>
           </div>
-        </CardContent>
+        </button>
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden ${
+            contentExpanded ? 'max-h-[50000px] opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <CardContent className="pt-6">
+            <div className="article-content">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  // 链接在新窗口打开
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {children}
+                    </a>
+                  ),
+                  // 表格响应式包装
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto">
+                      <table>{children}</table>
+                    </div>
+                  ),
+                }}
+              >
+                {displayContent}
+              </ReactMarkdown>
+            </div>
+          </CardContent>
+        </div>
       </Card>
 
       {/* 底部操作 */}
