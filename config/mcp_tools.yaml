@@ -1,0 +1,95 @@
+# MCP 工具描述配置
+# 所有工具的 description 和参数说明都在这里维护
+# 修改后需要重启 MCP 服务
+
+# ==================== 更新查询工具 ====================
+
+search_updates:
+  description: |
+    【核心工具】搜索具体的更新记录列表。
+    适用场景：用户想看"具体有哪些更新"、"最近发了什么"、"查找某个功能"。
+    不适用：统计数量（请用 get_timeline）。
+    默认返回20条。
+  params:
+    vendor: "[必填] 厂商标识: aws, azure, gcp, huawei, tencentcloud, volcengine"
+    date_from: "[必填] 开始日期 (YYYY-MM-DD)"
+    date_to: "[必填] 结束日期 (YYYY-MM-DD)"
+    keyword: "[可选] 搜索关键词，匹配标题/内容"
+    subcategory: "[可选] 产品子类名称"
+    update_type: "[可选] 筛选类型: new_feature, enhancement, deprecation, security, pricing"
+    limit: "[可选] 返回数量，默认20，最大100"
+
+get_update_detail:
+  description: |
+    获取单条更新的【完整】详情内容。
+    适用场景：用户对 search_updates 返回列表中的某一条感兴趣，想看全文。
+  params:
+    update_id: "[必填] 更新记录的唯一标识符"
+
+# ==================== 统计分析工具 ====================
+
+get_stats_overview:
+  description: |
+    获取全系统的全局统计数据。
+    适用场景：用户问"你们库里有多少数据"、"概览"、"整体情况"。
+  params: {}
+
+get_timeline:
+  description: |
+    【核心工具】获取更新数量的时间线统计。
+    适用场景：回答"2025年有多少更新"、"更新频率"、"趋势如何"、"由多少条数据"。
+    返回：按天/周/月/年的数量统计。
+  params:
+    granularity: "[必填] 统计粒度: day, week, month, year (默认 month)"
+    date_from: "[必填] 开始日期 (YYYY-MM-DD)"
+    date_to: "[必填] 结束日期 (YYYY-MM-DD)"
+    vendor: "[可选] 指定单一厂商过滤"
+
+get_vendor_stats:
+  description: |
+    获取厂商维度的统计概览（总量、覆盖率）。
+    适用场景：简单的厂商数据量查看，或者检查爬虫覆盖率。
+  params:
+    date_from: "[必填] YYYY-MM-DD"
+    date_to: "[必填] YYYY-MM-DD"
+    include_trend: "[可选] boolean, 是否包含环比趋势"
+
+get_update_type_stats:
+  description: |
+    分析更新类型的分布（新功能 vs 修复 vs 安全）。
+    适用场景：分析厂商是在"搞创新"(New Feature多) 还是 "修修补补"(Enhancement多)。
+  params:
+    vendor: "[必填] 厂商标识"
+    date_from: "[必填] YYYY-MM-DD"
+    date_to: "[必填] YYYY-MM-DD"
+
+# ==================== 高级分析工具 ====================
+
+get_product_hotness:
+  description: |
+    【热门榜单】获取更新最频繁的产品/服务排名。
+    适用场景：分析"哪个产品是重点"、"最近什么产品最火"、"战略重心"。
+  params:
+    vendor: "[必填] 厂商标识"
+    date_from: "[必填] YYYY-MM-DD"
+    date_to: "[必填] YYYY-MM-DD"
+    limit: "[可选] 默认20"
+    include_trend: "[可选] boolean"
+
+compare_vendors:
+  description: |
+    【对比神器】多厂商横向对比。
+    适用场景：用户明确提到两个或以上厂商进行对比（如"AWS和Azure谁更新多"）。
+    返回：数量对比、类型对比、活跃度对比。
+  params:
+    vendors: "[必填] JSON数组格式的厂商列表, 例如 ['aws', 'azure']"
+    date_from: "[必填] YYYY-MM-DD"
+    date_to: "[必填] YYYY-MM-DD"
+
+get_vendor_type_matrix:
+  description: |
+    获取 [厂商 x 更新类型] 的交叉矩阵。
+    适用场景：宏观分析各家厂商的战略偏好（例如：谁在疯狂发新功能，谁在疯狂扩区域）。
+  params:
+    date_from: "[必填] YYYY-MM-DD"
+    date_to: "[必填] YYYY-MM-DD"

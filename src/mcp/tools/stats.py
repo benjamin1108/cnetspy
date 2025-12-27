@@ -9,7 +9,7 @@
 from mcp.types import Tool, TextContent
 
 from src.storage.database.sqlite_layer import UpdateDataLayer
-from .registry import register_tool
+from .registry import register_tool, get_tool_description, get_param_description
 
 
 def register_stats_tools(db: UpdateDataLayer):
@@ -56,18 +56,7 @@ def register_stats_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_stats_overview",
-            description="""获取系统全局统计概览。
-
-返回整体统计数据：
-- 更新总数
-- 各厂商更新数量和分析覆盖率
-- 更新类型分布
-- 最后爬取时间
-
-适用于：
-- 了解系统当前数据规模
-- 快速获取各厂商数据量对比
-- 检查数据时效性""",
+            description=get_tool_description("get_stats_overview", "获取系统全局统计概览"),
             inputSchema={"type": "object", "properties": {}}
         ),
         get_stats_overview
@@ -126,30 +115,19 @@ def register_stats_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_timeline",
-            description="""获取更新时间线统计。
-
-按时间维度统计更新数量，支持不同粒度：
-- day: 按天统计
-- week: 按周统计  
-- month: 按月统计
-- year: 按年统计
-
-适用于：
-- 分析更新发布频率趋势
-- 对比不同时期的活跃度
-- 发现周期性规律""",
+            description=get_tool_description("get_timeline", "获取更新数量统计"),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "granularity": {
                         "type": "string",
-                        "description": "统计粒度: day, week, month, year",
+                        "description": get_param_description("get_timeline", "granularity", "统计粒度"),
                         "enum": ["day", "week", "month", "year"],
                         "default": "month"
                     },
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"},
-                    "vendor": {"type": "string", "description": "厂商过滤"}
+                    "date_from": {"type": "string", "description": get_param_description("get_timeline", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("get_timeline", "date_to", "结束日期")},
+                    "vendor": {"type": "string", "description": get_param_description("get_timeline", "vendor", "厂商过滤")}
                 }
             }
         ),
@@ -215,24 +193,13 @@ def register_stats_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_vendor_stats",
-            description="""获取各厂商统计数据。
-
-返回每个厂商的：
-- 更新总数
-- 已分析数量
-- 分析覆盖率
-- 环比趋势（可选）
-
-适用于：
-- 厂商间数据量对比
-- 分析覆盖率对比
-- 发现活跃/沉寂的厂商""",
+            description=get_tool_description("get_vendor_stats", "获取各厂商统计数据"),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"},
-                    "include_trend": {"type": "boolean", "description": "是否包含环比趋势数据", "default": False}
+                    "date_from": {"type": "string", "description": get_param_description("get_vendor_stats", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("get_vendor_stats", "date_to", "结束日期")},
+                    "include_trend": {"type": "boolean", "description": get_param_description("get_vendor_stats", "include_trend", "是否包含环比趋势数据"), "default": False}
                 }
             }
         ),
@@ -280,26 +247,13 @@ def register_stats_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_update_type_stats",
-            description="""获取更新类型分布统计。
-
-返回各更新类型的数量：
-- new_feature: 新功能
-- enhancement: 功能增强
-- deprecation: 功能废弃
-- security: 安全更新
-- pricing: 价格变更
-- region: 区域扩展
-
-适用于：
-- 分析厂商的产品策略方向
-- 对比不同厂商的更新类型偏好
-- 发现安全/废弃等重要更新""",
+            description=get_tool_description("get_update_type_stats", "获取更新类型分布统计"),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "vendor": {"type": "string", "description": "厂商过滤"},
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"}
+                    "vendor": {"type": "string", "description": get_param_description("get_update_type_stats", "vendor", "厂商过滤")},
+                    "date_from": {"type": "string", "description": get_param_description("get_update_type_stats", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("get_update_type_stats", "date_to", "结束日期")}
                 }
             }
         ),

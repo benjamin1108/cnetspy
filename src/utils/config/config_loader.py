@@ -239,14 +239,13 @@ def load_all_yaml_files(config_dir: str) -> Dict[str, Any]:
 
 def get_config(base_dir: Optional[str] = None, config_path: Optional[str] = None, default_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    加载配置，优先级：
-    1. 指定的配置文件或目录 (config_path)
-    2. 项目根目录下的 config 目录
-    3. 项目根目录下的 config.yaml 文件
-    4. 默认配置 (default_config)
+    加载配置，支持以下方式：
+    1. get_config("config_name") - 加载 config/config_name.yaml
+    2. get_config() - 加载整个 config 目录
+    3. get_config(config_path="/path/to/config") - 加载指定路径
     
     Args:
-        base_dir: 项目根目录路径，如果为None则自动确定
+        base_dir: 配置文件名称（不带.yaml后缀）或项目根目录路径
         config_path: 指定的配置文件或目录路径
         default_config: 默认配置字典
         
@@ -261,10 +260,22 @@ def get_config(base_dir: Optional[str] = None, config_path: Optional[str] = None
     
     config = deepcopy(default_config)
     
+    # 确定项目根目录
+    project_root = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+    
+    # 如果 base_dir 是配置文件名称（不是路径），加载单个配置文件
+    if base_dir and not os.path.isabs(base_dir) and not os.path.exists(base_dir):
+        config_file = os.path.join(project_root, 'config', f'{base_dir}.yaml')
+        if os.path.exists(config_file):
+            if _first_load or file_has_changed(config_file):
+                logger.debug(f"加载配置文件: {config_file}")
+            config_data = load_yaml_file(config_file)
+            _first_load = False
+            return merge_configs(config, config_data)
+    
     # 如果没有提供项目根目录，自动确定
     if base_dir is None:
-        # 获取当前文件所在目录的上一级目录的上一级目录的上一级目录（即项目根目录）
-        base_dir = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+        base_dir = project_root
     
     # 如果提供了指定的配置路径
     if config_path:

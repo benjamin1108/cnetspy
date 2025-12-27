@@ -14,6 +14,7 @@ from .routes.updates import router as updates_router
 from .routes.analysis import router as analysis_router
 from .routes.stats import router as stats_router
 from .routes.vendors import router as vendors_router
+from .routes.chat import router as chat_router
 
 
 # 创建 FastAPI 应用
@@ -36,6 +37,7 @@ app.include_router(updates_router)
 app.include_router(analysis_router)
 app.include_router(stats_router)
 app.include_router(vendors_router)
+app.include_router(chat_router)
 
 # 静态文件服务（测试页面）
 static_dir = os.path.join(os.path.dirname(__file__), "static")

@@ -1,5 +1,6 @@
 # AI 模型配置文件
 
+# 默认配置（批量分析任务使用）
 default:
   # LLM 服务商
   provider: gemini
@@ -56,3 +57,16 @@ default:
     # tags 数量范围
     tags_min_count: 3
     tags_max_count: 8
+
+# Chatbox 配置（前端 AI 助手使用）
+chatbox:
+  # 模型名称（可与 default 不同）
+  model_name: gemini-3-flash-preview
+  
+  # API Key 环境变量名称（复用 default 的 key）
+  api_key_env: GEMINI_API_KEY
+  
+  # 生成参数
+  generation:
+    temperature: 0.7
+    max_output_tokens: 4096

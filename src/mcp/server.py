@@ -65,6 +65,8 @@ async def run_server(mode: str = "stdio", host: str = "0.0.0.0", port: int = 808
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
         from starlette.responses import Response
+        from starlette.middleware import Middleware
+        from starlette.middleware.cors import CORSMiddleware
         import uvicorn
         
         sse = SseServerTransport("/messages/")
@@ -80,11 +82,23 @@ async def run_server(mode: str = "stdio", host: str = "0.0.0.0", port: int = 808
             # 返回空响应避免 NoneType 错误
             return Response()
         
+        # 配置 CORS 中间件
+        middleware = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ]
+        
         app = Starlette(
             routes=[
                 Route("/sse", endpoint=handle_sse),
                 Mount("/messages/", app=sse.handle_post_message),
-            ]
+            ],
+            middleware=middleware,
         )
         
         logger.info(f"MCP Server (SSE) 启动于 http://{host}:{port}")

@@ -10,7 +10,7 @@ import json
 from mcp.types import Tool, TextContent
 
 from src.storage.database.sqlite_layer import UpdateDataLayer
-from .registry import register_tool
+from .registry import register_tool, get_tool_description, get_param_description
 
 
 def register_update_tools(db: UpdateDataLayer):
@@ -101,47 +101,38 @@ def register_update_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="search_updates",
-            description="""搜索云厂商更新信息。
-
-可搜索 AWS、Azure、GCP、华为云、腾讯云、火山引擎等厂商的产品更新。
-支持按厂商、日期范围、关键词、更新类型、产品子类等条件过滤。
-
-返回匹配的更新列表，包含标题、日期、厂商、更新类型、摘要等信息。
-适用于：
-- 查找某厂商最近的更新
-- 搜索特定产品或功能的更新
-- 按产品子类过滤（如 Google Cloud VPC, Amazon VPC）""",
+            description=get_tool_description("search_updates", "搜索云厂商更新列表"),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "vendor": {
                         "type": "string",
-                        "description": "厂商标识: aws, azure, gcp, huawei, tencentcloud, volcengine",
+                        "description": get_param_description("search_updates", "vendor", "厂商标识"),
                         "enum": ["aws", "azure", "gcp", "huawei", "tencentcloud", "volcengine"]
                     },
                     "keyword": {
                         "type": "string",
-                        "description": "搜索关键词，匹配标题和内容"
+                        "description": get_param_description("search_updates", "keyword", "搜索关键词")
                     },
                     "subcategory": {
                         "type": "string",
-                        "description": "产品子类名称，如 Google Cloud VPC, Amazon VPC"
+                        "description": get_param_description("search_updates", "subcategory", "产品子类名称")
                     },
                     "date_from": {
                         "type": "string",
-                        "description": "开始日期 (YYYY-MM-DD)"
+                        "description": get_param_description("search_updates", "date_from", "开始日期 (YYYY-MM-DD)")
                     },
                     "date_to": {
                         "type": "string",
-                        "description": "结束日期 (YYYY-MM-DD)"
+                        "description": get_param_description("search_updates", "date_to", "结束日期 (YYYY-MM-DD)")
                     },
                     "update_type": {
                         "type": "string",
-                        "description": "更新类型: new_feature, enhancement, deprecation, security, pricing, region 等"
+                        "description": get_param_description("search_updates", "update_type", "更新类型")
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "返回结果数量限制，默认20，最大100",
+                        "description": get_param_description("search_updates", "limit", "返回结果数量限制"),
                         "default": 20
                     }
                 }
@@ -203,24 +194,13 @@ def register_update_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_update_detail",
-            description="""获取单条更新的完整详情。
-
-返回更新的完整信息，包括：
-- 原始标题和中文翻译
-- 完整内容和AI摘要
-- 产品分类和标签
-- 发布日期和来源链接
-
-适用于：
-- 深入了解某条更新的具体内容
-- 获取更新的AI分析结果
-- 查看原文链接""",
+            description=get_tool_description("get_update_detail", "获取单条更新的完整详情"),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "update_id": {
                         "type": "string",
-                        "description": "更新记录的唯一标识符"
+                        "description": get_param_description("get_update_detail", "update_id", "更新记录的唯一标识符")
                     }
                 },
                 "required": ["update_id"]

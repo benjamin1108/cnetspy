@@ -9,7 +9,7 @@
 from mcp.types import Tool, TextContent
 
 from src.storage.database.sqlite_layer import UpdateDataLayer
-from .registry import register_tool
+from .registry import register_tool, get_tool_description, get_param_description
 
 
 def register_analysis_tools(db: UpdateDataLayer):
@@ -87,25 +87,15 @@ def register_analysis_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_product_hotness",
-            description="""获取产品热度排行榜。
-
-返回更新数量最多的产品子类排名，可分析：
-- 哪些产品正在被频繁更新
-- 厂商的产品重点投入方向
-- 热门产品的变化趋势
-
-适用于：
-- 分析各厂商的产品战略重点
-- 发现新兴热门产品
-- 对比不同厂商的产品布局""",
+            description=get_tool_description("get_product_hotness", "获取产品热度排行榜"),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "vendor": {"type": "string", "description": "厂商过滤: aws, azure, gcp, huawei, tencentcloud, volcengine"},
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"},
-                    "limit": {"type": "integer", "description": "返回数量，默认20，最大100", "default": 20},
-                    "include_trend": {"type": "boolean", "description": "是否包含环比趋势", "default": False}
+                    "vendor": {"type": "string", "description": get_param_description("get_product_hotness", "vendor", "厂商过滤")},
+                    "date_from": {"type": "string", "description": get_param_description("get_product_hotness", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("get_product_hotness", "date_to", "结束日期")},
+                    "limit": {"type": "integer", "description": get_param_description("get_product_hotness", "limit", "返回数量"), "default": 20},
+                    "include_trend": {"type": "boolean", "description": get_param_description("get_product_hotness", "include_trend", "是否包含环比趋势"), "default": False}
                 }
             }
         ),
@@ -208,28 +198,17 @@ def register_analysis_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="compare_vendors",
-            description="""对比多个厂商的更新策略。
-
-分析指定厂商在特定时间段内的：
-- 更新数量对比
-- 更新类型分布对比
-- 热门产品对比
-- 活跃度趋势对比
-
-适用于：
-- 竞争对手分析
-- 多云策略规划
-- 行业趋势洞察""",
+            description=get_tool_description("compare_vendors", "对比多个厂商的更新策略"),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "vendors": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "要对比的厂商列表，如 ['aws', 'azure', 'gcp']"
+                        "description": get_param_description("compare_vendors", "vendors", "要对比的厂商列表")
                     },
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"}
+                    "date_from": {"type": "string", "description": get_param_description("compare_vendors", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("compare_vendors", "date_to", "结束日期")}
                 },
                 "required": ["vendors"]
             }
@@ -293,22 +272,12 @@ def register_analysis_tools(db: UpdateDataLayer):
     register_tool(
         Tool(
             name="get_vendor_type_matrix",
-            description="""获取厂商-更新类型矩阵。
-
-返回每个厂商的更新类型分布，用于分析：
-- 各厂商的产品策略方向（新功能 vs 增强 vs 废弃）
-- 安全更新的关注程度
-- 区域扩展的力度
-
-适用于：
-- 分析厂商战略方向
-- 对比产品成熟度
-- 评估厂商的技术投入重点""",
+            description=get_tool_description("get_vendor_type_matrix", "获取厂商-更新类型矩阵"),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "date_from": {"type": "string", "description": "开始日期 (YYYY-MM-DD)"},
-                    "date_to": {"type": "string", "description": "结束日期 (YYYY-MM-DD)"}
+                    "date_from": {"type": "string", "description": get_param_description("get_vendor_type_matrix", "date_from", "开始日期")},
+                    "date_to": {"type": "string", "description": get_param_description("get_vendor_type_matrix", "date_to", "结束日期")}
                 }
             }
         ),

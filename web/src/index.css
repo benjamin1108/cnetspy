@@ -110,6 +110,28 @@ html {
   /* 高亮标记 */
   --highlight-bg: 199 89% 90%;
   --highlight-foreground: 217 33% 17%;
+
+  /* AI Chatbox */
+  --chat-fab-bg: 217 91% 60%;
+  --chat-fab-fg: 0 0% 100%;
+  --chat-window-bg: 210 50% 99%;
+  --chat-header-bg: 214 40% 96%;
+  --chat-header-icon-bg: 217 91% 60%;
+  --chat-header-icon-fg: 0 0% 100%;
+  --chat-bubble-user-bg: 217 91% 60%;
+  --chat-bubble-user-fg: 0 0% 100%;
+  --chat-bubble-ai-bg: 214 32% 93%;
+  --chat-bubble-ai-fg: 217 33% 17%;
+  --chat-avatar-ai-bg: 192 80% 95%;
+  --chat-input-bg: 214 40% 96%;
+  --chat-send-bg: 217 91% 60%;
+  --chat-send-fg: 0 0% 100%;
+  --chat-tool-bg: 214 32% 95%;
+  --chat-tool-border: 214 32% 85%;
+  --chat-empty-icon-bg: 214 32% 93%;
+  --chat-empty-icon-fg: 215 20% 50%;
+  --chat-error-bg: 0 84% 95%;
+  --chat-error-fg: 0 84% 40%;
 }
 
 .dark {
@@ -169,6 +191,28 @@ html {
   /* 高亮标记 */
   --highlight-bg: 192 50% 20%;
   --highlight-foreground: 192 91% 95%;
+
+  /* AI Chatbox - 深色模式 */
+  --chat-fab-bg: 192 91% 55%;
+  --chat-fab-fg: 222 47% 6%;
+  --chat-window-bg: 222 47% 10%;
+  --chat-header-bg: 222 47% 12%;
+  --chat-header-icon-bg: 192 91% 55%;
+  --chat-header-icon-fg: 222 47% 6%;
+  --chat-bubble-user-bg: 192 91% 45%;
+  --chat-bubble-user-fg: 222 47% 6%;
+  --chat-bubble-ai-bg: 217 33% 18%;
+  --chat-bubble-ai-fg: 199 89% 94%;
+  --chat-avatar-ai-bg: 192 50% 15%;
+  --chat-input-bg: 217 33% 15%;
+  --chat-send-bg: 192 91% 55%;
+  --chat-send-fg: 222 47% 6%;
+  --chat-tool-bg: 217 33% 12%;
+  --chat-tool-border: 217 33% 25%;
+  --chat-empty-icon-bg: 217 33% 18%;
+  --chat-empty-icon-fg: 199 20% 60%;
+  --chat-error-bg: 0 63% 15%;
+  --chat-error-fg: 0 63% 70%;
 }
 
 * {
@@ -611,4 +655,128 @@ body {
 
 .pulse-dot {
   animation: pulse 2s ease-in-out infinite;
+}
+
+/* ===== AI Chatbox 样式 ===== */
+
+/* 浮动按钮 */
+.chat-fab {
+  background: linear-gradient(135deg, 
+    hsl(var(--chat-fab-bg)),
+    hsl(var(--ai-accent))
+  );
+  color: hsl(var(--chat-fab-fg));
+  box-shadow: 0 4px 20px -5px hsl(var(--chat-fab-bg) / 0.5),
+              0 0 30px -10px hsl(var(--ai-accent) / 0.3);
+  transition: all 0.3s ease;
+}
+
+.chat-fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 25px -5px hsl(var(--chat-fab-bg) / 0.6),
+              0 0 40px -10px hsl(var(--ai-accent) / 0.4);
+}
+
+/* 聊天窗口 */
+.chat-window {
+  background: hsl(var(--chat-window-bg));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  box-shadow: 0 10px 40px -10px hsl(var(--foreground) / 0.2),
+              0 0 0 1px hsl(var(--border) / 0.5);
+}
+
+/* 头部 */
+.chat-header {
+  background: hsl(var(--chat-header-bg));
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 1rem 1rem 0 0;
+}
+
+.chat-header-icon {
+  background: linear-gradient(135deg,
+    hsl(var(--chat-header-icon-bg)),
+    hsl(var(--ai-accent))
+  );
+  color: hsl(var(--chat-header-icon-fg));
+}
+
+/* 消息区域 */
+.chat-messages {
+  background: hsl(var(--chat-window-bg));
+}
+
+/* 用户气泡 */
+.chat-bubble-user {
+  background: linear-gradient(135deg,
+    hsl(var(--chat-bubble-user-bg)),
+    hsl(var(--primary))
+  );
+  color: hsl(var(--chat-bubble-user-fg));
+}
+
+/* AI气泡 */
+.chat-bubble-assistant {
+  background: hsl(var(--chat-bubble-ai-bg));
+  color: hsl(var(--chat-bubble-ai-fg));
+}
+
+/* AI头像 */
+.chat-avatar-ai {
+  background: hsl(var(--chat-avatar-ai-bg));
+}
+
+/* 工具结果卡片 */
+.chat-tool-result {
+  background: hsl(var(--chat-tool-bg));
+  border: 1px solid hsl(var(--chat-tool-border));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+.chat-tool-error {
+  border-color: hsl(var(--destructive) / 0.3);
+  background: hsl(var(--destructive) / 0.1);
+}
+
+/* 输入区域 */
+.chat-input-area {
+  background: hsl(var(--chat-header-bg));
+  border-top: 1px solid hsl(var(--border));
+  border-radius: 0 0 1rem 1rem;
+}
+
+.chat-input-container {
+  background: hsl(var(--chat-input-bg));
+  border: 1px solid hsl(var(--border));
+  transition: border-color 0.2s ease;
+}
+
+.chat-input-container:focus-within {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+}
+
+/* 发送按钮 */
+.chat-send-btn {
+  background: linear-gradient(135deg,
+    hsl(var(--chat-send-bg)),
+    hsl(var(--ai-accent))
+  );
+  color: hsl(var(--chat-send-fg));
+}
+
+.chat-send-btn:hover:not(:disabled) {
+  box-shadow: 0 0 15px -3px hsl(var(--chat-send-bg) / 0.5);
+}
+
+/* 空状态图标 */
+.chat-empty-icon {
+  background: hsl(var(--chat-empty-icon-bg));
+  color: hsl(var(--chat-empty-icon-fg));
+}
+
+/* 错误提示 */
+.chat-error {
+  background: hsl(var(--chat-error-bg));
+  color: hsl(var(--chat-error-fg));
 }

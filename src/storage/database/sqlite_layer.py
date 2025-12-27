@@ -783,11 +783,13 @@ class UpdateDataLayer:
                             "OR title_translated IN ('N/A', '暂无', 'None', 'null'))"
                         )
                     
-                # keyword关键词搜索
+                # keyword关键词搜索（中英文标题+内容+摘要）
                 if filters.get('keyword'):
-                    where_clauses.append("(title LIKE ? OR content LIKE ?)")
+                    where_clauses.append(
+                        "(title LIKE ? OR title_translated LIKE ? OR content LIKE ? OR content_translated LIKE ? OR content_summary LIKE ?)"
+                    )
                     keyword_param = f"%{filters['keyword']}%"
-                    params.extend([keyword_param, keyword_param])
+                    params.extend([keyword_param] * 5)
                     
                 # tags标签过滤
                 # ⚠️ 性能警告: LIKE查询无法使用索引
@@ -901,9 +903,11 @@ class UpdateDataLayer:
                         )
                     
                 if filters.get('keyword'):
-                    where_clauses.append("(title LIKE ? OR content LIKE ?)")
+                    where_clauses.append(
+                        "(title LIKE ? OR title_translated LIKE ? OR content LIKE ? OR content_translated LIKE ? OR content_summary LIKE ?)"
+                    )
                     keyword_param = f"%{filters['keyword']}%"
-                    params.extend([keyword_param, keyword_param])
+                    params.extend([keyword_param] * 5)
                     
                 if filters.get('tags'):
                     tag_list = [t.strip() for t in filters['tags'].split(',')]
