@@ -1,5 +1,4 @@
 # MCP 工具描述配置
-# 所有工具的 description 和参数说明都在这里维护
 # 修改后需要重启 MCP 服务
 
 # ==================== 更新查询工具 ====================
@@ -14,9 +13,9 @@ search_updates:
     vendor: "[必填] 厂商标识: aws, azure, gcp, huawei, tencentcloud, volcengine"
     date_from: "[必填] 开始日期 (YYYY-MM-DD)"
     date_to: "[必填] 结束日期 (YYYY-MM-DD)"
-    keyword: "[可选] 搜索关键词，匹配标题/内容"
+    keyword: "[可选] 搜索关键词，优先转为英文术语"
     subcategory: "[可选] 产品子类名称"
-    update_type: "[可选] 筛选类型: new_feature, enhancement, deprecation, security, pricing"
+    update_type: "[可选] 筛选类型: new_feature, enhancement, deprecation, security"
     limit: "[可选] 返回数量，默认20，最大100"
 
 get_update_detail:

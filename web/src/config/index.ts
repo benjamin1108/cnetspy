@@ -5,6 +5,14 @@
 
 import type { ChatConfig } from '@/types/chat';
 
+// 获取 MCP SSE URL（生产环境使用 /next/sse，开发环境使用 /sse）
+const getMcpSseUrl = () => {
+  if (import.meta.env.VITE_MCP_SERVER_URL) {
+    return import.meta.env.VITE_MCP_SERVER_URL;
+  }
+  return import.meta.env.PROD ? '/next/sse' : '/sse';
+};
+
 // 从环境变量或默认值获取配置
 export const config = {
   // API 基础路径
@@ -15,7 +23,7 @@ export const config = {
     mcpServers: [
       {
         name: 'cloudnetspy',
-        url: import.meta.env.VITE_MCP_SERVER_URL || 'http://cnetspy.site:8089/sse',
+        url: getMcpSseUrl(),
       },
     ],
     maxMessages: 100,

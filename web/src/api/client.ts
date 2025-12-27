@@ -22,9 +22,17 @@ import type {
   TrendData,
 } from '@/types';
 
+// 获取 API 基础路径（生产环境使用 /next/api/v1）
+const getApiBaseUrl = () => {
+  if (import.meta.env.PROD) {
+    return '/next/api/v1';
+  }
+  return '/api/v1';
+};
+
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: getApiBaseUrl(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

@@ -23,6 +23,9 @@ import type {
 } from '@/types/chat';
 import { McpClient } from '@/api/mcp-client';
 
+// API 基础路径（生产环境使用 /next/api/v1）
+const API_BASE = import.meta.env.PROD ? '/next/api/v1' : '/api/v1';
+
 // 提示词配置类型
 interface PromptsConfig {
   system_prompt: string;
@@ -133,7 +136,7 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
   useEffect(() => {
     async function fetchPrompts() {
       try {
-        const response = await fetch('/api/v1/chat/prompts');
+        const response = await fetch(`${API_BASE}/chat/prompts`);
         if (response.ok) {
           promptsRef.current = await response.json();
         }
@@ -269,7 +272,7 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
           ],
         };
         
-        const response = await fetch('/api/v1/chat/completions', {
+        const response = await fetch(`${API_BASE}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
@@ -325,7 +328,7 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
               
               // 将结果发送给 AI 生成最终回复
               const summaryPrompt = promptsRef.current?.summary_prompt || '请根据工具返回的数据，用中文用户友好的方式总结和展示结果。';
-              const summaryResponse = await fetch('/api/v1/chat/completions', {
+              const summaryResponse = await fetch(`${API_BASE}/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? '/next/' : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -12,12 +13,20 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
     proxy: {
       '/api': {
         target: 'http://localhost:8088',
         changeOrigin: true,
       },
+      '/sse': {
+        target: 'http://localhost:8089',
+        changeOrigin: true,
+      },
+      '/messages': {
+        target: 'http://localhost:8089',
+        changeOrigin: true,
+      },
     },
   },
-})
+}));
