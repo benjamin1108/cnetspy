@@ -197,7 +197,7 @@ do_api() {
     
     # 默认参数
     MODE="dev"
-    HOST="0.0.0.0"
+    HOST="127.0.0.1"
     PORT="8088"
     
     # 解析参数
@@ -334,16 +334,16 @@ start_mcp_background() {
     
     if [ "$DEV_MODE" = "dev" ]; then
         # 开发模式：热重载
-        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 0.0.0.0 --port 8089 --reload > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 127.0.0.1 --port 8089 --reload > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
         echo $! > "$MCP_PID_FILE"
         echo -e "MCP Server 已后台启动 (PID: $!) ${GREEN}[热重载]${NC}"
     else
         # 生产模式：多进程
-        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 0.0.0.0 --port 8089 --workers 2 > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 127.0.0.1 --port 8089 --workers 2 > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
         echo $! > "$MCP_PID_FILE"
         echo -e "MCP Server 已后台启动 (PID: $!)"
     fi
-    echo -e "MCP 端点: ${GREEN}http://0.0.0.0:8089/sse${NC}"
+    echo -e "MCP 端点: ${GREEN}http://127.0.0.1:8089/sse${NC}"
     echo -e "MCP 日志: ${GREEN}logs/mcp.log${NC}"
 }
 
@@ -422,7 +422,7 @@ do_mcp() {
     
     # 解析参数
     MODE="stdio"
-    HOST="0.0.0.0"
+    HOST="127.0.0.1"
     PORT="8089"
     ARGS=""
     
