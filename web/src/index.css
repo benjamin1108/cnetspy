@@ -51,110 +51,124 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom CSS Variables */
+/* Custom CSS Variables - 科技感蓝色主题 */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  /* 浅色模式 - 明亮科技感 */
+  --background: 214 40% 98%;
+  --foreground: 217 33% 17%;
+  --card: 210 50% 99%;
+  --card-foreground: 217 33% 17%;
+  --popover: 210 50% 99%;
+  --popover-foreground: 217 33% 17%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 214 32% 91%;
+  --secondary-foreground: 217 33% 17%;
+  --muted: 214 32% 91%;
+  --muted-foreground: 215 20% 45%;
+  --accent: 199 89% 48%;
+  --accent-foreground: 217 33% 17%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 85%;
+  --input: 214 32% 85%;
+  --ring: 199 89% 48%;
   --radius: 0.5rem;
 
-  /* 新增语义化变量 */
-  --text-primary: 222.2 47% 11%;
-  --text-secondary: 215 16% 47%;
-  --text-tertiary: 215 10% 60%;
-  --bg-elevated: 0 0% 100%;
-  --bg-hover: 210 40% 98%;
-  --success: 142 71% 45%;
+  /* 语义化变量 */
+  --text-primary: 217 33% 17%;
+  --text-secondary: 215 20% 45%;
+  --text-tertiary: 215 15% 60%;
+  --bg-elevated: 210 50% 99%;
+  --bg-hover: 214 40% 95%;
+  --success: 158 64% 52%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 100%;
+  --warning: 43 96% 56%;
+  --warning-foreground: 217 33% 17%;
 
-  /* AI 分析特色 */
-  --ai-accent: 187 85% 43%;
-  --ai-accent-foreground: 187 85% 25%;
-  --ai-bg: 187 60% 97%;
-  --ai-border: 187 50% 80%;
+  /* AI 分析特色 - 科技青蓝 */
+  --ai-accent: 192 91% 50%;
+  --ai-accent-foreground: 192 91% 25%;
+  --ai-bg: 192 80% 97%;
+  --ai-border: 192 60% 80%;
 
   /* 分类标签色 */
-  --category: 270 60% 60%;
-  --category-foreground: 270 60% 30%;
+  --category: 262 83% 58%;
+  --category-foreground: 262 83% 30%;
+
+  /* 来源渠道标签色 */
+  --channel-whatsnew: 35 92% 45%;
+  --channel-whatsnew-bg: 35 92% 50%;
+  --channel-blog: 270 70% 50%;
+  --channel-blog-bg: 270 70% 55%;
 
   /* 代码块样式 */
-  --code-bg: 220 13% 13%;
-  --code-foreground: 210 15% 85%;
-  --code-inline: 346 85% 47%;
+  --code-bg: 220 17% 10%;
+  --code-foreground: 199 89% 80%;
+  --code-inline: 199 89% 48%;
 
   /* 高亮标记 */
-  --highlight-bg: 45 100% 85%;
-  --highlight-foreground: 45 100% 20%;
+  --highlight-bg: 199 89% 90%;
+  --highlight-foreground: 217 33% 17%;
 }
 
 .dark {
-  --background: 220 15% 8%;
-  --foreground: 210 15% 92%;
-  --card: 220 14% 11%;
-  --card-foreground: 210 15% 92%;
-  --popover: 220 14% 11%;
-  --popover-foreground: 210 15% 92%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 220 15% 8%;
-  --secondary: 220 13% 22%;
-  --secondary-foreground: 210 15% 92%;
-  --muted: 220 12% 18%;
-  --muted-foreground: 215 15% 65%;
-  --accent: 220 13% 22%;
-  --accent-foreground: 210 15% 92%;
-  --destructive: 0 62.8% 50%;
-  --destructive-foreground: 210 15% 92%;
-  --border: 220 13% 25%;
-  --input: 220 13% 20%;
-  --ring: 217 91% 60%;
+  /* 深色模式 - 赛博朋克科技感 */
+  --background: 222 47% 6%;
+  --foreground: 199 89% 94%;
+  --card: 222 47% 8%;
+  --card-foreground: 199 89% 94%;
+  --popover: 222 47% 8%;
+  --popover-foreground: 199 89% 94%;
+  --primary: 199 89% 55%;
+  --primary-foreground: 222 47% 6%;
+  --secondary: 217 33% 18%;
+  --secondary-foreground: 199 89% 90%;
+  --muted: 217 33% 15%;
+  --muted-foreground: 199 20% 65%;
+  --accent: 192 91% 50%;
+  --accent-foreground: 222 47% 6%;
+  --destructive: 0 63% 55%;
+  --destructive-foreground: 199 89% 94%;
+  --border: 217 33% 20%;
+  --input: 217 33% 15%;
+  --ring: 192 91% 50%;
 
-  /* 新增语义化变量 */
-  --text-primary: 210 15% 92%;
-  --text-secondary: 215 15% 70%;
-  --text-tertiary: 215 10% 55%;
-  --bg-elevated: 220 14% 13%;
-  --bg-hover: 220 13% 15%;
-  --success: 142 70% 50%;
-  --success-foreground: 220 15% 8%;
-  --warning: 38 90% 55%;
-  --warning-foreground: 220 15% 8%;
+  /* 语义化变量 */
+  --text-primary: 199 89% 94%;
+  --text-secondary: 199 20% 70%;
+  --text-tertiary: 199 15% 55%;
+  --bg-elevated: 222 47% 10%;
+  --bg-hover: 217 33% 12%;
+  --success: 158 64% 55%;
+  --success-foreground: 222 47% 6%;
+  --warning: 43 96% 60%;
+  --warning-foreground: 222 47% 6%;
 
-  /* AI 分析特色 */
-  --ai-accent: 187 80% 55%;
-  --ai-accent-foreground: 187 80% 85%;
-  --ai-bg: 187 30% 15%;
-  --ai-border: 187 40% 35%;
+  /* AI 分析特色 - 霓虹青蓝 */
+  --ai-accent: 192 91% 60%;
+  --ai-accent-foreground: 192 91% 90%;
+  --ai-bg: 192 50% 12%;
+  --ai-border: 192 60% 30%;
 
   /* 分类标签色 */
-  --category: 270 60% 70%;
-  --category-foreground: 270 60% 85%;
+  --category: 262 83% 68%;
+  --category-foreground: 262 83% 90%;
 
-  /* 代码块样式 */
-  --code-bg: 220 13% 13%;
-  --code-foreground: 210 15% 85%;
-  --code-inline: 346 85% 65%;
+  /* 来源渠道标签色 - 深色模式更亮 */
+  --channel-whatsnew: 40 90% 65%;
+  --channel-whatsnew-bg: 40 90% 55%;
+  --channel-blog: 270 70% 70%;
+  --channel-blog-bg: 270 70% 60%;
+
+  /* 代码块样式 - 发光效果 */
+  --code-bg: 222 47% 8%;
+  --code-foreground: 192 91% 80%;
+  --code-inline: 192 91% 60%;
 
   /* 高亮标记 */
-  --highlight-bg: 45 80% 30%;
-  --highlight-foreground: 45 100% 90%;
+  --highlight-bg: 192 50% 20%;
+  --highlight-foreground: 192 91% 95%;
 }
 
 * {
@@ -186,22 +200,29 @@ body {
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* AI 分析卡片样式 */
+/* AI 分析卡片样式 - 科技感增强 */
 .ai-analysis-card {
-  border-color: hsl(var(--ai-border) / 0.5);
-  background: linear-gradient(to bottom right, 
-    hsl(var(--background)), 
-    hsl(var(--ai-bg) / 0.3), 
-    hsl(var(--primary) / 0.05)
+  border-color: hsl(var(--ai-border) / 0.6);
+  background: linear-gradient(135deg, 
+    hsl(var(--card)), 
+    hsl(var(--ai-bg) / 0.4), 
+    hsl(var(--primary) / 0.08)
   );
+  box-shadow: 0 0 0 1px hsl(var(--ai-border) / 0.3),
+              0 4px 20px -5px hsl(var(--ai-accent) / 0.15);
 }
 
 .ai-analysis-card:hover {
-  background: linear-gradient(to bottom right, 
-    hsl(var(--background)), 
-    hsl(var(--ai-bg) / 0.5), 
-    hsl(var(--primary) / 0.1)
+  border-color: hsl(var(--ai-accent) / 0.5);
+  background: linear-gradient(135deg, 
+    hsl(var(--card)), 
+    hsl(var(--ai-bg) / 0.6), 
+    hsl(var(--primary) / 0.12)
   );
+  box-shadow: 0 0 0 1px hsl(var(--ai-accent) / 0.4),
+              0 0 25px -5px hsl(var(--ai-accent) / 0.25),
+              0 8px 30px -10px hsl(var(--primary) / 0.2);
+  transform: translateY(-1px);
 }
 
 .ai-analysis-header {
@@ -233,6 +254,32 @@ body {
   background: hsl(var(--ai-bg) / 0.8);
 }
 
+/* 语言切换器容器 */
+.lang-switcher {
+  background: hsl(var(--muted));
+}
+
+/* 语言切换器激活状态 */
+.lang-switcher-active {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.1);
+}
+
+/* 语言切换器非激活状态 */
+.lang-switcher-inactive {
+  color: hsl(var(--muted-foreground));
+}
+
+.lang-switcher-inactive:hover {
+  color: hsl(var(--foreground));
+}
+
+/* 内容区块头部悬停 */
+.content-header-hover:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
 /* 分析状态标签 */
 .status-analyzed {
   color: hsl(var(--success));
@@ -246,6 +293,68 @@ body {
 .category-badge {
   background: hsl(var(--category) / 0.1);
   color: hsl(var(--category));
+}
+
+/* 公告标签 */
+.channel-whatsnew {
+  background: hsl(var(--channel-whatsnew-bg) / 0.12);
+  color: hsl(var(--channel-whatsnew));
+  border: 1px solid hsl(var(--channel-whatsnew-bg) / 0.25);
+}
+
+.channel-whatsnew:hover {
+  background: hsl(var(--channel-whatsnew-bg) / 0.2);
+  border-color: hsl(var(--channel-whatsnew-bg) / 0.5);
+}
+
+/* 博客标签 */
+.channel-blog {
+  background: hsl(var(--channel-blog-bg) / 0.1);
+  color: hsl(var(--channel-blog));
+  border: 1px solid hsl(var(--channel-blog-bg) / 0.25);
+}
+
+.channel-blog:hover {
+  background: hsl(var(--channel-blog-bg) / 0.18);
+  border-color: hsl(var(--channel-blog-bg) / 0.5);
+}
+
+/* Tag 标签 - 科技感青蓝边框 */
+.tag-badge {
+  background: linear-gradient(135deg, 
+    hsl(var(--ai-accent) / 0.08),
+    hsl(var(--primary) / 0.05)
+  );
+  color: hsl(var(--ai-accent));
+  border: 1px solid hsl(var(--ai-accent) / 0.25);
+  transition: all 0.2s ease;
+}
+
+.tag-badge:hover {
+  background: linear-gradient(135deg, 
+    hsl(var(--ai-accent) / 0.15),
+    hsl(var(--primary) / 0.1)
+  );
+  border-color: hsl(var(--ai-accent) / 0.5);
+  box-shadow: 0 0 8px -2px hsl(var(--ai-accent) / 0.3);
+}
+
+.dark .tag-badge {
+  background: linear-gradient(135deg, 
+    hsl(var(--ai-accent) / 0.12),
+    hsl(var(--primary) / 0.08)
+  );
+  color: hsl(var(--ai-accent));
+  border-color: hsl(var(--ai-accent) / 0.3);
+}
+
+.dark .tag-badge:hover {
+  background: linear-gradient(135deg, 
+    hsl(var(--ai-accent) / 0.2),
+    hsl(var(--primary) / 0.15)
+  );
+  border-color: hsl(var(--ai-accent) / 0.6);
+  box-shadow: 0 0 12px -2px hsl(var(--ai-accent) / 0.4);
 }
 
 /* AI 摘要内容样式 */
@@ -310,4 +419,106 @@ body {
   padding-left: 1em;
   margin: 1em 0;
   color: hsl(var(--muted-foreground));
+}
+
+/* 科技感增强样式 */
+
+/* 发光边框效果 */
+.glow-border {
+  box-shadow: 0 0 0 1px hsl(var(--border)),
+              0 0 15px -3px hsl(var(--primary) / 0.3),
+              0 0 6px -2px hsl(var(--ai-accent) / 0.2);
+}
+
+.dark .glow-border {
+  box-shadow: 0 0 0 1px hsl(var(--border)),
+              0 0 20px -3px hsl(var(--primary) / 0.4),
+              0 0 10px -2px hsl(var(--ai-accent) / 0.3);
+}
+
+/* 毛玻璃效果 */
+.glass-effect {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: hsl(var(--card) / 0.8);
+}
+
+.dark .glass-effect {
+  background: hsl(var(--card) / 0.7);
+}
+
+/* 霓虹文字效果 */
+.neon-text {
+  text-shadow: 0 0 10px hsl(var(--primary) / 0.5),
+               0 0 20px hsl(var(--primary) / 0.3),
+               0 0 30px hsl(var(--primary) / 0.2);
+}
+
+/* 科技感卡片悬停效果 */
+.tech-card {
+  transition: all 0.3s ease;
+  border: 1px solid hsl(var(--border));
+}
+
+.tech-card:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3),
+              0 4px 20px -5px hsl(var(--ai-accent) / 0.2);
+  transform: translateY(-2px);
+}
+
+/* 科技感按钮发光效果 */
+.tech-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.tech-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, 
+    transparent 0%, 
+    hsl(var(--primary) / 0.1) 50%, 
+    transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.tech-button:hover::before {
+  transform: translateX(100%);
+}
+
+.tech-button:hover {
+  box-shadow: 0 0 15px -3px hsl(var(--primary) / 0.5);
+}
+
+/* 科技感进度条 */
+.tech-progress {
+  background: linear-gradient(90deg,
+    hsl(var(--ai-accent)),
+    hsl(var(--primary)),
+    hsl(var(--ai-accent)));
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* 数据网格线背景 */
+.grid-bg {
+  background-image: 
+    linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .grid-bg {
+  background-image: 
+    linear-gradient(hsl(var(--border) / 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.2) 1px, transparent 1px);
 }

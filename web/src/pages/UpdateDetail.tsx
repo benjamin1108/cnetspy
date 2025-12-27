@@ -194,7 +194,10 @@ export function UpdateDetailPage() {
               />
               {VENDOR_DISPLAY_NAMES[update.vendor] || update.vendor}
             </Badge>
-            <Badge variant="secondary">
+            <Badge 
+              variant="outline" 
+              className={update.source_channel === 'whatsnew' ? 'channel-whatsnew' : 'channel-blog'}
+            >
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
             </Badge>
             {update.update_type && (
@@ -221,11 +224,11 @@ export function UpdateDetailPage() {
           </div>
 
           {/* 标题 */}
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground leading-tight tracking-tight">
             {update.title_translated || update.title}
           </h1>
           {update.title_translated && (
-            <p className="text-muted-foreground mt-2">{update.title}</p>
+            <p className="text-muted-foreground mt-0.5 text-sm leading-tight tracking-normal">{update.title}</p>
           )}
 
           {/* 元信息 */}
@@ -257,7 +260,7 @@ export function UpdateDetailPage() {
               {update.tags.map((tag, index) => (
                 <span
                   key={index}
-                  className="px-2 py-1 bg-accent text-accent-foreground text-sm rounded"
+                  className="px-2 py-1 text-sm rounded tag-badge"
                 >
                   {tag}
                 </span>
@@ -368,11 +371,14 @@ export function UpdateDetailPage() {
 
       {/* 正文内容 - 可折叠 */}
       <Card className="overflow-hidden">
-        <button
+        <div
           onClick={() => setContentExpanded(!contentExpanded)}
-          className="w-full"
+          className="w-full cursor-pointer"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setContentExpanded(!contentExpanded)}
         >
-          <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-accent/50 transition-colors">
+          <div className="flex items-center justify-between px-6 py-4 cursor-pointer content-header-hover transition-colors">
             <div className="flex items-center gap-3">
               <span className="text-lg font-semibold text-foreground">
                 更新内容
@@ -380,7 +386,7 @@ export function UpdateDetailPage() {
               {/* 语言切换按钮 - 仅当两种语言都存在时显示 */}
               {hasBothLanguages && (
                 <div 
-                  className="flex items-center bg-accent rounded-lg p-0.5"
+                  className="flex items-center lang-switcher rounded-lg p-0.5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -391,8 +397,8 @@ export function UpdateDetailPage() {
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       showTranslated
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'lang-switcher-active'
+                        : 'lang-switcher-inactive'
                     }`}
                   >
                     中文
@@ -405,8 +411,8 @@ export function UpdateDetailPage() {
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       !showTranslated
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'lang-switcher-active'
+                        : 'lang-switcher-inactive'
                     }`}
                   >
                     EN
@@ -458,7 +464,7 @@ export function UpdateDetailPage() {
               )}
             </div>
           </div>
-        </button>
+        </div>
         <div
           className={`transition-all duration-300 ease-in-out overflow-hidden ${
             contentExpanded ? 'max-h-[50000px] opacity-100' : 'max-h-0 opacity-0'

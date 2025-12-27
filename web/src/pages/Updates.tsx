@@ -576,7 +576,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
                 const channelFilter = update.source_channel === 'whatsnew' ? 'whatsnew' : 'blog';
                 onFilter({ source_channel: channelFilter });
               }}
-              className="bg-accent text-accent-foreground"
+              className={update.source_channel === 'whatsnew' ? 'channel-whatsnew' : 'channel-blog'}
             >
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
             </ClickableBadge>
@@ -620,7 +620,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
               {update.tags.map((tag, idx) => (
                 <span
                   key={idx}
-                  className="px-1.5 py-0.5 bg-accent/50 text-accent-foreground rounded text-xs border border-border"
+                  className="px-1.5 py-0.5 rounded text-xs tag-badge"
                 >
                   {tag}
                 </span>

@@ -78,7 +78,7 @@ class AnalysisService:
         
         # 2. 检查是否已分析（非强制模式）
         if not force:
-            title_trans = update_data.get('title_translated', '').strip()
+            title_trans = (update_data.get('title_translated') or '').strip()
             if title_trans and len(title_trans) >= 2 and title_trans not in ['N/A', '暂无']:
                 return {
                     'update_id': update_id,

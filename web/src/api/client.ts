@@ -159,7 +159,7 @@ export const vendorsApi = {
 export const analysisApi = {
   // 单条分析
   async analyzeSingle(updateId: string): Promise<ApiResponse<AnalysisResult>> {
-    const response = await apiClient.post('/analysis/single', { update_id: updateId });
+    const response = await apiClient.post(`/analysis/single/${updateId}`);
     return response.data;
   },
 

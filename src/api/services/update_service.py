@@ -124,7 +124,7 @@ class UpdateService:
             result['tags'] = []
         
         # 2. 判定是否已分析（增强验证，排除无效值）
-        title_trans = result.get('title_translated', '').strip()
+        title_trans = (result.get('title_translated') or '').strip()
         result['has_analysis'] = bool(
             title_trans and 
             len(title_trans) >= 2 and  # 排除单字符无效值
