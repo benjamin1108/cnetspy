@@ -4,7 +4,7 @@
 
 import { useStatsOverview, useStatsTimeline, useVendorStats, useUpdateTypeStats } from '@/hooks';
 import { Card, CardContent, CardHeader, CardTitle, Loading } from '@/components/ui';
-import { formatNumber, formatPercent, getVendorColor } from '@/lib/utils';
+import { formatNumber, formatPercent, getVendorColor, getChartThemeColors } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS } from '@/types';
 import {
   BarChart,
@@ -24,8 +24,16 @@ import { format, subDays } from 'date-fns';
 import { TrendingUp, Database, CheckCircle, Clock, Filter } from 'lucide-react';
 import { useState } from 'react';
 import { Select } from '@/components/ui';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export function DashboardPage() {
+  // 主题
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'dark';
+  
+  // 图表颜色
+  const chartColors = getChartThemeColors(isDark);
+  
   // 过滤器状态
   const [dateRange, setDateRange] = useState('30'); // 默认30天
   const [selectedVendor, setSelectedVendor] = useState('');
@@ -90,8 +98,8 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* 页面标题 */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">仪表盘</h1>
-        <p className="text-gray-500 mt-1">云计算竞争情报概览</p>
+        <h1 className="text-2xl font-bold text-foreground">仪表盘</h1>
+        <p className="text-muted-foreground mt-1">云计算竞争情报概览</p>
       </div>
 
       {/* 过滤器 */}
@@ -99,8 +107,8 @@ export function DashboardPage() {
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">筛选</span>
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">筛选</span>
             </div>
             <Select
               value={dateRange}
@@ -173,15 +181,22 @@ export function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={timelineChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis dataKey="date" fontSize={12} stroke={chartColors.textMuted} />
+                  <YAxis fontSize={12} stroke={chartColors.textMuted} />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: chartColors.background,
+                      border: `1px solid ${chartColors.border}`,
+                      borderRadius: '6px',
+                      color: chartColors.text
+                    }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="count"
-                    stroke="#3B82F6"
-                    fill="#93C5FD"
+                    stroke={chartColors.primary}
+                    fill={chartColors.primaryFill}
                     fillOpacity={0.6}
                   />
                 </AreaChart>
@@ -220,7 +235,14 @@ export function DashboardPage() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: chartColors.background,
+                      border: `1px solid ${chartColors.border}`,
+                      borderRadius: '6px',
+                      color: chartColors.text
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -241,11 +263,18 @@ export function DashboardPage() {
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={updateTypeChartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" fontSize={12} />
-                <YAxis type="category" dataKey="type" fontSize={12} width={100} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                <XAxis type="number" fontSize={12} stroke={chartColors.textMuted} />
+                <YAxis type="category" dataKey="type" fontSize={12} width={100} stroke={chartColors.textMuted} />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: chartColors.background,
+                    border: `1px solid ${chartColors.border}`,
+                    borderRadius: '6px',
+                    color: chartColors.text
+                  }}
+                />
+                <Bar dataKey="count" fill={chartColors.primary} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -261,16 +290,16 @@ export function DashboardPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b">
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">厂商</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">更新总数</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">已分析</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">覆盖率</th>
+                <tr className="border-b border-border">
+                  <th className="py-3 px-4 text-left font-medium text-muted-foreground">厂商</th>
+                  <th className="py-3 px-4 text-right font-medium text-muted-foreground">更新总数</th>
+                  <th className="py-3 px-4 text-right font-medium text-muted-foreground">已分析</th>
+                  <th className="py-3 px-4 text-right font-medium text-muted-foreground">覆盖率</th>
                 </tr>
               </thead>
               <tbody>
                 {vendors.map((vendor) => (
-                  <tr key={vendor.vendor} className="border-b hover:bg-gray-50">
+                  <tr key={vendor.vendor} className="border-b border-border hover:bg-accent/50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <div
@@ -310,11 +339,11 @@ function StatCard({ title, value, icon, description }: StatCardProps) {
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-            <p className="text-xs text-gray-400 mt-1">{description}</p>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">{description}</p>
           </div>
-          <div className="text-blue-600">{icon}</div>
+          <div className="text-primary">{icon}</div>
         </div>
       </CardContent>
     </Card>

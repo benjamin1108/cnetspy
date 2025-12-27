@@ -171,14 +171,14 @@ export function UpdatesPage() {
     children: React.ReactNode; 
     onRemove: () => void;
   }) => (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-medium group">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary rounded text-sm font-medium group">
       {children}
       <button
         onClick={(e) => {
           e.preventDefault();
           onRemove();
         }}
-        className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+        className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
         title="移除筛选"
       >
         <X className="h-3 w-3" />
@@ -278,13 +278,13 @@ export function UpdatesPage() {
     <div className="space-y-4">
       {/* 页面标题 - 横跨全宽 */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">更新列表</h1>
-        <div className="text-gray-500 mt-2 flex flex-wrap items-center gap-1.5">
+        <h1 className="text-2xl font-bold text-foreground">更新列表</h1>
+        <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-1.5">
           {filterTags.length === 0 ? (
             <span>浏览所有云厂商的产品更新</span>
           ) : (
             <>
-              <span className="text-gray-400 mr-1">筛选：</span>
+              <span className="text-muted-foreground/70 mr-1">筛选：</span>
               {filterTags.map((tag) => (
                 <FilterTag key={tag.key} onRemove={tag.onRemove}>
                   {tag.label}
@@ -293,7 +293,7 @@ export function UpdatesPage() {
               {filterTags.length > 1 && (
                 <button
                   onClick={clearFilters}
-                  className="text-xs text-gray-400 hover:text-red-500 ml-1 transition-colors"
+                  className="text-xs text-muted-foreground/70 hover:text-destructive ml-1 transition-colors"
                 >
                   清除全部
                 </button>
@@ -301,7 +301,7 @@ export function UpdatesPage() {
             </>
           )}
           {totalCount > 0 && (
-            <span className="text-gray-400">· 共 {totalCount} 条记录</span>
+            <span className="text-muted-foreground/70">· 共 {totalCount} 条记录</span>
           )}
         </div>
       </div>
@@ -313,7 +313,7 @@ export function UpdatesPage() {
           {/* 搜索框 */}
           <div className="flex gap-2">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="搜索标题或内容..."
                 value={searchInput}
@@ -351,14 +351,14 @@ export function UpdatesPage() {
               {/* 无限滚动加载触发器 */}
               <div ref={loadMoreRef} className="py-8 flex justify-center">
                 {isFetchingNextPage ? (
-                  <div className="flex items-center gap-2 text-gray-500">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin" />
                     <span>加载中...</span>
                   </div>
                 ) : hasNextPage ? (
-                  <span className="text-gray-400 text-sm">向下滚动加载更多</span>
+                  <span className="text-muted-foreground/70 text-sm">向下滚动加载更多</span>
                 ) : updates.length > 0 ? (
-                  <span className="text-gray-400 text-sm">已加载全部 {totalCount} 条记录</span>
+                  <span className="text-muted-foreground/70 text-sm">已加载全部 {totalCount} 条记录</span>
                 ) : null}
               </div>
             </>
@@ -369,10 +369,10 @@ export function UpdatesPage() {
         <div className="w-64 flex-shrink-0 hidden lg:block">
           <Card className="sticky top-20">
             <CardContent className="p-4">
-              <h3 className="font-medium text-gray-900 mb-3">筛选条件</h3>
+              <h3 className="font-medium text-foreground mb-3">筛选条件</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">厂商</label>
+                  <label className="block text-xs text-muted-foreground mb-1">厂商</label>
                   <Select
                     value={queryParams.vendor || ''}
                     onChange={(e) => updateParams({ 
@@ -392,7 +392,7 @@ export function UpdatesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">来源</label>
+                  <label className="block text-xs text-muted-foreground mb-1">来源</label>
                   <Select
                     value={queryParams.source_channel || ''}
                     onChange={(e) => updateParams({ source_channel: e.target.value || undefined })}
@@ -405,7 +405,7 @@ export function UpdatesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">产品子类</label>
+                  <label className="block text-xs text-muted-foreground mb-1">产品子类</label>
                   <Select
                     value={queryParams.product_subcategory || ''}
                     onChange={(e) => updateParams({ product_subcategory: e.target.value || undefined })}
@@ -422,7 +422,7 @@ export function UpdatesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">更新类型</label>
+                  <label className="block text-xs text-muted-foreground mb-1">更新类型</label>
                   <Select
                     value={queryParams.update_type || ''}
                     onChange={(e) => updateParams({ update_type: e.target.value || undefined })}
@@ -439,7 +439,7 @@ export function UpdatesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">分析状态</label>
+                  <label className="block text-xs text-muted-foreground mb-1">分析状态</label>
                   <Select
                     value={queryParams.has_analysis === undefined ? '' : String(queryParams.has_analysis)}
                     onChange={(e) => {
@@ -457,7 +457,7 @@ export function UpdatesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">年份</label>
+                  <label className="block text-xs text-muted-foreground mb-1">年份</label>
                   <Select
                     value={queryParams.date_from?.substring(0, 4) || ''}
                     onChange={(e) => {
@@ -519,7 +519,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
       }}
       className={cn(
         "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium transition-all",
-        "hover:ring-2 hover:ring-offset-1 hover:ring-blue-300 cursor-pointer",
+        "hover:ring-2 hover:ring-offset-1 hover:ring-primary/30 cursor-pointer",
         className
       )}
     >
@@ -536,14 +536,14 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             to={`/updates/${update.update_id}`}
             className="block group"
           >
-            <h3 className="text-base font-medium text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+            <h3 className="text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
               {update.title_translated || update.title}
             </h3>
           </Link>
 
           {/* 第二行：描述/摘要 */}
           {(update.content_summary || update.description) && (
-            <p className="text-sm text-gray-500 line-clamp-2">
+            <p className="text-sm text-muted-foreground line-clamp-2">
               {truncate(update.content_summary || update.description || '', 150)}
             </p>
           )}
@@ -551,7 +551,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
           {/* 第三行：元信息标签 */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1">
             {/* 发布时间 */}
-            <span className="flex items-center gap-1 text-gray-400">
+            <span className="flex items-center gap-1 text-muted-foreground/70">
               <Calendar className="h-3 w-3" />
               {formatDate(update.publish_date)}
             </span>
@@ -559,7 +559,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {/* 厂商标签 - 可点击 */}
             <ClickableBadge
               onClick={() => onFilter({ vendor: update.vendor })}
-              className="border bg-white"
+              className="border border-border bg-background"
             >
               <span
                 className="w-1.5 h-1.5 rounded-full mr-1"
@@ -576,7 +576,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
                 const channelFilter = update.source_channel === 'whatsnew' ? 'whatsnew' : 'blog';
                 onFilter({ source_channel: channelFilter });
               }}
-              className="bg-gray-100 text-gray-600"
+              className="bg-accent text-accent-foreground"
             >
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
             </ClickableBadge>
@@ -585,7 +585,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {update.update_type && (
               <ClickableBadge
                 onClick={() => onFilter({ vendor: update.vendor, update_type: update.update_type ?? undefined })}
-                className="bg-blue-100 text-blue-700"
+                className="bg-primary/10 text-primary"
               >
                 {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
               </ClickableBadge>
@@ -595,7 +595,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {update.product_subcategory && (
               <ClickableBadge
                 onClick={() => onFilter({ vendor: update.vendor, product_subcategory: update.product_subcategory ?? undefined })}
-                className="bg-purple-100 text-purple-700"
+                className="category-badge"
               >
                 {update.product_subcategory}
               </ClickableBadge>
@@ -604,7 +604,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {/* 分析状态 */}
             <span className={cn(
               'flex items-center gap-0.5 ml-auto',
-              update.has_analysis ? 'text-green-600' : 'text-gray-300'
+              update.has_analysis ? 'status-analyzed' : 'status-unanalyzed'
             )}>
               {update.has_analysis ? (
                 <CheckCircle className="h-3.5 w-3.5" />
@@ -620,7 +620,7 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
               {update.tags.map((tag, idx) => (
                 <span
                   key={idx}
-                  className="px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded text-xs border border-gray-200"
+                  className="px-1.5 py-0.5 bg-accent/50 text-accent-foreground rounded text-xs border border-border"
                 >
                   {tag}
                 </span>

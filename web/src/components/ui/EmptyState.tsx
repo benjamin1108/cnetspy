@@ -23,12 +23,12 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className={cn('flex flex-col items-center justify-center py-12', className)}>
-      <div className="text-gray-400">
+      <div className="text-muted-foreground/50">
         {icon || <Inbox className="h-12 w-12" />}
       </div>
-      <h3 className="mt-4 text-lg font-medium text-gray-900">{title}</h3>
+      <h3 className="mt-4 text-lg font-medium text-foreground">{title}</h3>
       {description && (
-        <p className="mt-2 text-sm text-gray-500">{description}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
       )}
       {action && <div className="mt-6">{action}</div>}
     </div>

@@ -6,3 +6,4 @@ export * from './Select';
 export * from './Loading';
 export * from './EmptyState';
 export * from './Pagination';
+export * from './ThemeSwitcher';

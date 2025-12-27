@@ -7,7 +7,7 @@
 /* 全局属性 */
 .article-content {
   font-size: 16px;
-  color: #333;
+  color: hsl(var(--text-primary));
   padding: 0;
   line-height: 1.75;
   word-spacing: 0px;
@@ -25,7 +25,7 @@
   padding-bottom: 8px;
   margin: 0;
   line-height: 1.75;
-  color: #333;
+  color: hsl(var(--text-primary));
 }
 
 /* 标题 */
@@ -38,19 +38,19 @@
   margin-top: 30px;
   margin-bottom: 15px;
   font-weight: bold;
-  color: #1a1a1a;
+  color: hsl(var(--text-primary));
   line-height: 1.4;
 }
 
 .article-content h1 {
   font-size: 26px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid hsl(var(--border));
   padding-bottom: 10px;
 }
 
 .article-content h2 {
   font-size: 22px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid hsl(var(--border));
   padding-bottom: 8px;
 }
 
@@ -68,7 +68,7 @@
 
 .article-content h6 {
   font-size: 16px;
-  color: #555;
+  color: hsl(var(--text-secondary));
 }
 
 /* 列表 */
@@ -77,7 +77,7 @@
   margin-top: 8px;
   margin-bottom: 8px;
   padding-left: 25px;
-  color: #333;
+  color: hsl(var(--text-primary));
 }
 
 .article-content ul {
@@ -100,7 +100,7 @@
   margin-top: 5px;
   margin-bottom: 5px;
   line-height: 1.75;
-  color: #333;
+  color: hsl(var(--text-primary));
 }
 
 /* 引用 */
@@ -108,9 +108,9 @@
   display: block;
   font-size: 0.95em;
   overflow: auto;
-  border-left: 4px solid #42b983;
-  background: #f8f8f8;
-  color: #555;
+  border-left: 4px solid hsl(var(--primary));
+  background: hsl(var(--muted));
+  color: hsl(var(--text-secondary));
   padding: 15px 20px;
   margin: 20px 0;
   border-radius: 0 4px 4px 0;
@@ -118,7 +118,7 @@
 
 .article-content blockquote p {
   margin: 0;
-  color: #555;
+  color: hsl(var(--text-secondary));
   line-height: 1.75;
 }
 
@@ -129,40 +129,39 @@
 /* 链接 */
 .article-content a {
   text-decoration: none;
-  color: #1e6bb8;
+  color: hsl(var(--primary));
   word-wrap: break-word;
   font-weight: 500;
-  border-bottom: 1px solid #1e6bb8;
+  border-bottom: 1px solid hsl(var(--primary));
   transition: all 0.2s ease;
 }
 
 .article-content a:hover {
-  color: #0d47a1;
-  border-bottom-color: #0d47a1;
+  opacity: 0.8;
 }
 
 /* 加粗 */
 .article-content strong {
   font-weight: bold;
-  color: #1a1a1a;
+  color: hsl(var(--text-primary));
 }
 
 /* 斜体 */
 .article-content em {
   font-style: italic;
-  color: #333;
+  color: hsl(var(--text-primary));
 }
 
 /* 加粗斜体 */
 .article-content em strong {
   font-weight: bold;
-  color: #1a1a1a;
+  color: hsl(var(--text-primary));
 }
 
 /* 删除线 */
 .article-content del {
   text-decoration: line-through;
-  color: #999;
+  color: hsl(var(--text-tertiary));
 }
 
 /* 分隔线 */
@@ -170,7 +169,7 @@
   height: 1px;
   margin: 30px 0;
   border: none;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid hsl(var(--border));
 }
 
 /* 代码块 */
@@ -187,8 +186,13 @@
   line-height: 1.6;
   padding: 16px;
   overflow-x: auto;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: hsl(var(--code-bg));
+  color: hsl(var(--code-foreground));
+}
+
+.dark .article-content pre code {
+  background: hsl(var(--code-bg));
+  color: hsl(var(--code-foreground));
 }
 
 /* 行内代码 */
@@ -200,10 +204,16 @@
   padding: 2px 6px;
   border-radius: 4px;
   margin: 0 3px;
-  color: #c7254e;
-  background-color: #f9f2f4;
+  color: hsl(var(--code-inline));
+  background-color: hsl(var(--muted));
   font-family: 'Fira Code', Consolas, Monaco, monospace;
   word-break: break-all;
+}
+
+.dark .article-content p code,
+.dark .article-content li code,
+.dark .article-content td code {
+  color: hsl(var(--code-inline));
 }
 
 /* 图片 */
@@ -213,14 +223,14 @@
   max-width: 100%;
   height: auto;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px hsl(var(--border));
 }
 
 /* 图片描述文字 */
 .article-content figcaption {
   margin-top: 8px;
   text-align: center;
-  color: #888;
+  color: hsl(var(--text-tertiary));
   font-size: 14px;
 }
 
@@ -233,32 +243,33 @@
 }
 
 .article-content table tr {
-  border-top: 1px solid #ddd;
-  background-color: white;
+  border-top: 1px solid hsl(var(--border));
+  background-color: hsl(var(--card));
 }
 
 .article-content table tr:nth-child(2n) {
-  background-color: #f8f8f8;
+  background-color: hsl(var(--muted));
 }
 
 .article-content table tr th,
 .article-content table tr td {
-  border: 1px solid #ddd;
+  border: 1px solid hsl(var(--border));
   padding: 10px 15px;
   text-align: left;
   line-height: 1.6;
+  color: hsl(var(--text-primary));
 }
 
 .article-content table tr th {
   font-weight: 600;
-  background-color: #f0f0f0;
-  color: #1a1a1a;
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--text-primary));
 }
 
 /* 作者信息样式 */
 .article-content h5 {
   font-size: 14px;
-  color: #555;
+  color: hsl(var(--text-secondary));
   font-weight: 500;
   margin-top: 5px;
   margin-bottom: 5px;
@@ -268,9 +279,9 @@
 .article-content .footnotes {
   margin-top: 40px;
   padding-top: 20px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid hsl(var(--border));
   font-size: 14px;
-  color: #666;
+  color: hsl(var(--text-secondary));
 }
 
 .article-content .footnotes ol {
@@ -289,28 +300,33 @@
 /* 目录链接 */
 .article-content .table-of-contents a {
   border: none;
-  color: #333;
+  color: hsl(var(--text-primary));
   font-weight: normal;
 }
 
 .article-content .table-of-contents a:hover {
-  color: #1e6bb8;
+  color: hsl(var(--primary));
 }
 
 /* 高亮 */
 .article-content mark {
-  background-color: #fff3cd;
+  background-color: hsl(var(--highlight-bg));
+  color: hsl(var(--highlight-foreground));
   padding: 2px 4px;
   border-radius: 2px;
 }
 
+.dark .article-content mark {
+  background-color: hsl(var(--highlight-bg));
+  color: hsl(var(--highlight-foreground));
+}
+
 /* 键盘按键 */
 .article-content kbd {
-  background-color: #f7f7f7;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-  color: #333;
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 0 hsl(var(--border));
+  color: hsl(var(--text-primary));
   display: inline-block;
   font-family: Consolas, Monaco, monospace;
   font-size: 13px;
@@ -327,15 +343,16 @@
 .article-content dt {
   font-weight: bold;
   margin-top: 10px;
+  color: hsl(var(--text-primary));
 }
 
 .article-content dd {
   margin-left: 20px;
-  color: #666;
+  color: hsl(var(--text-secondary));
 }
 
 /* 缩写 */
 .article-content abbr {
-  border-bottom: 1px dotted #666;
+  border-bottom: 1px dotted hsl(var(--text-secondary));
   cursor: help;
 }

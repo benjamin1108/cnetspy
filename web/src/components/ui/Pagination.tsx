@@ -66,7 +66,7 @@ export function Pagination({
 
   return (
     <div className={cn('flex items-center justify-between', className)}>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-muted-foreground">
         显示 {startItem} - {endItem} 条，共 {total} 条
       </div>
       

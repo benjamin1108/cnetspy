@@ -2,6 +2,50 @@
 @plugin "@tailwindcss/typography";
 @import "./styles/article.css";
 
+/* Tailwind CSS v4 Theme - 将 CSS 变量映射到 Tailwind 类 */
+@theme {
+  /* 颜色系统 */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  /* AI 分析特色 */
+  --color-ai-accent: hsl(var(--ai-accent));
+  --color-ai-accent-foreground: hsl(var(--ai-accent-foreground));
+  --color-ai-bg: hsl(var(--ai-bg));
+  --color-ai-border: hsl(var(--ai-border));
+
+  /* 分类标签色 */
+  --color-category: hsl(var(--category));
+  --color-category-foreground: hsl(var(--category-foreground));
+
+  /* 边框圆角 */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 /* 平滑滚动 */
 html {
   scroll-behavior: smooth;
@@ -29,28 +73,88 @@ html {
   --input: 214.3 31.8% 91.4%;
   --ring: 221.2 83.2% 53.3%;
   --radius: 0.5rem;
+
+  /* 新增语义化变量 */
+  --text-primary: 222.2 47% 11%;
+  --text-secondary: 215 16% 47%;
+  --text-tertiary: 215 10% 60%;
+  --bg-elevated: 0 0% 100%;
+  --bg-hover: 210 40% 98%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  /* AI 分析特色 */
+  --ai-accent: 187 85% 43%;
+  --ai-accent-foreground: 187 85% 25%;
+  --ai-bg: 187 60% 97%;
+  --ai-border: 187 50% 80%;
+
+  /* 分类标签色 */
+  --category: 270 60% 60%;
+  --category-foreground: 270 60% 30%;
+
+  /* 代码块样式 */
+  --code-bg: 220 13% 13%;
+  --code-foreground: 210 15% 85%;
+  --code-inline: 346 85% 47%;
+
+  /* 高亮标记 */
+  --highlight-bg: 45 100% 85%;
+  --highlight-foreground: 45 100% 20%;
 }
 
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --background: 220 15% 8%;
+  --foreground: 210 15% 92%;
+  --card: 220 14% 11%;
+  --card-foreground: 210 15% 92%;
+  --popover: 220 14% 11%;
+  --popover-foreground: 210 15% 92%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 220 15% 8%;
+  --secondary: 220 13% 22%;
+  --secondary-foreground: 210 15% 92%;
+  --muted: 220 12% 18%;
+  --muted-foreground: 215 15% 65%;
+  --accent: 220 13% 22%;
+  --accent-foreground: 210 15% 92%;
+  --destructive: 0 62.8% 50%;
+  --destructive-foreground: 210 15% 92%;
+  --border: 220 13% 25%;
+  --input: 220 13% 20%;
+  --ring: 217 91% 60%;
+
+  /* 新增语义化变量 */
+  --text-primary: 210 15% 92%;
+  --text-secondary: 215 15% 70%;
+  --text-tertiary: 215 10% 55%;
+  --bg-elevated: 220 14% 13%;
+  --bg-hover: 220 13% 15%;
+  --success: 142 70% 50%;
+  --success-foreground: 220 15% 8%;
+  --warning: 38 90% 55%;
+  --warning-foreground: 220 15% 8%;
+
+  /* AI 分析特色 */
+  --ai-accent: 187 80% 55%;
+  --ai-accent-foreground: 187 80% 85%;
+  --ai-bg: 187 30% 15%;
+  --ai-border: 187 40% 35%;
+
+  /* 分类标签色 */
+  --category: 270 60% 70%;
+  --category-foreground: 270 60% 85%;
+
+  /* 代码块样式 */
+  --code-bg: 220 13% 13%;
+  --code-foreground: 210 15% 85%;
+  --code-inline: 346 85% 65%;
+
+  /* 高亮标记 */
+  --highlight-bg: 45 80% 30%;
+  --highlight-foreground: 45 100% 90%;
 }
 
 * {
@@ -80,4 +184,130 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* AI 分析卡片样式 */
+.ai-analysis-card {
+  border-color: hsl(var(--ai-border) / 0.5);
+  background: linear-gradient(to bottom right, 
+    hsl(var(--background)), 
+    hsl(var(--ai-bg) / 0.3), 
+    hsl(var(--primary) / 0.05)
+  );
+}
+
+.ai-analysis-card:hover {
+  background: linear-gradient(to bottom right, 
+    hsl(var(--background)), 
+    hsl(var(--ai-bg) / 0.5), 
+    hsl(var(--primary) / 0.1)
+  );
+}
+
+.ai-analysis-header {
+  color: hsl(var(--ai-accent));
+}
+
+.ai-analysis-header:hover {
+  background: hsl(var(--ai-bg) / 0.5);
+}
+
+.ai-gradient-text {
+  background: linear-gradient(to right, 
+    hsl(var(--ai-accent)), 
+    hsl(var(--primary)), 
+    hsl(var(--ring))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 翻译按钮样式 */
+.translate-btn {
+  background: hsl(var(--ai-bg));
+  color: hsl(var(--ai-accent-foreground));
+}
+
+.translate-btn:hover:not(:disabled) {
+  background: hsl(var(--ai-bg) / 0.8);
+}
+
+/* 分析状态标签 */
+.status-analyzed {
+  color: hsl(var(--success));
+}
+
+.status-unanalyzed {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* 分类标签 */
+.category-badge {
+  background: hsl(var(--category) / 0.1);
+  color: hsl(var(--category));
+}
+
+/* AI 摘要内容样式 */
+.ai-summary-content {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: hsl(var(--foreground));
+}
+
+.ai-summary-content p {
+  margin: 0.75em 0;
+  color: hsl(var(--foreground));
+}
+
+.ai-summary-content h1,
+.ai-summary-content h2,
+.ai-summary-content h3,
+.ai-summary-content h4,
+.ai-summary-content h5,
+.ai-summary-content h6 {
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  color: hsl(var(--foreground));
+}
+
+.ai-summary-content ul,
+.ai-summary-content ol {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+
+.ai-summary-content li {
+  margin: 0.25em 0;
+  color: hsl(var(--foreground));
+}
+
+.ai-summary-content strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.ai-summary-content a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.ai-summary-content a:hover {
+  opacity: 0.8;
+}
+
+.ai-summary-content code {
+  font-size: 0.85em;
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--code-inline));
+}
+
+.ai-summary-content blockquote {
+  border-left: 3px solid hsl(var(--ai-accent));
+  padding-left: 1em;
+  margin: 1em 0;
+  color: hsl(var(--muted-foreground));
 }

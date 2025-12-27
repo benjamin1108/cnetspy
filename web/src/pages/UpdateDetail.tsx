@@ -12,7 +12,7 @@ import {
   Badge,
   Button,
 } from '@/components/ui';
-import { formatDate, formatDateTime, getVendorColor, cn, copyToClipboard } from '@/lib/utils';
+import { formatDate, formatDateTime, getVendorColor, cn, copyToClipboard, getAiGradientColors } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS, SOURCE_CHANNEL_LABELS } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -32,6 +32,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 // 检测内容是否主要是中文（中文字符占比超过30%）
 function isChineseContent(content: string): boolean {
@@ -61,6 +62,10 @@ export function UpdateDetailPage() {
   const [summaryExpanded, setSummaryExpanded] = useState(false);  // AI摘要默认收起
   const [contentExpanded, setContentExpanded] = useState(true);   // 文章内容默认展开
   const [showTranslated, setShowTranslated] = useState(true);     // 默认显示中文
+  
+  // 主题色
+  const { effectiveTheme } = useTheme();
+  const aiGradient = getAiGradientColors(effectiveTheme === 'dark');
 
   // 获取更新详情
   const { data, isLoading, error } = useUpdateDetail(id || '');
@@ -142,7 +147,7 @@ export function UpdateDetailPage() {
       <div className="flex items-center justify-between">
         <Link
           to="/updates"
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           返回列表
@@ -199,7 +204,7 @@ export function UpdateDetailPage() {
             )}
             <span className={cn(
               'flex items-center gap-1 text-sm',
-              update.has_analysis ? 'text-green-600' : 'text-gray-400'
+              update.has_analysis ? 'status-analyzed' : 'status-unanalyzed'
             )}>
               {update.has_analysis ? (
                 <>
@@ -216,15 +221,15 @@ export function UpdateDetailPage() {
           </div>
 
           {/* 标题 */}
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-foreground">
             {update.title_translated || update.title}
           </h1>
           {update.title_translated && (
-            <p className="text-gray-500 mt-2">{update.title}</p>
+            <p className="text-muted-foreground mt-2">{update.title}</p>
           )}
 
           {/* 元信息 */}
-          <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-500">
+          <div className="flex flex-wrap gap-4 mt-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               发布于 {formatDate(update.publish_date, 'long')}
@@ -248,11 +253,11 @@ export function UpdateDetailPage() {
           {/* 标签 */}
           {update.tags && update.tags.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mt-4">
-              <Tag className="h-4 w-4 text-gray-400" />
+              <Tag className="h-4 w-4 text-muted-foreground" />
               {update.tags.map((tag, index) => (
                 <span
                   key={index}
-                  className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded"
+                  className="px-2 py-1 bg-accent text-accent-foreground text-sm rounded"
                 >
                   {tag}
                 </span>
@@ -264,21 +269,21 @@ export function UpdateDetailPage() {
 
       {/* AI 分析结果 - 可折叠 */}
       {update.has_analysis && update.content_summary ? (
-        <Card className="border-cyan-200/50 bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/50 overflow-hidden">
+        <Card className="ai-analysis-card overflow-hidden">
           <button
             onClick={() => setSummaryExpanded(!summaryExpanded)}
             className="w-full"
           >
-            <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-cyan-50/50 transition-colors">
+            <div className="flex items-center justify-between px-6 py-4 cursor-pointer ai-analysis-header:hover transition-colors">
               <div className="flex items-center gap-2 font-semibold">
                 <div className="relative">
                   {/* 图标使用SVG渐变 - 蓝绿科技色 */}
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="url(#ai-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <defs>
                       <linearGradient id="ai-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#0ea5e9" />
-                        <stop offset="50%" stopColor="#06b6d4" />
-                        <stop offset="100%" stopColor="#3b82f6" />
+                        <stop offset="0%" stopColor={aiGradient.start} />
+                        <stop offset="50%" stopColor={aiGradient.middle} />
+                        <stop offset="100%" stopColor={aiGradient.end} />
                       </linearGradient>
                     </defs>
                     <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
@@ -288,11 +293,11 @@ export function UpdateDetailPage() {
                     <path d="M5 18H3"/>
                   </svg>
                 </div>
-                <span className="bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 bg-clip-text text-transparent">
+                <span className="ai-gradient-text font-semibold">
                   AI 分析摘要
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-cyan-600">
+              <div className="flex items-center gap-2 ai-analysis-header">
                 <span className="text-sm font-normal">
                   {summaryExpanded ? '收起' : '展开查看'}
                 </span>
@@ -310,7 +315,7 @@ export function UpdateDetailPage() {
             }`}
           >
             <div className="px-6 pb-6">
-              <div className="prose prose-sm max-w-none">
+              <div className="ai-summary-content">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -332,17 +337,10 @@ export function UpdateDetailPage() {
           </div>
         </Card>
       ) : (
-        <Card className="border-gray-200 bg-gradient-to-br from-gray-50 to-slate-50/50">
+        <Card className="border-border bg-gradient-to-br from-accent/50 to-accent/30">
           <CardContent className="py-8 text-center">
             <div className="relative inline-block mb-3">
-              <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="url(#ai-gradient-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <defs>
-                  <linearGradient id="ai-gradient-gray" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#9ca3af" />
-                    <stop offset="50%" stopColor="#d1d5db" />
-                    <stop offset="100%" stopColor="#9ca3af" />
-                  </linearGradient>
-                </defs>
+              <svg className="h-8 w-8 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
                 <path d="M20 3v4"/>
                 <path d="M22 5h-4"/>
@@ -350,7 +348,7 @@ export function UpdateDetailPage() {
                 <path d="M5 18H3"/>
               </svg>
             </div>
-            <p className="text-gray-600 mb-4">该更新尚未进行 AI 分析</p>
+            <p className="text-muted-foreground mb-4">该更新尚未进行 AI 分析</p>
             <Button
               onClick={handleAnalyze}
               loading={analyzeMutation.isPending}
@@ -359,10 +357,10 @@ export function UpdateDetailPage() {
               {analyzeMutation.isPending ? '分析中...' : '立即分析'}
             </Button>
             {analyzeMutation.isError && (
-              <p className="text-red-500 text-sm mt-2">分析失败，请稍后重试</p>
+              <p className="text-destructive text-sm mt-2">分析失败，请稍后重试</p>
             )}
             {analyzeMutation.isSuccess && (
-              <p className="text-green-500 text-sm mt-2">分析完成！页面将自动刷新</p>
+              <p className="status-analyzed text-sm mt-2">分析完成！页面将自动刷新</p>
             )}
           </CardContent>
         </Card>
@@ -374,15 +372,15 @@ export function UpdateDetailPage() {
           onClick={() => setContentExpanded(!contentExpanded)}
           className="w-full"
         >
-          <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+          <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-accent/50 transition-colors">
             <div className="flex items-center gap-3">
-              <span className="text-lg font-semibold text-gray-900">
+              <span className="text-lg font-semibold text-foreground">
                 更新内容
               </span>
               {/* 语言切换按钮 - 仅当两种语言都存在时显示 */}
               {hasBothLanguages && (
                 <div 
-                  className="flex items-center bg-gray-100 rounded-lg p-0.5"
+                  className="flex items-center bg-accent rounded-lg p-0.5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -393,8 +391,8 @@ export function UpdateDetailPage() {
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       showTranslated
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     中文
@@ -407,8 +405,8 @@ export function UpdateDetailPage() {
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       !showTranslated
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     EN
@@ -425,7 +423,7 @@ export function UpdateDetailPage() {
                     }
                   }}
                   disabled={translateMutation.isPending}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-cyan-50 text-cyan-700 rounded-lg hover:bg-cyan-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="translate-btn flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {translateMutation.isPending ? (
                     <>
@@ -446,10 +444,10 @@ export function UpdateDetailPage() {
                 </button>
               )}
               {translateMutation.isError && (
-                <span className="text-xs text-red-500">翻译失败</span>
+                <span className="text-xs text-destructive">翻译失败</span>
               )}
             </div>
-            <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <span className="text-sm">
                 {contentExpanded ? '收起' : '展开查看'}
               </span>
@@ -500,7 +498,7 @@ export function UpdateDetailPage() {
       <div className="flex items-center justify-between pb-8">
         <Link
           to="/updates"
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           返回列表

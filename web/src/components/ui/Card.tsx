@@ -13,7 +13,7 @@ export function Card({ className, children, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border bg-white shadow-sm',
+        'rounded-lg border bg-card text-card-foreground shadow-sm',
         className
       )}
       {...props}
@@ -60,7 +60,7 @@ interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
 export function CardDescription({ className, children, ...props }: CardDescriptionProps) {
   return (
     <p
-      className={cn('text-sm text-gray-500', className)}
+      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     >
       {children}
