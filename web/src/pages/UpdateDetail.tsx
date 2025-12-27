@@ -377,7 +377,7 @@ export function UpdateDetailPage() {
           <div className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
             <div className="flex items-center gap-3">
               <span className="text-lg font-semibold text-gray-900">
-                文章内容
+                更新内容
               </span>
               {/* 语言切换按钮 - 仅当两种语言都存在时显示 */}
               {hasBothLanguages && (
@@ -389,6 +389,7 @@ export function UpdateDetailPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowTranslated(true);
+                      setContentExpanded(true); // 自动展开
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       showTranslated
@@ -402,6 +403,7 @@ export function UpdateDetailPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowTranslated(false);
+                      setContentExpanded(true); // 自动展开
                     }}
                     className={`px-2.5 py-1 text-xs rounded-md transition-all ${
                       !showTranslated
