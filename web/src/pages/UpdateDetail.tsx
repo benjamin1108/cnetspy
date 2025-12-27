@@ -62,11 +62,19 @@ export function UpdateDetailPage() {
 
   const update = data?.data;
 
-  // 过滤后的原始内容（移除元数据头部）
-  const cleanContent = useMemo(() => {
+  // 展示内容：优先显示翻译内容，没有则显示原文
+  const displayContent = useMemo(() => {
+    // 优先使用翻译内容
+    if (update?.content_translated) {
+      return update.content_translated;
+    }
+    // 否则使用原始内容（过滤元数据头部）
     if (!update?.content) return '';
     return stripMetadataHeader(update.content);
-  }, [update?.content]);
+  }, [update?.content_translated, update?.content]);
+
+  // 是否显示的是翻译内容
+  const isTranslatedContent = !!update?.content_translated;
 
   // 处理复制链接
   const handleCopyLink = async () => {
@@ -288,10 +296,12 @@ export function UpdateDetailPage() {
         </Card>
       )}
 
-      {/* 原始内容 */}
+      {/* 正文内容 */}
       <Card>
         <CardHeader>
-          <CardTitle>原始内容</CardTitle>
+          <CardTitle>
+            {isTranslatedContent ? '中文译文' : '原始内容'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="prose prose-sm max-w-none prose-gray">
@@ -354,7 +364,7 @@ export function UpdateDetailPage() {
                 },
               }}
             >
-              {cleanContent}
+              {displayContent}
             </ReactMarkdown>
           </div>
         </CardContent>

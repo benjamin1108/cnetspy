@@ -46,6 +46,7 @@ export interface UpdateBrief {
 // 更新详情（完整版）
 export interface UpdateDetail extends UpdateBrief {
   content: string;
+  content_translated: string | null;  // 翻译后的全文内容
   content_summary: string | null;
   product_subcategory: string | null;
   source_url: string;

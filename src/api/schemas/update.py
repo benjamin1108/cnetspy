@@ -78,6 +78,7 @@ class UpdateDetail(UpdateBrief):
     继承UpdateBrief的所有字段，并添加详细内容
     """
     content: str
+    content_translated: Optional[str] = None  # 翻译后的全文内容
     content_summary: Optional[str] = None
     product_subcategory: Optional[str] = None
     source_url: str

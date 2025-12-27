@@ -53,7 +53,7 @@ class UpdateAnalyzer(BaseAnalyzer):
             
         Returns:
             分析结果字典，包含 title_translated, content_summary, update_type, 
-            product_subcategory, tags 字段；失败返回 None
+            product_subcategory, tags 字段；博客类型还包含 content_translated；失败返回 None
         """
         # 验证输入
         if not self.validate_input(update_data):
@@ -78,12 +78,52 @@ class UpdateAnalyzer(BaseAnalyzer):
             # 字段验证和修正
             validated_result = self._validate_and_fix_fields(result, update_data)
             
+            # 博客类型：额外进行全文翻译
+            source_channel = update_data.get('source_channel', '')
+            if PromptTemplates.is_blog_source(source_channel):
+                content_translated = self._translate_blog_content(update_data)
+                validated_result['content_translated'] = content_translated
+            
             self.logger.info(f"分析完成: {update_data.get('update_id', 'unknown')}")
             return validated_result
             
         except Exception as e:
             self.logger.error(f"分析失败: {e}")
             return None
+    
+    def _translate_blog_content(self, update_data: Dict[str, Any]) -> str:
+        """
+        翻译博客全文内容
+        
+        Args:
+            update_data: 更新数据字典
+            
+        Returns:
+            翻译后的中文内容，失败返回空字符串
+        """
+        content = update_data.get('content', '')
+        if not content:
+            return ''
+        
+        try:
+            self.logger.info(f"[全文翻译] 开始翻译博客内容: {update_data.get('update_id', 'unknown')} (原文长度: {len(content)})")
+            
+            # 构建翻译 Prompt
+            prompt = PromptTemplates.get_blog_translation_prompt(content)
+            
+            # 调用 Gemini API 进行翻译（使用纯文本模式）
+            translated_content = self.gemini_client.generate_text(prompt)
+            
+            if translated_content:
+                self.logger.info(f"[全文翻译] 翻译完成: {update_data.get('update_id', 'unknown')} (译文长度: {len(translated_content)})")
+                return translated_content.strip()
+            else:
+                self.logger.warning(f"[全文翻译] 翻译返回空内容: {update_data.get('update_id', 'unknown')}")
+                return ''
+                
+        except Exception as e:
+            self.logger.error(f"[全文翻译] 翻译失败: {update_data.get('update_id', 'unknown')} - {e}")
+            return ''
     
     def _validate_and_fix_fields(
         self, 

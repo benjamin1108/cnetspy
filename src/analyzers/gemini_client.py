@@ -171,6 +171,61 @@ class GeminiClient:
         
         raise Exception(f"API 调用失败，已达到最大重试次数: {self.max_retries}")
     
+    def generate_text(self, prompt: str) -> str:
+        """
+        调用 Gemini API 生成纯文本内容（不使用 JSON Schema）
+        
+        Args:
+            prompt: 提示词
+            
+        Returns:
+            生成的纯文本内容
+        """
+        # 纯文本配置（不使用 JSON schema）
+        generation_config = self.config.get('generation', {})
+        text_config = types.GenerateContentConfig(
+            temperature=generation_config.get('temperature', 0.5),
+            top_p=generation_config.get('top_p', 0.9),
+            top_k=generation_config.get('top_k', 40),
+            max_output_tokens=generation_config.get('max_output_tokens', 65535),
+        )
+        
+        for attempt in range(self.max_retries):
+            try:
+                self._wait_for_global_rate_limit()
+                self.logger.debug(f"调用 Gemini API (纯文本模式, 尝试 {attempt + 1}/{self.max_retries})")
+                
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=text_config
+                )
+                
+                if response and response.text:
+                    self.logger.debug(f"API 调用成功，响应长度: {len(response.text)}")
+                    return response.text
+                else:
+                    raise Exception("API 返回空响应")
+                    
+            except Exception as e:
+                error_msg = str(e)
+                self.logger.warning(f"API 调用失败 (尝试 {attempt + 1}/{self.max_retries}): {error_msg}")
+                
+                if '429' in error_msg or 'quota' in error_msg.lower():
+                    backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt) * 2
+                    self.logger.warning(f"API 速率限制，等待 {backoff_time:.1f} 秒后重试")
+                    time.sleep(backoff_time)
+                elif '401' in error_msg or 'authentication' in error_msg.lower():
+                    raise Exception(f"API 认证失败: {error_msg}")
+                else:
+                    if attempt < self.max_retries - 1:
+                        backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt)
+                        time.sleep(backoff_time)
+                    else:
+                        raise Exception(f"API 调用失败: {error_msg}")
+        
+        raise Exception(f"API 调用失败，已达到最大重试次数: {self.max_retries}")
+    
     def parse_json_response(self, text: str) -> Dict[str, Any]:
         """
         解析 JSON 响应

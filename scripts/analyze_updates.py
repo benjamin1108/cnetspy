@@ -262,6 +262,7 @@ class AnalyzeUpdatesScript:
         # 统计待处理数量
         total = self.data_layer.count_unanalyzed_updates(
             vendor=self.args.vendor,
+            source_channel=self.args.source,
             include_analyzed=self.args.force
         )
         
@@ -283,6 +284,7 @@ class AnalyzeUpdatesScript:
         updates = self.data_layer.get_unanalyzed_updates(
             limit=limit,
             vendor=self.args.vendor,
+            source_channel=self.args.source,
             include_analyzed=self.args.force
         )
         
@@ -467,6 +469,11 @@ def main():
         type=str,
         choices=['aws', 'azure', 'gcp', 'huawei', 'tencentcloud', 'volcengine'],
         help='仅分析指定厂商的记录'
+    )
+    parser.add_argument(
+        '--source',
+        type=str,
+        help='仅分析指定数据源类型（如 blog, whatsnew）'
     )
     
     # 通用选项

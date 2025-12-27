@@ -65,6 +65,7 @@ class UpdateDataLayer:
                     title_translated TEXT,
                     description TEXT,
                     content TEXT,
+                    content_translated TEXT,
                     content_summary TEXT,
                     publish_date TEXT,
                     crawl_time TEXT,
@@ -214,10 +215,10 @@ class UpdateDataLayer:
                     cursor.execute('''
                         INSERT INTO updates (
                             update_id, vendor, source_channel, update_type, source_url, source_identifier,
-                            title, title_translated, description, content, content_summary, publish_date, crawl_time,
+                            title, title_translated, description, content, content_translated, content_summary, publish_date, crawl_time,
                             product_name, product_category, product_subcategory, priority, tags,
                             raw_filepath, analysis_filepath, file_hash, metadata_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         update_data.get('update_id'),
                         update_data.get('vendor'),
@@ -229,6 +230,7 @@ class UpdateDataLayer:
                         update_data.get('title_translated'),
                         update_data.get('description'),
                         update_data.get('content'),
+                        update_data.get('content_translated'),
                         update_data.get('content_summary'),
                         update_data.get('publish_date'),
                         update_data.get('crawl_time'),
@@ -290,10 +292,10 @@ class UpdateDataLayer:
                             cursor.execute(f'''
                                 {sql_prefix} INTO updates (
                                     update_id, vendor, source_channel, update_type, source_url, source_identifier,
-                                    title, title_translated, content, content_summary, publish_date, crawl_time,
+                                    title, title_translated, content, content_translated, content_summary, publish_date, crawl_time,
                                     product_name, product_category, product_subcategory, priority, tags,
                                     raw_filepath, analysis_filepath, file_hash, metadata_json
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ''', (
                                 update_data.get('update_id'),
                                 update_data.get('vendor'),
@@ -304,6 +306,7 @@ class UpdateDataLayer:
                                 update_data.get('title'),
                                 update_data.get('title_translated'),
                                 update_data.get('content'),
+                                update_data.get('content_translated'),
                                 update_data.get('content_summary'),
                                 update_data.get('publish_date'),
                                 update_data.get('crawl_time'),
@@ -492,6 +495,7 @@ class UpdateDataLayer:
         self, 
         limit: Optional[int] = None, 
         vendor: Optional[str] = None,
+        source_channel: Optional[str] = None,
         include_analyzed: bool = False
     ) -> List[Dict[str, Any]]:
         """
@@ -500,6 +504,7 @@ class UpdateDataLayer:
         Args:
             limit: 最大返回数量，None 表示不限制
             vendor: 指定厂商，None 表示所有厂商
+            source_channel: 指定数据源类型（如 blog, whatsnew），支持模糊匹配
             include_analyzed: 是否包含已分析的记录（用于 --force）
             
         Returns:
@@ -524,6 +529,11 @@ class UpdateDataLayer:
                 if vendor:
                     where_clauses.append("vendor = ?")
                     params.append(vendor)
+                
+                # source_channel 模糊匹配（如 blog 匹配 network-blog, tech-blog 等）
+                if source_channel:
+                    where_clauses.append("source_channel LIKE ?")
+                    params.append(f"%{source_channel}%")
                 
                 where_clause = " AND ".join(where_clauses)
                 
@@ -551,12 +561,18 @@ class UpdateDataLayer:
             self.logger.error(f"获取更新记录失败: {e}")
             return []
     
-    def count_unanalyzed_updates(self, vendor: Optional[str] = None, include_analyzed: bool = False) -> int:
+    def count_unanalyzed_updates(
+        self, 
+        vendor: Optional[str] = None, 
+        source_channel: Optional[str] = None,
+        include_analyzed: bool = False
+    ) -> int:
         """
         统计未分析的更新记录数量
         
         Args:
             vendor: 指定厂商，None 表示所有厂商
+            source_channel: 指定数据源类型（如 blog, whatsnew），支持模糊匹配
             include_analyzed: 是否包含已分析的记录（用于 --force）
             
         Returns:
@@ -581,6 +597,11 @@ class UpdateDataLayer:
                 if vendor:
                     where_clauses.append("vendor = ?")
                     params.append(vendor)
+                
+                # source_channel 模糊匹配
+                if source_channel:
+                    where_clauses.append("source_channel LIKE ?")
+                    params.append(f"%{source_channel}%")
                 
                 where_clause = " AND ".join(where_clauses)
                 
@@ -613,6 +634,7 @@ class UpdateDataLayer:
         """
         allowed_fields = {
             'title_translated',
+            'content_translated',
             'content_summary',
             'update_type',
             'product_subcategory',

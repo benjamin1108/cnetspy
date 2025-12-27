@@ -84,9 +84,11 @@ def run_crawler(args: argparse.Namespace) -> int:
     """
     config = get_config(args)
     
-    # 过滤厂商
+    # 过滤厂商和数据源
+    sources = config.get('sources', {})
+    
     if args.vendor:
-        sources = config.get('sources', {})
+        # 指定了厂商
         if args.vendor not in sources:
             logger.error(f"未找到厂商配置: {args.vendor}")
             return 1
@@ -103,8 +105,27 @@ def run_crawler(args: argparse.Namespace) -> int:
         else:
             logger.info(f"爬取目标: {args.vendor} (全部数据源)")
     elif args.source:
-        logger.error("指定--source时必须同时指定--vendor")
-        return 1
+        # 仅指定数据源类型，过滤所有厂商中匹配的数据源
+        filtered_sources = {}
+        source_pattern = args.source.lower()
+        
+        for vendor, vendor_sources in sources.items():
+            matching_sources = {}
+            for source_name, source_config in vendor_sources.items():
+                # 匹配规则：source_name 包含指定的类型（如 blog 匹配 network-blog, tech-blog 等）
+                if source_pattern in source_name.lower():
+                    matching_sources[source_name] = source_config
+            
+            if matching_sources:
+                filtered_sources[vendor] = matching_sources
+        
+        if not filtered_sources:
+            logger.error(f"未找到匹配的数据源: {args.source}")
+            return 1
+        
+        config['sources'] = filtered_sources
+        matched_count = sum(len(v) for v in filtered_sources.values())
+        logger.info(f"爬取目标: 所有厂商的 {args.source} 数据源 (共 {matched_count} 个)")
     else:
         logger.info("爬取目标: 全部厂商")
     
