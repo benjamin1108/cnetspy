@@ -19,6 +19,7 @@ PYTHON="$VENV_DIR/bin/python"
 
 # PID 文件
 WEB_PID_FILE="$SCRIPT_DIR/.web.pid"
+MCP_PID_FILE="$SCRIPT_DIR/.mcp.pid"
 
 # 检查虚拟环境
 check_venv() {
@@ -44,6 +45,7 @@ show_help() {
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
     echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
+    echo -e "  ${GREEN}mcp${NC}       启动 MCP Server (AI 对话分析)"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
     echo -e "  ${GREEN}clean${NC}     清理临时文件"
     echo -e "  ${GREEN}help${NC}      显示帮助"
@@ -100,6 +102,15 @@ show_help() {
     echo -e "  $0 check --list-empty             # 列出空 subcategory 记录"
     echo -e "  $0 check --clean-empty            # 删除空 subcategory 记录（需确认）"
     echo -e "  $0 check --clean-empty -y         # 删除空 subcategory 记录（跳过确认）"
+    echo ""
+    echo -e "${YELLOW}mcp 选项:${NC}"
+    echo -e "  --sse              SSE 模式（HTTP 远程调用，默认 stdio）"
+    echo -e "  --host <地址>      SSE 模式监听地址（默认: 0.0.0.0）"
+    echo -e "  --port <端口>      SSE 模式监听端口（默认: 8089）"
+    echo ""
+    echo -e "  $0 mcp                            # stdio 模式（本地 Claude/Cursor）"
+    echo -e "  $0 mcp --sse                      # SSE 模式（远程 HTTP 调用）"
+    echo -e "  $0 mcp --sse --port 9000          # 自定义端口"
 }
 
 # 设置环境
@@ -304,6 +315,30 @@ stop_web() {
     pkill -f "vite.*5173" 2>/dev/null
 }
 
+# 后台启动 MCP Server (SSE 模式)
+start_mcp_background() {
+    # 后台启动 MCP (SSE 模式)，日志写入文件
+    nohup "$PYTHON" -m src.mcp.server --sse > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+    echo $! > "$MCP_PID_FILE"
+    echo -e "MCP Server 已后台启动 (PID: $!)"
+    echo -e "MCP 端点: ${GREEN}http://0.0.0.0:8089/sse${NC}"
+    echo -e "MCP 日志: ${GREEN}logs/mcp.log${NC}"
+}
+
+# 停止 MCP Server
+stop_mcp() {
+    if [ -f "$MCP_PID_FILE" ]; then
+        MCP_PID=$(cat "$MCP_PID_FILE")
+        if kill -0 "$MCP_PID" 2>/dev/null; then
+            kill "$MCP_PID" 2>/dev/null
+            echo -e "MCP Server 已停止 (PID: $MCP_PID)"
+        fi
+        rm -f "$MCP_PID_FILE"
+    fi
+    # 清理可能的残留进程
+    pkill -f "src.mcp.server" 2>/dev/null
+}
+
 # 一键启动前后端
 do_start() {
     check_venv
@@ -311,15 +346,19 @@ do_start() {
     # 确保 logs 目录存在
     mkdir -p "$SCRIPT_DIR/logs"
     
-    echo -e "${BLUE}一键启动前后端...${NC}"
+    echo -e "${BLUE}一键启动前后端 + MCP...${NC}"
     echo ""
     
     # 后台启动前端
     start_web_background
     echo ""
     
-    # 设置退出时清理前端
-    trap 'echo ""; echo -e "${YELLOW}正在停止服务...${NC}"; stop_web; exit 0' INT TERM
+    # 后台启动 MCP Server
+    start_mcp_background
+    echo ""
+    
+    # 设置退出时清理前端和 MCP
+    trap 'echo ""; echo -e "${YELLOW}正在停止服务...${NC}"; stop_web; stop_mcp; exit 0' INT TERM
     
     # 前台启动后端
     do_api "$@"
@@ -332,10 +371,60 @@ do_stop() {
     # 停止前端
     stop_web
     
+    # 停止 MCP
+    stop_mcp
+    
     # 停止后端 (uvicorn)
     pkill -f "uvicorn.*src.api.app" 2>/dev/null && echo -e "后端服务已停止" || echo -e "后端服务未运行"
     
     echo -e "${GREEN}所有服务已停止${NC}"
+}
+
+# 启动 MCP Server
+do_mcp() {
+    check_venv
+    
+    # 解析参数
+    MODE="stdio"
+    HOST="0.0.0.0"
+    PORT="8089"
+    ARGS=""
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --sse)
+                MODE="sse"
+                ARGS="$ARGS --sse"
+                shift
+                ;;
+            --host)
+                HOST="$2"
+                ARGS="$ARGS --host $2"
+                shift 2
+                ;;
+            --port)
+                PORT="$2"
+                ARGS="$ARGS --port $2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    
+    if [ "$MODE" = "sse" ]; then
+        echo -e "${BLUE}启动 MCP Server (SSE 模式)...${NC}"
+        echo -e "HTTP 地址: ${GREEN}http://${HOST}:${PORT}${NC}"
+        echo -e "SSE 端点: ${GREEN}http://${HOST}:${PORT}/sse${NC}"
+        echo -e "支持远程调用"
+    else
+        echo -e "${BLUE}启动 MCP Server (stdio 模式)...${NC}" >&2
+        echo -e "可在 Claude/Cursor 等支持 MCP 的工具中使用" >&2
+    fi
+    echo ""
+    
+    "$PYTHON" -m src.mcp.server $ARGS
 }
 
 # 清理临时文件
@@ -385,6 +474,10 @@ case "${1:-help}" in
     check)
         shift
         do_check "$@"
+        ;;
+    mcp)
+        shift
+        do_mcp "$@"
         ;;
     clean)
         do_clean
