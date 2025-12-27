@@ -386,8 +386,12 @@ do_start() {
     fi
     echo ""
     
-    # 后台启动前端
-    start_web_background "$MODE"
+    # 后台启动前端 (仅dev模式，生产模式用nginx serve静态文件)
+    if [ "$MODE" = "dev" ]; then
+        start_web_background "$MODE"
+    else
+        echo -e "${YELLOW}生产模式: 前端由 nginx 提供服务，请确保已执行 ./run.sh deploy${NC}"
+    fi
     echo ""
     
     # 后台启动 MCP Server
