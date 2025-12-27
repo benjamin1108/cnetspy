@@ -38,8 +38,9 @@ show_help() {
     echo -e "  $0 <命令> [选项]"
     echo ""
     echo -e "${YELLOW}命令:${NC}"
-    echo -e "  ${GREEN}start${NC}     一键启动前后端（前端后台 + 后端前台）"
-    echo -e "  ${GREEN}stop${NC}      停止所有服务"
+    echo -e "  ${GREEN}start${NC}         生产模式启动（前端 3000 + API 多进程 + MCP 多进程）"
+    echo -e "  ${GREEN}start dev${NC}     开发模式启动（全部热重载）"
+    echo -e "  ${GREEN}stop${NC}          停止所有服务"
     echo -e "  ${GREEN}api${NC}       启动 API 服务"
     echo -e "  ${GREEN}web${NC}       启动前端服务"
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
@@ -74,7 +75,8 @@ show_help() {
     echo -e "  --verbose         显示详细日志"
     echo ""
     echo -e "${YELLOW}示例:${NC}"
-    echo -e "  $0 start                          # 一键启动前后端"
+    echo -e "  $0 start                          # 生产模式启动"
+    echo -e "  $0 start dev                      # 开发模式启动（热重载）"
     echo -e "  $0 stop                           # 停止所有服务"
     echo -e "  $0 api                            # 启动 API 服务（开发模式）"
     echo -e "  $0 api --prod                     # 生产模式启动"
@@ -281,6 +283,7 @@ do_web() {
 
 # 后台启动前端
 start_web_background() {
+    local DEV_MODE="$1"
     local ORIG_DIR="$(pwd)"
     cd "$SCRIPT_DIR/web"
     
@@ -290,11 +293,21 @@ start_web_background() {
         npm install
     fi
     
-    # 后台启动，日志写入文件
-    nohup npm run dev > "$SCRIPT_DIR/logs/web.log" 2>&1 &
-    echo $! > "$WEB_PID_FILE"
-    echo -e "前端已后台启动 (PID: $!)"
-    echo -e "前端地址: ${GREEN}http://localhost:5173${NC}"
+    if [ "$DEV_MODE" = "dev" ]; then
+        # 开发模式：热重载
+        nohup npm run dev > "$SCRIPT_DIR/logs/web.log" 2>&1 &
+        echo $! > "$WEB_PID_FILE"
+        echo -e "前端已后台启动 (PID: $!) ${GREEN}[热重载]${NC}"
+        echo -e "前端地址: ${GREEN}http://localhost:5173${NC}"
+    else
+        # 生产模式：构建后预览，固定端口 3000
+        echo -e "构建前端..."
+        npm run build > "$SCRIPT_DIR/logs/web-build.log" 2>&1
+        nohup npm run preview -- --port 3000 > "$SCRIPT_DIR/logs/web.log" 2>&1 &
+        echo $! > "$WEB_PID_FILE"
+        echo -e "前端已后台启动 (PID: $!)"
+        echo -e "前端地址: ${GREEN}http://localhost:3000${NC}"
+    fi
     echo -e "前端日志: ${GREEN}logs/web.log${NC}"
     
     # 切回原目录
@@ -317,10 +330,19 @@ stop_web() {
 
 # 后台启动 MCP Server (SSE 模式)
 start_mcp_background() {
-    # 后台启动 MCP (SSE 模式)，日志写入文件
-    nohup "$PYTHON" -m src.mcp.server --sse > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
-    echo $! > "$MCP_PID_FILE"
-    echo -e "MCP Server 已后台启动 (PID: $!)"
+    local DEV_MODE="$1"
+    
+    if [ "$DEV_MODE" = "dev" ]; then
+        # 开发模式：热重载
+        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 0.0.0.0 --port 8089 --reload > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+        echo $! > "$MCP_PID_FILE"
+        echo -e "MCP Server 已后台启动 (PID: $!) ${GREEN}[热重载]${NC}"
+    else
+        # 生产模式：多进程
+        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 0.0.0.0 --port 8089 --workers 2 > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+        echo $! > "$MCP_PID_FILE"
+        echo -e "MCP Server 已后台启动 (PID: $!)"
+    fi
     echo -e "MCP 端点: ${GREEN}http://0.0.0.0:8089/sse${NC}"
     echo -e "MCP 日志: ${GREEN}logs/mcp.log${NC}"
 }
@@ -343,25 +365,39 @@ stop_mcp() {
 do_start() {
     check_venv
     
+    # 解析模式参数
+    local MODE="prod"
+    local API_ARGS="--prod"
+    
+    if [ "$1" = "dev" ]; then
+        MODE="dev"
+        API_ARGS="--dev"
+        shift
+    fi
+    
     # 确保 logs 目录存在
     mkdir -p "$SCRIPT_DIR/logs"
     
-    echo -e "${BLUE}一键启动前后端 + MCP...${NC}"
+    if [ "$MODE" = "dev" ]; then
+        echo -e "${BLUE}一键启动前后端 + MCP [开发模式 - 热重载]...${NC}"
+    else
+        echo -e "${BLUE}一键启动前后端 + MCP [生产模式]...${NC}"
+    fi
     echo ""
     
     # 后台启动前端
-    start_web_background
+    start_web_background "$MODE"
     echo ""
     
     # 后台启动 MCP Server
-    start_mcp_background
+    start_mcp_background "$MODE"
     echo ""
     
     # 设置退出时清理前端和 MCP
     trap 'echo ""; echo -e "${YELLOW}正在停止服务...${NC}"; stop_web; stop_mcp; exit 0' INT TERM
     
     # 前台启动后端
-    do_api "$@"
+    do_api $API_ARGS "$@"
 }
 
 # 停止所有服务

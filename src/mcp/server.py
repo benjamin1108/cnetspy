@@ -15,6 +15,12 @@ import asyncio
 import logging
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
+from mcp.server.sse import SseServerTransport
+from starlette.applications import Starlette
+from starlette.routing import Route, Mount
+from starlette.responses import Response
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from .tools import register_update_tools, register_stats_tools, register_analysis_tools, setup_server_handlers
@@ -48,6 +54,50 @@ def create_server() -> Server:
     return server
 
 
+def create_sse_app(host: str = "0.0.0.0", port: int = 8089) -> Starlette:
+    """
+    创建 SSE 模式的 Starlette 应用
+    用于 uvicorn 直接加载（支持热重载）
+    """
+    server = create_server()
+    sse = SseServerTransport("/messages/")
+    
+    async def handle_sse(request):
+        async with sse.connect_sse(
+            request.scope, request.receive, request._send
+        ) as streams:
+            await server.run(
+                streams[0], streams[1],
+                server.create_initialization_options()
+            )
+        return Response()
+    
+    middleware = [
+        Middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    ]
+    
+    app = Starlette(
+        routes=[
+            Route("/sse", endpoint=handle_sse),
+            Mount("/messages/", app=sse.handle_post_message),
+        ],
+        middleware=middleware,
+    )
+    
+    logger.info(f"MCP Server (SSE) app 创建完成")
+    return app
+
+
+# 全局 app 对象，供 uvicorn 直接加载
+app = create_sse_app()
+
+
 async def run_server(mode: str = "stdio", host: str = "0.0.0.0", port: int = 8089):
     """
     运行 MCP Server
@@ -57,58 +107,20 @@ async def run_server(mode: str = "stdio", host: str = "0.0.0.0", port: int = 808
         host: SSE 模式监听地址
         port: SSE 模式监听端口
     """
-    server = create_server()
-    
     if mode == "sse":
         # SSE 模式：通过 HTTP 远程调用
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.routing import Route, Mount
-        from starlette.responses import Response
-        from starlette.middleware import Middleware
-        from starlette.middleware.cors import CORSMiddleware
         import uvicorn
         
-        sse = SseServerTransport("/messages/")
-        
-        async def handle_sse(request):
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await server.run(
-                    streams[0], streams[1],
-                    server.create_initialization_options()
-                )
-            # 返回空响应避免 NoneType 错误
-            return Response()
-        
-        # 配置 CORS 中间件
-        middleware = [
-            Middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            )
-        ]
-        
-        app = Starlette(
-            routes=[
-                Route("/sse", endpoint=handle_sse),
-                Mount("/messages/", app=sse.handle_post_message),
-            ],
-            middleware=middleware,
-        )
-        
+        sse_app = create_sse_app(host, port)
         logger.info(f"MCP Server (SSE) 启动于 http://{host}:{port}")
         logger.info(f"SSE 端点: http://{host}:{port}/sse")
         
-        config = uvicorn.Config(app, host=host, port=port, log_level="info")
+        config = uvicorn.Config(sse_app, host=host, port=port, log_level="info")
         server_instance = uvicorn.Server(config)
         await server_instance.serve()
     else:
         # stdio 模式：本地进程通信
+        server = create_server()
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
                 read_stream,
