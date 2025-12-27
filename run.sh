@@ -47,6 +47,7 @@ show_help() {
     echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
     echo -e "  ${GREEN}mcp${NC}       启动 MCP Server (AI 对话分析)"
+    echo -e "  ${GREEN}deploy${NC}    部署前端到生产目录 (~cnetspy-deploy)"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
     echo -e "  ${GREEN}clean${NC}     清理临时文件"
     echo -e "  ${GREEN}help${NC}      显示帮助"
@@ -463,6 +464,38 @@ do_mcp() {
     "$PYTHON" -m src.mcp.server $ARGS
 }
 
+# 部署前端到生产目录
+do_deploy() {
+    check_venv
+    
+    DEPLOY_DIR="$HOME/cnetspy-deploy"
+    
+    echo -e "${BLUE}部署前端到 $DEPLOY_DIR ...${NC}"
+    
+    # 确保目录存在
+    mkdir -p "$DEPLOY_DIR"
+    
+    # 构建前端
+    cd "$SCRIPT_DIR/web"
+    
+    if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}安装前端依赖...${NC}"
+        npm install
+    fi
+    
+    echo -e "构建前端..."
+    npm run build
+    
+    # 复制到部署目录
+    echo -e "复制文件..."
+    rm -rf "$DEPLOY_DIR"/*
+    cp -r dist/* "$DEPLOY_DIR/"
+    
+    echo -e "${GREEN}部署完成!${NC}"
+    echo -e "部署目录: ${GREEN}$DEPLOY_DIR${NC}"
+    ls -la "$DEPLOY_DIR"
+}
+
 # 清理临时文件
 do_clean() {
     echo -e "${BLUE}清理临时文件...${NC}"
@@ -514,6 +547,9 @@ case "${1:-help}" in
     mcp)
         shift
         do_mcp "$@"
+        ;;
+    deploy)
+        do_deploy
         ;;
     clean)
         do_clean
