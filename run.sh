@@ -46,6 +46,7 @@ show_help() {
     echo -e "  ${GREEN}crawl${NC}     爬取数据"
     echo -e "  ${GREEN}analyze${NC}   AI 分析"
     echo -e "  ${GREEN}check${NC}     数据质量检查"
+    echo -e "  ${GREEN}test${NC}      运行测试"
     echo -e "  ${GREEN}mcp${NC}       启动 MCP Server (AI 对话分析)"
     echo -e "  ${GREEN}deploy${NC}    部署前端到生产目录 (~cnetspy-deploy)"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
@@ -421,6 +422,45 @@ do_stop() {
     echo -e "${GREEN}所有服务已停止${NC}"
 }
 
+# 运行测试
+do_test() {
+    check_venv
+    
+    MODE="quick"
+    ARGS=""
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --quick)
+                MODE="quick"
+                shift
+                ;;
+            --full)
+                MODE="full"
+                shift
+                ;;
+            --coverage)
+                MODE="coverage"
+                shift
+                ;;
+            --modules)
+                MODE="modules"
+                shift
+                ;;
+            --database)
+                MODE="database"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    
+    echo -e "${GREEN}运行测试 (${MODE})...${NC}"
+    $PYTHON tests/run_tests.py --${MODE}
+}
+
 # 启动 MCP Server
 do_mcp() {
     check_venv
@@ -551,6 +591,10 @@ case "${1:-help}" in
     mcp)
         shift
         do_mcp "$@"
+        ;;
+    test)
+        shift
+        do_test "$@"
         ;;
     deploy)
         do_deploy

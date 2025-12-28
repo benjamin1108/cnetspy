@@ -4,6 +4,8 @@
 FastAPI 应用入口
 """
 
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
@@ -17,6 +19,20 @@ from .routes.vendors import router as vendors_router
 from .routes.chat import router as chat_router
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # Startup
+    logger = logging.getLogger("uvicorn")
+    logger.info(f"🚀 {settings.app_name} v{settings.version} 启动成功")
+    logger.info(f"📖 API文档: http://{settings.host}:{settings.port}/docs")
+    
+    yield
+    
+    # Shutdown
+    logger.info(f"👋 {settings.app_name} 已关闭")
+
+
 # 创建 FastAPI 应用
 app = FastAPI(
     title=settings.app_name,
@@ -24,7 +40,8 @@ app = FastAPI(
     description="云计算竞争情报系统 - 多云更新聚合 + AI智能分析",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan
 )
 
 # 配置中间件
@@ -43,20 +60,3 @@ app.include_router(chat_router)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件"""
-    import logging
-    logger = logging.getLogger("uvicorn")
-    logger.info(f"🚀 {settings.app_name} v{settings.version} 启动成功")
-    logger.info(f"📖 API文档: http://{settings.host}:{settings.port}/docs")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件"""
-    import logging
-    logger = logging.getLogger("uvicorn")
-    logger.info(f"👋 {settings.app_name} 已关闭")

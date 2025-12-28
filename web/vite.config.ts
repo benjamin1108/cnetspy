@@ -12,6 +12,22 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React 核心
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Markdown 渲染
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+          // 工具库
+          'vendor-utils': ['axios', 'date-fns', '@tanstack/react-query'],
+        },
+      },
+    },
+    // 提高警告阈值（可选，如果分割后仍有大文件）
+    chunkSizeWarningLimit: 600,
+  },
   server: {
     port: 5173,
     proxy: {

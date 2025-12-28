@@ -25,13 +25,11 @@ class AnalysisExecutor:
     1. 调用 UpdateAnalyzer 进行AI分析
     2. 保存分析结果到文件（可选）
     3. 更新数据库字段
-    4. 删除非网络相关内容并记录报告
+    4. 记录质量问题到数据库（非网络内容删除、subcategory为空等）
     """
     
-    # 删除报告收集器（类级别，用于批量分析后统一输出）
-    deleted_records = []
-    # subcategory 为空的记录（不删除，仅报告）
-    empty_subcategory_records = []
+    # 当前批次ID（批量分析时设置）
+    _current_batch_id: Optional[str] = None
     
     def __init__(self, analyzer, data_layer, config: Dict[str, Any]):
         """
@@ -43,6 +41,7 @@ class AnalysisExecutor:
             config: 配置字典
                 - enable_file_save: 是否启用文件保存（默认True）
                 - output_base_dir: 文件输出根目录（默认 'data/analyzed'）
+                - batch_id: 批次ID（可选，批量分析时使用）
         """
         self.analyzer = analyzer
         self.data_layer = data_layer
@@ -53,9 +52,20 @@ class AnalysisExecutor:
         self.enable_file_save = config.get('enable_file_save', True)
         self.output_base_dir = config.get('output_base_dir', 'data/analyzed')
         
-        # 每次初始化时清空报告
-        AnalysisExecutor.deleted_records = []
-        AnalysisExecutor.empty_subcategory_records = []
+        # 设置批次ID
+        batch_id = config.get('batch_id')
+        if batch_id:
+            AnalysisExecutor._current_batch_id = batch_id
+    
+    @classmethod
+    def set_batch_id(cls, batch_id: str) -> None:
+        """设置当前批次ID"""
+        cls._current_batch_id = batch_id
+    
+    @classmethod
+    def clear_batch_id(cls) -> None:
+        """清除批次ID"""
+        cls._current_batch_id = None
     
     def execute_analysis(
         self, 
@@ -76,30 +86,52 @@ class AnalysisExecutor:
             
         流程：
             1. AI分析
-            2. 保存文件（可选）
-            3. 更新数据库
+            2. 检查is_network_related（不相关则删除并记录）
+            3. 检查product_subcategory（为空则记录问题）
+            4. 保存文件（可选）
+            5. 更新数据库
         """
         update_id = update_data.get('update_id')
+        vendor = update_data.get('vendor', '')
+        title = update_data.get('title', '')
+        source_url = update_data.get('source_url', '')
         
         try:
             # 1. 执行AI分析
             result = self.analyzer.analyze(update_data)
             if not result:
                 self.logger.error(f"AI分析失败: {update_id}")
+                # 记录分析失败
+                self._record_quality_issue(
+                    update_id=update_id,
+                    issue_type='analysis_failed',
+                    auto_action='kept',
+                    vendor=vendor,
+                    title=title,
+                    source_url=source_url
+                )
                 return None
             
-            # 1.5 检查是否与网络相关，不相关则删除
+            # 2. 检查是否与网络相关，不相关则删除
             is_network_related = result.get('is_network_related', True)
             if not is_network_related:
-                self._handle_non_network_content(update_id, update_data, reason='not_network_related')
+                self._handle_non_network_content(update_id, update_data)
                 return {'deleted': True, 'reason': 'not_network_related'}
             
-            # 1.6 记录 product_subcategory 为空的情况（不删除，仅报告）
+            # 3. 记录 product_subcategory 为空的情况（不删除，仅记录）
             product_subcategory = result.get('product_subcategory', '')
             if not product_subcategory:
-                self._record_empty_subcategory(update_id, update_data)
+                self._record_quality_issue(
+                    update_id=update_id,
+                    issue_type='empty_subcategory',
+                    auto_action='kept',
+                    vendor=vendor,
+                    title=title,
+                    source_url=source_url
+                )
+                self.logger.warning(f"subcategory为空: {title[:50]}...")
             
-            # 2. 保存到文件（如果启用）
+            # 4. 保存到文件（如果启用）
             should_save_file = save_to_file if save_to_file is not None else self.enable_file_save
             if should_save_file:
                 file_path = self._save_analysis_to_file(update_id, update_data, result)
@@ -107,7 +139,7 @@ class AnalysisExecutor:
                     result['analysis_filepath'] = file_path
                     self.logger.debug(f"分析结果已保存至文件: {file_path}")
             
-            # 3. 更新数据库
+            # 5. 更新数据库
             if save_to_db:
                 success = self.data_layer.update_analysis_fields(update_id, result)
                 if not success:
@@ -136,9 +168,6 @@ class AnalysisExecutor:
             
         Returns:
             文件路径，失败返回 None
-            
-        文件格式：
-            data/analyzed/{vendor}/{update_id}.json
         """
         try:
             # 创建输出目录
@@ -160,7 +189,6 @@ class AnalysisExecutor:
                     'content_summary': result.get('content_summary', ''),
                     'update_type': result.get('update_type', ''),
                     'product_subcategory': result.get('product_subcategory', ''),
-                    # tags 字段已被 UpdateAnalyzer 序列化为 JSON 字符串
                     'tags': json.loads(result.get('tags', '[]')) if isinstance(result.get('tags'), str) else result.get('tags', [])
                 }
             }
@@ -179,17 +207,17 @@ class AnalysisExecutor:
             self.logger.error(f"保存分析文件失败: {e}")
             return None
     
-    def _handle_non_network_content(self, update_id: str, update_data: Dict[str, Any], reason: str = 'not_network_related') -> None:
+    def _handle_non_network_content(self, update_id: str, update_data: Dict[str, Any]) -> None:
         """
-        处理非网络相关内容：删除记录并记录到报告
+        处理非网络相关内容：删除记录并记录质量问题
         
         Args:
             update_id: 记录ID
             update_data: 更新数据
-            reason: 删除原因 (not_network_related / empty_subcategory)
         """
         title = update_data.get('title', '')
         source_url = update_data.get('source_url', '')
+        vendor = update_data.get('vendor', '')
         raw_filepath = update_data.get('raw_filepath', '')
         
         # 1. 删除数据库记录
@@ -206,82 +234,82 @@ class AnalysisExecutor:
             except Exception as e:
                 self.logger.error(f"删除原始文件失败: {e}")
         
-        # 3. 记录到删除报告
-        AnalysisExecutor.deleted_records.append({
-            'update_id': update_id,
-            'title': title,
-            'source_url': source_url,
-            'reason': reason
-        })
+        # 3. 记录质量问题到数据库
+        self._record_quality_issue(
+            update_id=update_id,
+            issue_type='not_network_related',
+            auto_action='deleted',
+            vendor=vendor,
+            title=title,
+            source_url=source_url
+        )
         
-        reason_text = '非网络内容' if reason == 'not_network_related' else 'subcategory为空'
-        self.logger.info(f"删除[{reason_text}]: {title[:50]}...")
+        self.logger.info(f"删除[非网络内容]: {title[:50]}...")
     
-    def _record_empty_subcategory(self, update_id: str, update_data: Dict[str, Any]) -> None:
+    def _record_quality_issue(
+        self,
+        update_id: str,
+        issue_type: str,
+        auto_action: str,
+        vendor: str = '',
+        title: str = '',
+        source_url: str = ''
+    ) -> None:
         """
-        记录 subcategory 为空的情况（不删除，仅报告）
+        记录质量问题到数据库
         
         Args:
             update_id: 记录ID
-            update_data: 更新数据
+            issue_type: 问题类型
+            auto_action: 自动动作 (deleted/kept)
+            vendor: 厂商
+            title: 标题
+            source_url: 来源链接
         """
-        title = update_data.get('title', '')
-        source_url = update_data.get('source_url', '')
-        
-        AnalysisExecutor.empty_subcategory_records.append({
-            'update_id': update_id,
-            'title': title,
-            'source_url': source_url
-        })
-        
-        self.logger.warning(f"subcategory为空: {title[:50]}...")
+        try:
+            self.data_layer.insert_quality_issue(
+                update_id=update_id,
+                issue_type=issue_type,
+                auto_action=auto_action,
+                vendor=vendor,
+                title=title,
+                source_url=source_url,
+                batch_id=AnalysisExecutor._current_batch_id
+            )
+        except Exception as e:
+            self.logger.error(f"记录质量问题失败: {e}")
     
     @classmethod
-    def print_deletion_report(cls) -> None:
+    def print_analysis_report(cls, data_layer) -> None:
         """
-        输出删除报告
-        """
-        if not cls.deleted_records:
-            logger.info("本次分析无删除记录")
-        else:
-            logger.info(f"\n{'='*60}")
-            logger.info(f"删除报告: 共删除 {len(cls.deleted_records)} 条非网络内容")
-            logger.info(f"{'='*60}")
-            
-            for idx, record in enumerate(cls.deleted_records, 1):
-                logger.info(f"{idx}. {record['title']}")
-                logger.info(f"   链接: {record['source_url']}")
-            
-            logger.info(f"{'='*60}")
+        输出分析报告（从数据库读取）
         
-        # 输出 subcategory 为空的报告
-        if cls.empty_subcategory_records:
-            logger.info(f"\n{'='*60}")
-            logger.info(f"subcategory为空报告: {len(cls.empty_subcategory_records)} 条记录需手动处理")
-            logger.info(f"可使用 ./run.sh check --clean-empty 清理")
-            logger.info(f"{'='*60}")
+        Args:
+            data_layer: UpdateDataLayer 实例
+        """
+        try:
+            stats = data_layer.get_issue_statistics()
             
-            for idx, record in enumerate(cls.empty_subcategory_records, 1):
-                logger.info(f"{idx}. {record['title']}")
-                logger.info(f"   ID: {record['update_id']}")
-                logger.info(f"   链接: {record['source_url']}")
+            if stats['total_open'] == 0 and stats['total_resolved'] == 0:
+                logger.info("本次分析无质量问题记录")
+                return
+            
+            logger.info(f"\n{'='*60}")
+            logger.info(f"质量问题报告")
+            logger.info(f"{'='*60}")
+            logger.info(f"待处理: {stats['total_open']} 条")
+            logger.info(f"已解决: {stats['total_resolved']} 条")
+            logger.info(f"已忽略: {stats['total_ignored']} 条")
+            
+            if stats['by_type']:
+                logger.info(f"\n按类型统计(待处理):")
+                for issue_type, count in stats['by_type'].items():
+                    logger.info(f"  - {issue_type}: {count}")
+            
+            if stats['total_open'] > 0:
+                logger.info(f"\n使用 ./run.sh check --issues 查看详情")
             
             logger.info(f"{'='*60}\n")
-    
-    @classmethod
-    def get_deletion_report(cls) -> list:
-        """
-        获取删除报告列表
-        
-        Returns:
-            删除记录列表
-        """
-        return cls.deleted_records.copy()
-    
-    @classmethod
-    def clear_deletion_report(cls) -> None:
-        """
-        清空报告
-        """
-        cls.deleted_records = []
-        cls.empty_subcategory_records = []
+            
+        except Exception as e:
+            logger.error(f"获取分析报告失败: {e}")

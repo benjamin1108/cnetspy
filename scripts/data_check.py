@@ -19,6 +19,8 @@ from tabulate import tabulate
 PROJECT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+from src.storage.database import UpdateDataLayer
+
 # 数据库路径
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'sqlite', 'updates.db')
 
@@ -648,6 +650,140 @@ AI 分析质量校验
         return deleted_count
 
 
+class QualityIssueChecker:
+    """质量问题检查器 - 使用 quality_issues 表"""
+    
+    def __init__(self):
+        self.data_layer = UpdateDataLayer()
+    
+    def list_issues(
+        self,
+        issue_type: str = None,
+        vendor: str = None,
+        show_deleted: bool = False
+    ) -> None:
+        """列出质量问题"""
+        print("=" * 60)
+        if show_deleted:
+            print("📋 已删除记录审计日志")
+        else:
+            print("📋 待处理的质量问题")
+        print("=" * 60)
+        
+        # 获取统计信息
+        stats = self.data_layer.get_issue_statistics()
+        
+        print(f"\n总览:")
+        print(f"  待处理: {stats['total_open']} 条")
+        print(f"  已解决: {stats['total_resolved']} 条")
+        print(f"  已忽略: {stats['total_ignored']} 条")
+        
+        if stats['by_type']:
+            print(f"\n按类型统计 (待处理):")
+            for t, count in stats['by_type'].items():
+                print(f"  - {t}: {count}")
+        
+        if stats['by_vendor']:
+            print(f"\n按厂商统计 (待处理):")
+            for v, count in stats['by_vendor'].items():
+                print(f"  - {v}: {count}")
+        
+        # 获取详细列表
+        if show_deleted:
+            issues = self.data_layer._quality.get_deleted_issues(
+                issue_type=issue_type,
+                vendor=vendor,
+                limit=100
+            )
+        else:
+            issues = self.data_layer.get_open_issues(
+                issue_type=issue_type,
+                vendor=vendor,
+                limit=100
+            )
+        
+        if not issues:
+            print(f"\n✅ 无{'已删除' if show_deleted else '待处理'}记录")
+            return
+        
+        print(f"\n" + "-" * 60)
+        print(f"详细列表 (最多显示 100 条):")
+        print("-" * 60)
+        
+        table_data = []
+        for issue in issues:
+            title = issue.get('title', '')[:40]
+            table_data.append([
+                issue.get('id'),
+                issue.get('vendor', ''),
+                issue.get('issue_type', ''),
+                title,
+                issue.get('detected_at', '')[:10]
+            ])
+        
+        print(tabulate(
+            table_data, 
+            headers=['ID', '厂商', '问题类型', '标题', '检测时间'], 
+            tablefmt='simple'
+        ))
+        print()
+    
+    def resolve_issue(self, issue_id: int, action: str, confirmed: bool = False) -> bool:
+        """
+        解决质量问题
+        
+        Args:
+            issue_id: 问题 ID
+            action: 动作 (delete/ignore)
+            confirmed: 是否已确认
+        """
+        # 获取问题详情
+        issue = self.data_layer._quality.get_issue_by_id(issue_id)
+        if not issue:
+            print(f"❌ 问题 ID {issue_id} 不存在")
+            return False
+        
+        if issue['status'] != 'open':
+            print(f"⚠️  问题 ID {issue_id} 状态为 {issue['status']}，无需处理")
+            return False
+        
+        print(f"\n问题详情:")
+        print(f"  ID: {issue['id']}")
+        print(f"  类型: {issue['issue_type']}")
+        print(f"  厂商: {issue['vendor']}")
+        print(f"  标题: {issue['title'][:60]}")
+        print(f"  链接: {issue['source_url']}")
+        print(f"  检测时间: {issue['detected_at']}")
+        
+        if action == 'delete':
+            if not confirmed:
+                confirm = input("\n确认删除对应的更新记录？(yes/no): ").strip().lower()
+                if confirm != 'yes':
+                    print("已取消")
+                    return False
+            
+            # 删除更新记录
+            update_id = issue['update_id']
+            success = self.data_layer.delete_update(update_id)
+            if success:
+                self.data_layer._quality.resolve_issue(issue_id, 'deleted')
+                print(f"\n✅ 已删除更新记录 {update_id}，问题已解决")
+                return True
+            else:
+                print(f"\n❌ 删除更新记录失败（可能已被删除）")
+                self.data_layer._quality.resolve_issue(issue_id, 'deleted')
+                return True
+        
+        elif action == 'ignore':
+            self.data_layer._quality.ignore_issue(issue_id)
+            print(f"\n✅ 问题 ID {issue_id} 已标记为忽略")
+            return True
+        
+        else:
+            print(f"❌ 未知动作: {action}")
+            return False
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='数据质量检查工具')
@@ -655,10 +791,46 @@ def main():
                         help='列出并删除已分析但 subcategory 为空的记录')
     parser.add_argument('--list-empty', action='store_true',
                         help='仅列出已分析但 subcategory 为空的记录（不删除）')
+    parser.add_argument('--issues', action='store_true',
+                        help='查看待处理的质量问题（使用 quality_issues 表）')
+    parser.add_argument('--deleted', action='store_true',
+                        help='查看已删除记录的审计日志')
+    parser.add_argument('--type', type=str, default=None,
+                        help='按问题类型过滤 (empty_subcategory/not_network_related/analysis_failed)')
+    parser.add_argument('--vendor', type=str, default=None,
+                        help='按厂商过滤')
+    parser.add_argument('--resolve', type=int, default=None,
+                        help='解决指定 ID 的问题')
+    parser.add_argument('--delete', action='store_true',
+                        help='与 --resolve 配合使用，删除对应记录')
+    parser.add_argument('--ignore', action='store_true',
+                        help='与 --resolve 配合使用，忽略问题')
     parser.add_argument('-y', '--yes', action='store_true',
                         help='跳过确认提示，直接执行')
     
     args = parser.parse_args()
+    
+    # 质量问题相关命令
+    if args.issues or args.deleted:
+        quality_checker = QualityIssueChecker()
+        quality_checker.list_issues(
+            issue_type=args.type,
+            vendor=args.vendor,
+            show_deleted=args.deleted
+        )
+        return
+    
+    if args.resolve:
+        quality_checker = QualityIssueChecker()
+        if args.delete:
+            quality_checker.resolve_issue(args.resolve, 'delete', confirmed=args.yes)
+        elif args.ignore:
+            quality_checker.resolve_issue(args.resolve, 'ignore', confirmed=args.yes)
+        else:
+            print("请指定 --delete 或 --ignore")
+        return
+    
+    # 原有功能
     checker = DataChecker(DB_PATH)
     
     if args.list_empty:

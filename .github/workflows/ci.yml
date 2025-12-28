@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  # 快速测试 - 核心功能验证
+  quick-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run quick tests
+        run: |
+          python -m pytest tests/ -v --tb=short -x
+  
+  # 完整测试 - 包含覆盖率
+  full-test:
+    runs-on: ubuntu-latest
+    needs: quick-test
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run full tests with coverage
+        run: |
+          python -m pytest tests/ -v --cov=src/storage/database --cov-report=xml --cov-report=term
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
+  
+  # 模块导入检查
+  import-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Check module imports
+        run: |
+          python -c "from src.storage.database import UpdateDataLayer; print('Database layer OK')"
+          python -c "from src.analyzers import UpdateAnalyzer; print('Analyzer OK')"
+          python -c "from src.crawlers.common import CrawlerManager, BaseCrawler; print('Crawlers OK')"
+          python -c "from src.api.app import app; print('API OK')"
+  
+  # 前端构建测试
+  frontend-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: ./web
+        run: npm run build
+      
+      - name: Check bundle size
+        working-directory: ./web
+        run: |
+          echo "=== Bundle Size Report ==="
+          du -sh dist/assets/*.js | sort -rh | head -10
+          # 检查是否有超过 500KB 的单个文件
+          find dist/assets -name "*.js" -size +500k -exec echo "WARNING: Large bundle detected: {}" \;

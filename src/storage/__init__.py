@@ -6,9 +6,11 @@
 
 from src.storage.file_storage import FileStorage, MarkdownGenerator
 from src.storage.database.sqlite_layer import UpdateDataLayer
+from src.storage.database.quality_repository import QualityRepository
 
 __all__ = [
     'FileStorage',
     'MarkdownGenerator',
     'UpdateDataLayer',
+    'QualityRepository',
 ]
