@@ -183,8 +183,19 @@ do_crawl() {
                 ARGS="$ARGS --config $2"
                 shift 2
                 ;;
+            -h|--help)
+                echo -e "${YELLOW}crawl 选项:${NC}"
+                echo -e "  --vendor <名称>   指定厂商: aws, azure, gcp, huawei, tencentcloud, volcengine"
+                echo -e "  --source <类型>   指定数据源类型: blog, whatsnew"
+                echo -e "  --limit <数量>    限制每个源的文章数量"
+                echo -e "  --force           强制重新爬取"
+                echo -e "  --debug           调试模式"
+                exit 0
+                ;;
             *)
-                shift
+                echo -e "${RED}错误: 未知的 crawl 选项: $1${NC}"
+                echo -e "运行 ${GREEN}$0 crawl --help${NC} 查看可用选项"
+                exit 1
                 ;;
         esac
     done
@@ -228,8 +239,18 @@ do_api() {
                 PORT="$2"
                 shift 2
                 ;;
+            -h|--help)
+                echo -e "${YELLOW}api 选项:${NC}"
+                echo -e "  --dev             开发模式（自动重载，默认）"
+                echo -e "  --prod            生产模式（性能优化）"
+                echo -e "  --host <地址>     监听地址（默认: 127.0.0.1）"
+                echo -e "  --port <端口>     监听端口（默认: 8088）"
+                exit 0
+                ;;
             *)
-                shift
+                echo -e "${RED}错误: 未知的 api 选项: $1${NC}"
+                echo -e "运行 ${GREEN}$0 api --help${NC} 查看可用选项"
+                exit 1
                 ;;
         esac
     done
@@ -434,7 +455,6 @@ do_test() {
     check_venv
     
     MODE="quick"
-    ARGS=""
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -458,8 +478,19 @@ do_test() {
                 MODE="database"
                 shift
                 ;;
+            -h|--help)
+                echo -e "${YELLOW}test 选项:${NC}"
+                echo -e "  --quick           快速测试（默认，跳过慢速测试）"
+                echo -e "  --full            完整测试（包含所有测试用例）"
+                echo -e "  --coverage        覆盖率测试（生成覆盖率报告）"
+                echo -e "  --modules         模块导入测试"
+                echo -e "  --database        数据库操作测试"
+                exit 0
+                ;;
             *)
-                break
+                echo -e "${RED}错误: 未知的 test 选项: $1${NC}"
+                echo -e "运行 ${GREEN}$0 test --help${NC} 查看可用选项"
+                exit 1
                 ;;
         esac
     done
@@ -495,8 +526,17 @@ do_mcp() {
                 ARGS="$ARGS --port $2"
                 shift 2
                 ;;
+            -h|--help)
+                echo -e "${YELLOW}mcp 选项:${NC}"
+                echo -e "  --sse              SSE 模式（HTTP 远程调用，默认 stdio）"
+                echo -e "  --host <地址>      SSE 模式监听地址（默认: 127.0.0.1）"
+                echo -e "  --port <端口>      SSE 模式监听端口（默认: 8089）"
+                exit 0
+                ;;
             *)
-                shift
+                echo -e "${RED}错误: 未知的 mcp 选项: $1${NC}"
+                echo -e "运行 ${GREEN}$0 mcp --help${NC} 查看可用选项"
+                exit 1
                 ;;
         esac
     done
