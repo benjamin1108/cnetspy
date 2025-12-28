@@ -11,8 +11,6 @@ import sys
 import argparse
 import logging
 import time
-import json
-from datetime import datetime
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -23,6 +21,7 @@ from src.utils.config.config_loader import load_config_directory, load_yaml_file
 from src.utils.logging.colored_logger import setup_colored_logging
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from src.analyzers.update_analyzer import UpdateAnalyzer
+from src.analyzers.analysis_executor import AnalysisExecutor
 
 
 class AnalyzeUpdatesScript:
@@ -48,17 +47,21 @@ class AnalyzeUpdatesScript:
         # 初始化数据库层
         self.data_layer = UpdateDataLayer()
         
-        # 初始化分析器
+        # 初始化分析器和执行器
         try:
             ai_config = self.config.get('ai_model', {})
             self.analyzer = UpdateAnalyzer(ai_config)
+            
+            # 初始化 AnalysisExecutor（复用完整的分析+保存+质量追踪逻辑）
+            executor_config = {
+                'enable_file_save': True,
+                'output_base_dir': 'data/analyzed'
+            }
+            self.executor = AnalysisExecutor(self.analyzer, self.data_layer, executor_config)
             self.logger.info("分析器初始化成功")
         except Exception as e:
             self.logger.error(f"分析器初始化失败: {e}")
             sys.exit(1)
-        
-        # 初始化删除报告收集器
-        self.deleted_records = []
     
     def _load_config(self):
         """加载配置文件"""
@@ -115,80 +118,25 @@ class AnalyzeUpdatesScript:
             self.logger.warning(f"记录已分析过，跳过（使用 --force 强制重新分析）")
             return
         
-        # 执行分析
-        result = self.analyzer.analyze(update_data)
+        # 使用 AnalysisExecutor 执行完整分析流程
+        result = self.executor.execute_analysis(
+            update_data,
+            save_to_db=not self.args.dry_run,
+            save_to_file=True
+        )
         
         if result:
-            # 保存分析结果到文件
-            file_path = self._save_analysis_to_file(update_id, update_data, result)
-            if file_path:
-                self.logger.info(f"📄 分析结果已保存至: {file_path}")
-                # 回写文件路径到数据库
-                result['analysis_filepath'] = file_path
-            
-            # 更新数据库
-            if not self.args.dry_run:
-                success = self.data_layer.update_analysis_fields(update_id, result)
-                if success:
-                    self.logger.info(f"✅ 分析成功并已保存")
-                else:
-                    self.logger.error(f"❌ 数据库更新失败")
+            if result.get('deleted'):
+                self.logger.info(f"🗑️  记录已删除: {result.get('reason')}")
             else:
-                self.logger.info(f"✅ 分析成功（预览模式，未写入数据库）")
-                self.logger.info(f"分析结果:\n{self._format_result(result)}")
+                self.logger.info(f"✅ 分析成功并已保存")
+                if self.args.dry_run:
+                    self.logger.info(f"分析结果:\n{self._format_result(result)}")
         else:
             self.logger.error(f"❌ 分析失败")
-    
-    def _save_analysis_to_file(self, update_id: str, update_data: dict, result: dict) -> Optional[str]:
-        """
-        保存分析结果到文件
         
-        Args:
-            update_id: 更新记录 ID
-            update_data: 原始更新数据
-            result: 分析结果
-            
-        Returns:
-            保存的文件路径，失败返回 None
-        """
-        try:
-            # 创建输出目录
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            vendor = update_data.get('vendor', 'unknown')
-            output_dir = os.path.join(project_root, 'data', 'analyzed', vendor)
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 构建完整的分析数据
-            analysis_data = {
-                'update_id': update_id,
-                'vendor': vendor,
-                'source_channel': update_data.get('source_channel', ''),
-                'original_title': update_data.get('title', ''),
-                'source_url': update_data.get('source_url', ''),
-                'publish_date': update_data.get('publish_date', ''),
-                'analyzed_at': datetime.now().isoformat(),
-                'analysis': {
-                    'title_translated': result.get('title_translated', ''),
-                    'content_summary': result.get('content_summary', ''),
-                    'update_type': result.get('update_type', ''),
-                    'product_subcategory': result.get('product_subcategory', ''),
-                    'tags': json.loads(result.get('tags', '[]')) if isinstance(result.get('tags'), str) else result.get('tags', [])
-                }
-            }
-            
-            # 生成文件名
-            filename = f"{update_id}.json"
-            file_path = os.path.join(output_dir, filename)
-            
-            # 写入文件
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(analysis_data, f, ensure_ascii=False, indent=2)
-            
-            return file_path
-            
-        except Exception as e:
-            self.logger.error(f"保存分析结果到文件失败: {e}")
-            return None
+        # 输出质量报告
+        AnalysisExecutor.print_analysis_report(self.data_layer)
     
     def _analyze_by_ids(self):
         """按指定 ID 列表分析"""
@@ -352,28 +300,16 @@ class AnalyzeUpdatesScript:
         update_id = update_data.get('update_id', 'unknown')
         
         try:
-            # 执行分析
-            result = self.analyzer.analyze(update_data)
+            # 使用 AnalysisExecutor 执行完整分析流程
+            result = self.executor.execute_analysis(
+                update_data,
+                save_to_db=not self.args.dry_run,
+                save_to_file=True
+            )
             
             if result:
-                # 检查是否与网络相关
-                is_network_related = result.get('is_network_related', True)
-                if not is_network_related:
-                    # 删除非网络内容
-                    self._delete_non_network_content(update_id, update_data)
-                    return True  # 返回 True 表示处理成功（删除也是成功）
-                
-                # 保存分析结果到文件
-                file_path = self._save_analysis_to_file(update_id, update_data, result)
-                if file_path:
-                    # 回写文件路径到 result
-                    result['analysis_filepath'] = file_path
-                
-                # 更新数据库
-                if not self.args.dry_run:
-                    return self.data_layer.update_analysis_fields(update_id, result)
-                else:
-                    return True
+                # result 可能是正常结果或 {'deleted': True, 'reason': ...}
+                return True
             else:
                 return False
                 
@@ -398,41 +334,7 @@ class AnalyzeUpdatesScript:
         print(f"\r[{bar}] {current}/{total} ({percent:.1f}%) | "
               f"成功: {success} | 失败: {fail} | 耗时: {elapsed_str}", end='', flush=True)
     
-    def _delete_non_network_content(self, update_id: str, update_data: dict) -> None:
-        """
-        删除非网络相关内容
-        
-        Args:
-            update_id: 记录ID
-            update_data: 更新数据
-        """
-        title = update_data.get('title', '')
-        source_url = update_data.get('source_url', '')
-        raw_filepath = update_data.get('raw_filepath', '')
-        
-        # 1. 删除数据库记录
-        if not self.args.dry_run:
-            try:
-                self.data_layer.delete_update(update_id)
-            except Exception as e:
-                self.logger.error(f"删除数据库记录失败: {e}")
-        
-        # 2. 删除原始文件
-        if not self.args.dry_run and raw_filepath and os.path.exists(raw_filepath):
-            try:
-                os.remove(raw_filepath)
-            except Exception as e:
-                self.logger.error(f"删除原始文件失败: {e}")
-        
-        # 3. 记录到删除报告
-        self.deleted_records.append({
-            'update_id': update_id,
-            'title': title,
-            'source_url': source_url
-        })
-        
-        self.logger.debug(f"删除非网络内容: {title[:50]}...")
-    
+
     def _print_summary(self, total, success, fail, elapsed):
         """打印统计摘要"""
         print("\n")  # 换行
@@ -442,23 +344,8 @@ class AnalyzeUpdatesScript:
         self.logger.info(f"失败: {fail} 条 ({fail/total*100:.1f}%)")
         self.logger.info(f"总耗时: {self._format_time(elapsed)}")
         
-        # 输出删除报告
-        self._print_deletion_report()
-    
-    def _print_deletion_report(self):
-        """输出删除报告"""
-        if not self.deleted_records:
-            return
-        
-        print("\n" + "=" * 60)
-        self.logger.info(f"🗑️  删除报告: 共删除 {len(self.deleted_records)} 条非网络相关内容")
-        print("=" * 60)
-        
-        for idx, record in enumerate(self.deleted_records, 1):
-            print(f"{idx}. {record['title']}")
-            print(f"   链接: {record['source_url']}")
-        
-        print("=" * 60 + "\n")
+        # 输出质量报告（从数据库读取）
+        AnalysisExecutor.print_analysis_report(self.data_layer)
     
     def _format_time(self, seconds):
         """格式化时间"""
