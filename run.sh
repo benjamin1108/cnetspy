@@ -55,7 +55,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}crawl 选项:${NC}"
     echo -e "  --vendor <名称>   指定厂商: aws, azure, gcp, huawei, tencentcloud, volcengine"
-    echo -e "  --source <类型>   指定数据源类型: blog, whatsnew (可单独使用，匹配所有厂商)"
+    echo -e "  --source <类型>   模糊匹配数据源类型（blog 匹配所有 blog 类型）"
     echo -e "  --limit <数量>    限制每个源的文章数量"
     echo -e "  --force           强制重新爬取"
     echo -e "  --debug           调试模式"
@@ -186,7 +186,7 @@ do_crawl() {
             -h|--help)
                 echo -e "${YELLOW}crawl 选项:${NC}"
                 echo -e "  --vendor <名称>   指定厂商: aws, azure, gcp, huawei, tencentcloud, volcengine"
-                echo -e "  --source <类型>   指定数据源类型: blog, whatsnew"
+                echo -e "  --source <类型>   模糊匹配数据源类型（blog 匹配所有 blog 类型）"
                 echo -e "  --limit <数量>    限制每个源的文章数量"
                 echo -e "  --force           强制重新爬取"
                 echo -e "  --debug           调试模式"
