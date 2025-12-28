@@ -93,7 +93,7 @@ class AzureWhatsnewCrawler(BaseCrawler):
                 continue
             
             # 保存文件
-            filepath = self._save_update(update)
+            filepath = self.save_update(update)
             if filepath:
                 saved_files.append(filepath)
         
@@ -234,25 +234,3 @@ class AzureWhatsnewCrawler(BaseCrawler):
             soup = BeautifulSoup(html_content, 'lxml')
             return soup.get_text(separator='\n', strip=True)
     
-    def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
-        """
-        保存单条更新（使用基类方法）
-        
-        Args:
-            update: 更新条目
-            
-        Returns:
-            是否成功
-        """
-        try:
-            # 直接调用基类的 save_update 方法，基类会统一生成元数据头
-            success = self.save_update(update)
-            
-            if success:
-                logger.debug(f"保存更新: {update.get('title', '')}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"保存更新失败: {e}")
-            return None

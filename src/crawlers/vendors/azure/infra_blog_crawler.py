@@ -14,6 +14,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 
 from src.crawlers.common.base_crawler import BaseCrawler
+from src.crawlers.common.content_parser import DateExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -31,29 +32,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
         # 如果未指定URL，使用默认值
         if not self.start_url:
             self.start_url = "https://techcommunity.microsoft.com/category/azure/blog/azureinfrastructureblog"
-        
-        # 设置HTML转Markdown转换器
-        self._init_html_converter()
     
-    def _init_html_converter(self) -> None:
-        """初始化HTML到Markdown的转换器"""
-        try:
-            import html2text
-            self.h2t = html2text.HTML2Text()
-            self.h2t.ignore_links = False
-            self.h2t.wrap_links = False
-            self.h2t.ignore_images = False
-            self.h2t.images_to_alt = False
-            self.h2t.wrap_list_items = True
-            self.h2t.inline_links = True
-            self.h2t.protect_links = True
-            self.h2t.unicode_snob = True
-            self.h2t.body_width = 0  # 禁用文本折行
-            self.h2t.ignore_emphasis = False  # 保留强调格式
-            logger.debug("已初始化html2text转换器")
-        except ImportError:
-            logger.warning("未找到html2text库，将使用基本转换")
-            self.h2t = None
     
     def _get_identifier_strategy(self) -> str:
         """Azure Infra Blog使用url-based策略"""
@@ -220,56 +199,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
         finally:
             # 关闭WebDriver
             self._close_driver()
-            
-    def _get_with_playwright(self, url: str) -> str:
-        """
-        使用Playwright获取页面内容
-        
-        Args:
-            url: 页面URL
-            
-        Returns:
-            页面HTML内容
-        """
-        try:
-            from playwright.sync_api import sync_playwright
-            
-            logger.debug(f"使用Playwright获取页面: {url}")
-            
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=['--no-sandbox', '--disable-dev-shm-usage']
-                )
-                try:
-                    page = browser.new_page()
-                    page.set_default_timeout(30000)
-                    page.goto(url, wait_until='domcontentloaded')
-                    
-                    # 等待主要内容加载
-                    try:
-                        page.wait_for_selector('main, article, body', timeout=10000)
-                    except:
-                        pass
-                    
-                    # 滚动触发懒加载
-                    page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
-                    page.wait_for_timeout(500)
-                    page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                    page.wait_for_timeout(500)
-                    page.evaluate('window.scrollTo(0, 0)')
-                    page.wait_for_timeout(500)
-                    
-                    html = page.content()
-                    logger.info(f"成功获取页面内容，大小: {len(html)} 字节")
-                    return html
-                finally:
-                    browser.close()
-                    
-        except Exception as e:
-            logger.error(f"Playwright获取页面内容失败: {e}")
-            raise e
-    
+                
     def _parse_article_links(self, html: str) -> List[Tuple[str, str, Optional[str]]]:
         """
         解析HTML，提取文章链接
@@ -549,7 +479,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
                         date_str = date_elem.get_text(strip=True)
                     
                     # 解析日期字符串
-                    date_str = self._parse_date_string(date_str)
+                    date_str = DateExtractor.parse_date_string(date_str)
                 item_detail["date"] = date_str
                 
                 # 确保URL不重复
@@ -610,61 +540,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
         
 
             
-    def _parse_date_string(self, date_str: Optional[str]) -> Optional[str]:
-        """解析日期字符串，转换为统一格式"""
-        if not date_str:
-            return None
-            
-        # 清理日期字符串
-        date_str = date_str.strip()
-        
-        # 尝试从ISO格式解析
-        iso_match = re.search(r'(\d{4}-\d{2}-\d{2})', date_str)
-        if iso_match:
-            return iso_match.group(1).replace('-', '_')
-            
-        # 尝试解析常见的日期格式
-        date_formats = [
-            # 月份名称格式
-            r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})',
-            r'(\d{1,2}) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,? (\d{4})',
-            
-            # 数字格式
-            r'(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{4})',
-            r'(\d{4})[/\.-](\d{1,2})[/\.-](\d{1,2})',
-        ]
-        
-        for pattern in date_formats:
-            match = re.search(pattern, date_str)
-            if match:
-                groups = match.groups()
-                if len(groups) == 2:  # 月份名称格式
-                    day, year = groups
-                    # 提取月份
-                    month_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*', date_str)
-                    if month_match:
-                        month_str = month_match.group(1)
-                        month_map = {'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-                                    'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'}
-                        month = month_map.get(month_str, '01')
-                        # 格式化日期
-                        day = day.zfill(2)
-                        return f"{year}_{month}_{day}"
-                elif len(groups) == 3:  # 数字格式
-                    if len(groups[0]) == 4:  # YYYY-MM-DD
-                        year, month, day = groups
-                    else:  # MM/DD/YYYY
-                        month, day, year = groups
-                    # 格式化日期
-                    month = month.zfill(2)
-                    day = day.zfill(2)
-                    return f"{year}_{month}_{day}"
-                
-        # 如果无法解析，返回当前日期
-        logger.warning(f"无法解析日期: {date_str}，使用当前日期")
-        today = time.strftime("%Y_%m_%d")
-        return today
-        
+
     def _parse_article_content(self, url: str, html: str, list_date: Optional[str] = None) -> Tuple[str, Optional[str]]:
         """解析文章内容和日期"""
         try:
@@ -729,8 +605,8 @@ class AzureInfraBlogCrawler(BaseCrawler):
                         elem.decompose()
                 
                 # 将HTML转换为Markdown
-                if self.h2t:
-                    article_content = self.h2t.handle(str(content_elem))
+                if self.html_converter:
+                    article_content = self.html_converter.handle(str(content_elem))
                     # 进一步清理Markdown内容中的非必要文本
                     article_content = re.sub(r'(?i)\d+\s*(MIN|minute)\s*READ', '', article_content)
                     article_content = re.sub(r'(?i)(Posted|Published|Updated)\s+on\s+.*?(by\s+.*?)?(\n|$)', '', article_content)
@@ -785,7 +661,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
                     date_str = date_elem.get_text(strip=True)
                 
                 if date_str:
-                    return self._parse_date_string(date_str)
+                    return DateExtractor.parse_date_string(date_str)
         
         # 如果未找到日期元素，尝试在文本中查找日期
         text = soup.get_text()
@@ -799,30 +675,7 @@ class AzureInfraBlogCrawler(BaseCrawler):
         for pattern in date_patterns:
             match = re.search(pattern, text)
             if match:
-                return self._parse_date_string(match.group(1))
+                return DateExtractor.parse_date_string(match.group(1))
         
         return None
     
-    def save_to_markdown(self, url: str, title: str, content_and_date: Tuple[str, Optional[str]]) -> str:
-        """
-        保存内容为Markdown文件，调用基类方法
-        
-        Args:
-            url: 文章URL
-            title: 文章标题
-            content_and_date: 文章内容和发布日期的元组
-            
-        Returns:
-            保存的文件路径
-        """
-        return super().save_to_markdown(url, title, content_and_date)
-    
-    def _create_filename(self, url: str, pub_date: str, ext: str) -> str:
-        """创建文件名"""
-        # 生成URL的哈希值
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        
-        # 组合日期和哈希值
-        filename = f"{pub_date}_{url_hash}{ext}"
-        
-        return filename

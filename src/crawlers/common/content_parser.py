@@ -32,18 +32,23 @@ class ContentParser:
         self.html_converter = self._init_html_converter()
     
     def _init_html_converter(self):
-        """初始化HTML到Markdown转换器"""
+        """
+        初始化HTML到Markdown转换器
+        
+        Returns:
+            HTML2Text对象或None
+        """
         if HTML2TEXT_AVAILABLE:
             converter = html2text.HTML2Text()
             converter.ignore_links = False
             converter.ignore_images = False
             converter.ignore_tables = False
-            converter.body_width = 0
-            converter.use_automatic_links = True
-            converter.emphasis_mark = '*'
-            converter.strong_mark = '**'
-            converter.wrap_links = False
-            converter.pad_tables = True
+            converter.body_width = 0  # 不限制宽度
+            converter.use_automatic_links = True  # 使用自动链接
+            converter.emphasis_mark = '*'  # 强调使用星号
+            converter.strong_mark = '**'  # 加粗使用双星号
+            converter.wrap_links = False  # 不换行链接
+            converter.pad_tables = True  # 表格填充
             return converter
         return None
     
@@ -60,14 +65,18 @@ class ContentParser:
         if self.html_converter:
             markdown_content = self.html_converter.handle(html_content)
         else:
+            # 简单的HTML到文本转换
             soup = BeautifulSoup(html_content, 'lxml')
             markdown_content = soup.get_text("\n\n", strip=True)
         
-        return self.clean_markdown(markdown_content)
+        # 清理Markdown
+        markdown_content = self.clean_markdown(markdown_content)
+        
+        return markdown_content
     
     def clean_markdown(self, markdown_text: str) -> str:
         """
-        清理Markdown文本
+        清理Markdown文本，去除多余内容并美化格式
         
         Args:
             markdown_text: 原始Markdown文本
@@ -81,7 +90,7 @@ class ContentParser:
         # 美化代码块
         markdown_text = re.sub(r'```([^`]+)```', r'\n\n```\1```\n\n', markdown_text)
         
-        # 美化图片格式
+        # 美化图片格式，确保图片前后有空行
         markdown_text = re.sub(r'([^\n])!\[', r'\1\n\n![', markdown_text)
         markdown_text = re.sub(r'\.((?:jpg|jpeg|png|gif|webp|svg))\)([^\n])', r'.\1)\n\n\2', markdown_text)
         
@@ -98,6 +107,7 @@ class ContentParser:
         Returns:
             Markdown格式的文章内容
         """
+        # 尝试定位文章主体内容
         content_selectors = [
             'article', 
             '.entry-content', 
@@ -114,9 +124,11 @@ class ContentParser:
         for selector in content_selectors:
             elements = soup.select(selector)
             if elements:
+                # 选择最长的元素作为文章主体
                 article_elem = max(elements, key=lambda x: len(str(x)))
                 break
         
+        # 如果没有找到文章主体，使用页面主体
         if not article_elem:
             article_elem = soup.find('body')
             
@@ -128,7 +140,18 @@ class ContentParser:
         for elem in article_elem.select('header, footer, sidebar, .sidebar, nav, .navigation, .ad, .ads, .comments, .social-share'):
             elem.decompose()
         
-        return self.html_to_markdown(str(article_elem))
+        # 转换为Markdown
+        html = str(article_elem)
+        if self.html_converter:
+            markdown_content = self.html_converter.handle(html)
+        else:
+            # 简单的HTML到文本转换
+            markdown_content = article_elem.get_text("\n\n", strip=True)
+        
+        # 清理和美化Markdown
+        markdown_content = self.clean_markdown(markdown_content)
+        
+        return markdown_content
     
     def is_likely_blog_post(self, url: str) -> bool:
         """
@@ -138,24 +161,28 @@ class ContentParser:
             url: 要检查的URL
             
         Returns:
-            True如果URL可能是博客文章
+            True如果URL可能是博客文章，否则False
         """
+        # 移除协议和域名部分
         parsed = urlparse(url)
         path = parsed.path
         
+        # 博客文章URL的常见模式
         blog_patterns = [
-            r'/blogs/[^/]+/[^/]+',
-            r'/blog/[^/]+',
-            r'/post/[^/]+',
-            r'/\d{4}/\d{2}/[^/]+',
-            r'/news/[^/]+',
-            r'/announcements/[^/]+',
+            r'/blogs/[^/]+/[^/]+',  # 如 /blogs/networking-and-content-delivery/article-name
+            r'/blog/[^/]+',         # 如 /blog/article-name
+            r'/post/[^/]+',         # 如 /post/article-name
+            r'/\d{4}/\d{2}/[^/]+',  # 如 /2022/01/article-name (日期格式)
+            r'/news/[^/]+',         # 如 /news/article-name
+            r'/announcements/[^/]+', # 如 /announcements/article-name
         ]
         
+        # 检查是否匹配任何博客文章模式
         for pattern in blog_patterns:
             if re.search(pattern, path):
                 return True
         
+        # 排除明显的非文章页面
         exclude_patterns = [
             r'/tag/', r'/tags/', r'/category/', r'/categories/',
             r'/author/', r'/about/', r'/contact/', r'/feed/',
@@ -165,12 +192,14 @@ class ContentParser:
         for pattern in exclude_patterns:
             if re.search(pattern, path):
                 return False
-        
+                
+        # 检查是否在URL路径中包含特定关键词
         blog_keywords = ['post', 'article', 'blog', 'news', 'announcement']
         for keyword in blog_keywords:
             if keyword in path.lower():
                 return True
-        
+                
+        # 默认返回False，宁可错过也不要误报
         return False
 
 
@@ -341,6 +370,68 @@ class DateExtractor:
                 return parsed_date.strftime(cls.DATE_FORMAT)
             except (ValueError, TypeError):
                 pass
+        return None
+    
+    @classmethod
+    def parse_date_string(cls, date_str: Optional[str]) -> Optional[str]:
+        """
+        解析日期字符串，转换为统一格式 (YYYY_MM_DD)
+        
+        Args:
+            date_str: 日期字符串
+            
+        Returns:
+            格式化的日期字符串或None
+        """
+        if not date_str:
+            return None
+            
+        # 清理日期字符串
+        date_str = date_str.strip()
+        
+        # 尝试从ISO格式解析
+        iso_match = re.search(r'(\d{4}-\d{2}-\d{2})', date_str)
+        if iso_match:
+            return iso_match.group(1).replace('-', '_')
+            
+        # 尝试解析常见的日期格式
+        date_formats = [
+            # 月份名称格式
+            r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})',
+            r'(\d{1,2}) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,? (\d{4})',
+            
+            # 数字格式
+            r'(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{4})',
+            r'(\d{4})[/\.-](\d{1,2})[/\.-](\d{1,2})',
+        ]
+        
+        month_map = {
+            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        }
+        
+        for pattern in date_formats:
+            match = re.search(pattern, date_str)
+            if match:
+                groups = match.groups()
+                if len(groups) == 2:  # 月份名称格式
+                    day, year = groups
+                    # 提取月份
+                    month_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*', date_str)
+                    if month_match:
+                        month = month_map.get(month_match.group(1), '01')
+                        day = day.zfill(2)
+                        return f"{year}_{month}_{day}"
+                elif len(groups) == 3:  # 数字格式
+                    if len(groups[0]) == 4:  # YYYY-MM-DD
+                        year, month, day = groups
+                    else:  # MM/DD/YYYY
+                        month, day, year = groups
+                    month = month.zfill(2)
+                    day = day.zfill(2)
+                    return f"{year}_{month}_{day}"
+                
+        # 如果无法解析，返回None
         return None
 
 

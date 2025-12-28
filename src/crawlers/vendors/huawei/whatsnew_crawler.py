@@ -19,9 +19,6 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import requests
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
-
 from src.crawlers.common.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
@@ -141,7 +138,7 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
             # 保存每条更新
             for update in all_updates:
                 try:
-                    file_path = self._save_update(update)
+                    file_path = self.save_update(update)
                     if file_path:
                         saved_files.append(file_path)
                 except Exception as e:
@@ -498,29 +495,6 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         
         return updates
     
-    def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
-        """
-        保存单条更新（使用基类方法）
-        
-        Args:
-            update: 更新条目
-            
-        Returns:
-            是否成功
-        """
-        try:
-            # 直接调用基类的 save_update 方法，基类会统一处理 doc_links/stage 等字段
-            success = self.save_update(update)
-            
-            if success:
-                logger.debug(f"保存更新: {update['title']}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"保存更新失败: {e}")
-            return None
-
 
 if __name__ == '__main__':
     """测试爬虫"""

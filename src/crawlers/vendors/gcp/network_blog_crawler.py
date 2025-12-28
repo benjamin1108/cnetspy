@@ -17,9 +17,6 @@ import requests
 import markdown
 import html2text
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
-
 from src.crawlers.common.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
@@ -888,40 +885,6 @@ class GcpNetworkBlogCrawler(BaseCrawler):
             markdown_content += f"\n\n{posted_in_content}"
         
         return markdown_content.strip()
-    
-    def _create_filename(self, url: str, pub_date: str, ext: str) -> str:
-        """
-        根据发布日期和URL哈希值创建文件名
-        
-        Args:
-            url: 文章URL
-            pub_date: 发布日期（YYYY_MM_DD格式）
-            ext: 文件扩展名（如.md）
-            
-        Returns:
-            格式为: YYYY_MM_DD_URLHASH.md 的文件名
-        """
-        # 生成URL的哈希值（取前8位作为短哈希）
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        
-        # 组合日期和哈希值
-        filename = f"{pub_date}_{url_hash}{ext}"
-        
-        return filename
-    
-    def save_to_markdown(self, url: str, title: str, content_and_date: Tuple[str, Optional[str]]) -> str:
-        """
-        保存内容为Markdown文件，调用基类方法
-        
-        Args:
-            url: 文章URL
-            title: 文章标题
-            content_and_date: 文章内容和发布日期的元组
-            
-        Returns:
-            保存的文件路径
-        """
-        return super().save_to_markdown(url, title, content_and_date)
     
     def _is_likely_blog_post(self, url: str) -> bool:
         """

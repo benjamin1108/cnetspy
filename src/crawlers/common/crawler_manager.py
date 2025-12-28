@@ -4,16 +4,12 @@
 import importlib
 import logging
 import os
-import sys
 import threading
 import queue
 import concurrent.futures
 from typing import Dict, Any, List, Optional
 
 from src.utils.threading.process_lock_manager import ProcessLockManager, ProcessType
-
-# 确保src目录在路径中
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))
 
 logger = logging.getLogger(__name__)
 

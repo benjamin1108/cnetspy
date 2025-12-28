@@ -17,9 +17,6 @@ import markdown
 import html2text
 
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))))
-
 from src.crawlers.common.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
@@ -32,18 +29,6 @@ class AzureNetworkBlogCrawler(BaseCrawler):
         super().__init__(config, vendor, source_type)
         self.source_config = config.get('sources', {}).get(vendor, {}).get(source_type, {})
         self.start_url = self.source_config.get('url')
-        
-        # 初始化HTML到Markdown转换器
-        self.html_converter = html2text.HTML2Text()
-        self.html_converter.ignore_links = False
-        self.html_converter.ignore_images = False
-        self.html_converter.ignore_tables = False
-        self.html_converter.body_width = 0  # 不限制宽度
-        self.html_converter.use_automatic_links = True  # 使用自动链接
-        self.html_converter.emphasis_mark = '*'  # 强调使用星号
-        self.html_converter.strong_mark = '**'  # 加粗使用双星号
-        self.html_converter.wrap_links = False  # 不换行链接
-        self.html_converter.pad_tables = True  # 表格填充
     
     def _get_identifier_strategy(self) -> str:
         """Azure Network Blog使用url-based策略"""
@@ -621,104 +606,3 @@ class AzureNetworkBlogCrawler(BaseCrawler):
         
         # 默认返回False，宁可错过也不要误报
         return False
-    
-    def _clean_markdown(self, markdown_content: str) -> str:
-        """
-        清理和美化Markdown内容
-        
-        Args:
-            markdown_content: 原始Markdown内容
-            
-        Returns:
-            清理后的Markdown内容
-        """
-        # 去除连续多个空行
-        markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)
-        
-        # 美化代码块
-        markdown_content = re.sub(r'```([^`]+)```', r'\n\n```\1```\n\n', markdown_content)
-        
-        # 美化图片格式，确保图片前后有空行
-        markdown_content = re.sub(r'([^\n])!\[', r'\1\n\n![', markdown_content)
-        markdown_content = re.sub(r'\.((?:jpg|jpeg|png|gif|webp|svg))\)([^\n])', r'.\1)\n\n\2', markdown_content)
-        
-        # 修复可能的链接问题
-        markdown_content = re.sub(r'\]\(\/(?!http)', r'](https://azure.microsoft.com/', markdown_content)
-        
-        return markdown_content
-    
-    def _create_filename(self, url: str, pub_date: str, ext: str) -> str:
-        """
-        根据发布日期和URL哈希值创建文件名
-        
-        Args:
-            url: 文章URL
-            pub_date: 发布日期（YYYY_MM_DD格式）
-            ext: 文件扩展名（如.md）
-            
-        Returns:
-            格式为: YYYY_MM_DD_URLHASH.md 的文件名
-        """
-        # 生成URL的哈希值（取前8位作为短哈希）
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        
-        # 组合日期和哈希值
-        filename = f"{pub_date}_{url_hash}{ext}"
-        
-        return filename
-    
-    def save_to_markdown(self, url: str, title: str, content_and_date: Tuple[str, Optional[str]]) -> str:
-        """
-        保存内容为Markdown文件，调用基类方法
-        
-        Args:
-            url: 文章URL
-            title: 文章标题
-            content_and_date: 文章内容和发布日期的元组
-            
-        Returns:
-            保存的文件路径
-        """
-        return super().save_to_markdown(url, title, content_and_date)
-    
-    def _get_with_playwright(self, url: str) -> Optional[str]:
-        """
-        使用Playwright获取页面内容
-        
-        Args:
-            url: 目标URL
-            
-        Returns:
-            网页HTML内容或None（如果失败）
-        """
-        from playwright.sync_api import sync_playwright
-        
-        for i in range(self.retry):
-            try:
-                logger.info(f"使用Playwright获取页面: {url}")
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
-                    )
-                    try:
-                        page = browser.new_page()
-                        page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                        
-                        # 滚动触发懒加载
-                        page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
-                        page.wait_for_timeout(500)
-                        
-                        html = page.content()
-                        logger.info(f"成功获取页面源码，长度: {len(html)} 字符")
-                        return html
-                    finally:
-                        browser.close()
-            except Exception as e:
-                logger.warning(f"Playwright获取页面失败 (尝试 {i+1}/{self.retry}): {url} - {e}")
-                if i < self.retry - 1:
-                    retry_interval = self.interval * (i + 1)
-                    logger.info(f"等待 {retry_interval} 秒后重试...")
-                    time.sleep(retry_interval)
-        
-        return None
