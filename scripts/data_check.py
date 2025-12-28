@@ -230,7 +230,9 @@ class DataChecker:
                 # 输出具体记录
                 for update_id, vendor, title, source_url in records:
                     title_short = (title[:50] + '...') if title and len(title) > 50 else (title or 'N/A')
-                    print(f"     └ {update_id} | {title_short}")
+                    print(f"     └ [{vendor}] {update_id}")
+                    print(f"       标题: {title_short}")
+                    print(f"       链接: {source_url or 'N/A'}")
         
         if not has_issue:
             print("  ✓ 所有必填字段完整")
@@ -301,10 +303,10 @@ class DataChecker:
             
             # 输出具体记录（最多10条）
             for update_id, vendor, title, url in invalid_records[:10]:
-                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
-                url_short = (url[:50] + '...') if url and len(url) > 50 else (url or 'N/A')
-                print(f"     └ {update_id} | {title_short}")
-                print(f"       URL: {url_short}")
+                title_short = (title[:50] + '...') if title and len(title) > 50 else (title or 'N/A')
+                print(f"     └ [{vendor}] {update_id}")
+                print(f"       标题: {title_short}")
+                print(f"       URL: {url or 'N/A'}")
             
             if len(invalid_records) > 10:
                 print(f"     ... 还有 {len(invalid_records) - 10} 条")
@@ -374,8 +376,9 @@ class DataChecker:
                 self.issues['anomalies'].append(f"{vendor}: 未来日期{count}条")
             # 输出具体记录
             for update_id, vendor, title, pub_date in future_records:
-                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
-                print(f"     └ {update_id} | {pub_date} | {title_short}")
+                title_short = (title[:50] + '...') if title and len(title) > 50 else (title or 'N/A')
+                print(f"     └ [{vendor}] {update_id}")
+                print(f"       日期: {pub_date} | 标题: {title_short}")
         
         # 检查过短标题 (少于5个字符) - 仅信息展示，不作为告警
         cursor.execute("""
@@ -406,8 +409,9 @@ class DataChecker:
                     anomalies.append(f"{vendor}: {count}条无内容和描述")
             # 输出具体记录
             for update_id, vendor, title in empty_content_records:
-                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
-                print(f"     └ {update_id} | {title_short}")
+                title_short = (title[:50] + '...') if title and len(title) > 50 else (title or 'N/A')
+                print(f"     └ [{vendor}] {update_id}")
+                print(f"       标题: {title_short}")
         
         # 检查无效的 vendor 值
         cursor.execute(f"""
