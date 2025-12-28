@@ -71,7 +71,7 @@ show_help() {
     echo -e "  --batch <IDs>     批量分析多个 ID（逗号分隔，如: id1,id2,id3）"
     echo -e "  --limit <数量>    限制批量处理数量"
     echo -e "  --vendor <厂商>   仅分析指定厂商的记录"
-    echo -e "  --source <类型>   仅分析指定数据源类型（如 blog, whatsnew）"
+    echo -e "  --source <类型>   模糊匹配数据源类型（blog 匹配所有 blog 类型）"
     echo -e "  --dry-run         预览模式，不实际写入数据库"
     echo -e "  --force           强制重新分析已分析过的记录"
     echo -e "  --verbose         显示详细日志"
