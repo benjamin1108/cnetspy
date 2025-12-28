@@ -15,6 +15,9 @@ from src.storage.database.base import BaseRepository
 class UpdatesRepository(BaseRepository):
     """Updates 表 CRUD 操作"""
     
+    # 必填字段列表
+    REQUIRED_FIELDS = ['update_id', 'vendor', 'source_channel', 'source_url', 'title', 'publish_date']
+    
     def insert_update(self, update_data: Dict[str, Any]) -> bool:
         """
         插入单条 Update 记录
@@ -25,6 +28,19 @@ class UpdatesRepository(BaseRepository):
         Returns:
             成功返回 True，失败返回 False
         """
+        # 必填字段校验
+        for field in self.REQUIRED_FIELDS:
+            value = update_data.get(field)
+            if not value or (isinstance(value, str) and not value.strip()):
+                self.logger.error(f"插入失败: 必填字段 {field} 为空")
+                return False
+        
+        # URL 格式校验
+        source_url = update_data.get('source_url', '')
+        if not source_url.startswith(('http://', 'https://')):
+            self.logger.error(f"插入失败: source_url 格式无效 - {source_url}")
+            return False
+        
         try:
             with self.lock:
                 with self._get_connection() as conn:
