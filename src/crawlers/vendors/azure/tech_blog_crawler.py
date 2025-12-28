@@ -169,32 +169,36 @@ class AzureTechBlogCrawler(BaseCrawler):
             
             logger.info(f"共有 {len(all_article_info)} 篇文章等待检查")
             
+            # 设置发现总数
+            self.set_total_discovered(len(all_article_info))
+            
             # 检查是否启用强制模式
             force_mode = self.crawler_config.get('force', False)
             
-            # 过滤已存在的文章链接（使用数据库去重）
+            # 过滤已存在的文章链接
             filtered_article_info = []
-            already_crawled_count = 0
             
             for title, url, list_date in all_article_info:
                 if force_mode:
                     filtered_article_info.append((title, url, list_date))
                 else:
-                    # 生成source_identifier用于数据库查询
                     temp_update = {'source_url': url}
                     source_identifier = self.generate_source_identifier(temp_update)
                     
-                    # 检查数据库是否已存在
-                    if self.check_exists_in_db(url, source_identifier):
-                        already_crawled_count += 1
-                        logger.debug(f"跳过已爬取的文章: {title} ({url})")
+                    should_skip, reason = self.should_skip_update(
+                        source_url=url, 
+                        source_identifier=source_identifier,
+                        title=title
+                    )
+                    if should_skip:
+                        logger.debug(f"跳过({reason}): {title}")
                     else:
                         filtered_article_info.append((title, url, list_date))
             
             if force_mode:
                 logger.info(f"强制模式已启用，将重新爬取所有 {len(filtered_article_info)} 篇文章")
             else:
-                logger.info(f"过滤后: {len(filtered_article_info)} 篇新文章需要爬取，{already_crawled_count} 篇文章已存在")
+                logger.info(f"过滤后: {len(filtered_article_info)} 篇新文章需要爬取")
             
             # 爬取每篇新文章
             for idx, (title, url, list_date) in enumerate(filtered_article_info, 1):

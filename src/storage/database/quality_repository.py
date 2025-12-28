@@ -418,3 +418,84 @@ class QualityRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"获取问题记录失败: {e}")
             return None
+    
+    def check_cleaned_by_ai(
+        self,
+        source_url: str,
+        issue_type: str = 'not_network_related'
+    ) -> bool:
+        """
+        检查某条记录是否已被 AI 清洗过（通过 source_url 查询）
+        
+        用于爬虫去重：如果某条 URL 已被 AI 分析判定为非网络相关并删除，
+        则不应再次爬取。
+        
+        Args:
+            source_url: 源链接
+            issue_type: 问题类型（默认 'not_network_related'）
+            
+        Returns:
+            如果已被清洗返回 True，否则返回 False
+        """
+        if not source_url:
+            return False
+        
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 检查 quality_issues 表中是否存在该 source_url 且为自动删除
+                cursor.execute('''
+                    SELECT 1 FROM quality_issues
+                    WHERE source_url = ?
+                    AND issue_type = ?
+                    AND auto_action = 'deleted'
+                    LIMIT 1
+                ''', (source_url, issue_type))
+                
+                result = cursor.fetchone()
+                return result is not None
+                
+        except Exception as e:
+            self.logger.error(f"检查AI清洗状态失败: {e}")
+            return False
+    
+    def get_cleaned_urls(
+        self,
+        issue_type: str = 'not_network_related',
+        vendor: Optional[str] = None
+    ) -> List[str]:
+        """
+        获取所有被 AI 清洗过的 source_url 列表
+        
+        用于批量查询优化，避免逐条检查。
+        
+        Args:
+            issue_type: 问题类型（默认 'not_network_related'）
+            vendor: 厂商过滤（可选）
+            
+        Returns:
+            被清洗的 source_url 列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                sql = '''
+                    SELECT DISTINCT source_url FROM quality_issues
+                    WHERE issue_type = ?
+                    AND auto_action = 'deleted'
+                    AND source_url IS NOT NULL
+                '''
+                params = [issue_type]
+                
+                if vendor:
+                    sql += " AND vendor = ?"
+                    params.append(vendor)
+                
+                cursor.execute(sql, params)
+                return [row['source_url'] for row in cursor.fetchall()]
+                
+        except Exception as e:
+            self.logger.error(f"获取清洗URL列表失败: {e}")
+            return []

@@ -66,24 +66,30 @@ class AzureWhatsnewCrawler(BaseCrawler):
         
         logger.info(f"API返回 {len(api_updates)} 条更新")
         
+        # 设置发现总数
+        self.set_total_discovered(len(api_updates))
+        
         # 检查是否启用强制模式
         force_mode = self.crawler_config.get('force', False)
         
         # 处理每条更新
         saved_files = []
-        skipped_count = 0
         
         for api_data in api_updates:
             update = self._process_update(api_data)
             if not update:
                 continue
             
-            # 检查是否已存在（使用source_identifier）
+            # 统一去重检查
             source_url = update['source_url']
             source_identifier = update['source_identifier']
-            if not force_mode and self.check_exists_in_db(source_url, source_identifier):
-                logger.debug(f"跳过已存在: {update['title']}")
-                skipped_count += 1
+            should_skip, reason = self.should_skip_update(
+                source_url=source_url, 
+                source_identifier=source_identifier,
+                title=update['title']
+            )
+            if not force_mode and should_skip:
+                logger.debug(f"跳过({reason}): {update['title']}")
                 continue
             
             # 保存文件
@@ -91,7 +97,7 @@ class AzureWhatsnewCrawler(BaseCrawler):
             if filepath:
                 saved_files.append(filepath)
         
-        logger.info(f"保存 {len(saved_files)} 个更新文件，跳过 {skipped_count} 个已存在")
+        logger.info(f"保存 {len(saved_files)} 个更新文件")
         return saved_files
 
     def _fetch_from_api(self) -> List[Dict[str, Any]]:

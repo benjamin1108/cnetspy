@@ -191,9 +191,12 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
             # 解析更新条目
             updates = self._parse_updates(html, product_name, url)
             
+            # 设置发现总数
+            self.set_total_discovered(len(updates))
+            
             # 过滤已存在的更新（除非强制模式）
             if not force_mode:
-                updates = self._filter_existing_updates(updates)
+                updates = [u for u in updates if not self.should_skip_update(update=u)[0]]
             
             logger.info(f"{source_name} 解析到 {len(updates)} 条新更新")
             return updates
@@ -494,23 +497,6 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
             logger.error(f"解析表格时出错: {e}")
         
         return updates
-    
-    def _filter_existing_updates(self, updates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """过滤已存在的更新（检查数据库）"""
-        filtered = []
-        for update in updates:
-            # 生成source_identifier（使用基类方法）
-            source_identifier = self.generate_source_identifier(update)
-            source_url = update.get('source_url', '')
-            
-            # 检查数据库是否已存在
-            if self.check_exists_in_db(source_url=source_url, source_identifier=source_identifier):
-                logger.debug(f"跳过已存在: {update['title'][:30]}...")
-                continue
-            
-            filtered.append(update)
-        
-        return filtered
     
     def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
         """

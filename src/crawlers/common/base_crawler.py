@@ -11,6 +11,7 @@ import hashlib
 import datetime
 import threading
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 
@@ -29,6 +30,47 @@ except ImportError:
     HTML2TEXT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CrawlReport:
+    """爬取报告数据结构"""
+    vendor: str = ''
+    source_type: str = ''
+    total_discovered: int = 0         # 总发现数
+    new_saved: int = 0                # 新增保存数
+    skipped_exists: int = 0           # 跳过（已存在）
+    skipped_ai_cleaned: int = 0       # 跳过（AI清洗过）
+    failed: int = 0                   # 失败数
+    ai_cleaned_urls: List[str] = field(default_factory=list)  # 被AI清洗的URL列表
+    
+    def add_skipped_ai_cleaned(self, url: str, title: str = '') -> None:
+        """记录被 AI 清洗的 URL"""
+        self.skipped_ai_cleaned += 1
+        self.ai_cleaned_urls.append(f"{title[:50]}..." if title else url)
+    
+    def print_report(self) -> None:
+        """打印爬取报告"""
+        logger.info("=" * 60)
+        logger.info(f"📊 爬取报告: {self.vendor.upper()} - {self.source_type}")
+        logger.info("=" * 60)
+        logger.info(f"  🔍 发现总数: {self.total_discovered}")
+        logger.info(f"  ✅ 新增保存: {self.new_saved}")
+        logger.info(f"  ⏭️  跳过(已存在): {self.skipped_exists}")
+        logger.info(f"  🧹 跳过(AI清洗): {self.skipped_ai_cleaned}")
+        if self.failed > 0:
+            logger.info(f"  ❌ 失败数: {self.failed}")
+        logger.info("-" * 60)
+        
+        # 如果有被AI清洗的记录，打印详细列表
+        if self.ai_cleaned_urls:
+            logger.info("🧹 被AI清洗的记录（非网络相关）:")
+            for i, url_or_title in enumerate(self.ai_cleaned_urls[:10], 1):
+                logger.info(f"    {i}. {url_or_title}")
+            if len(self.ai_cleaned_urls) > 10:
+                logger.info(f"    ... 和其他 {len(self.ai_cleaned_urls) - 10} 条")
+        
+        logger.info("=" * 60)
 
 class BaseCrawler(ABC):
     """爬虫基类，提供基础爬虫功能"""
@@ -75,6 +117,9 @@ class BaseCrawler(ABC):
         
         # 初始化数据库层（延迟加载）
         self._data_layer = None
+        
+        # 初始化爬取报告
+        self._crawl_report = CrawlReport(vendor=vendor, source_type=source_type)
     
     @property
     def data_layer(self):
@@ -122,21 +167,56 @@ class BaseCrawler(ABC):
         content = '|'.join(str(c) for c in components)
         return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
     
-    def check_exists_in_db(self, source_url: str, source_identifier: str) -> bool:
+    def should_skip_update(
+        self,
+        update: Dict[str, Any] = None,
+        source_url: str = None,
+        source_identifier: str = None,
+        title: str = ''
+    ) -> Tuple[bool, str]:
         """
-        检查数据库中是否已存在该更新
+        统一去重检查 - 支持两种调用方式
+        
+        检查顺序:
+        1. 检查数据库是否已存在
+        2. 检查是否已被 AI 清洗（非网络相关已删除）
+        
+        调用方式:
+        1. should_skip_update(source_url=url, source_identifier=id, title=title)
+        2. should_skip_update(update=update_dict)
         
         Args:
-            source_url: 源URL
-            source_identifier: 源标识符
+            update: 完整的更新字典（Pattern 2 爬虫使用）
+            source_url: 源URL（Pattern 1 爬虫使用）
+            source_identifier: 源标识符（Pattern 1 爬虫使用）
+            title: 标题（用于日志）
             
         Returns:
-            是否存在
+            (should_skip, reason) 元组
+            - should_skip: 是否应跳过
+            - reason: 'exists' | 'ai_cleaned' | ''
         """
-        return self.data_layer.check_update_exists(
-            source_url=source_url,
-            source_identifier=source_identifier
-        )
+        # 如果传了 update 字典，从中提取参数
+        if update is not None:
+            source_url = update.get('source_url', '')
+            source_identifier = update.get('source_identifier') or self.generate_source_identifier(update)
+            title = update.get('title', '')
+        
+        # 参数校验
+        if not source_url:
+            return False, ''
+        
+        # 1. 检查数据库是否已存在
+        if self.data_layer.check_update_exists(source_url, source_identifier or ''):
+            self._crawl_report.skipped_exists += 1
+            return True, 'exists'
+        
+        # 2. 检查是否被AI清洗过
+        if self.data_layer.check_cleaned_by_ai(source_url):
+            self._crawl_report.add_skipped_ai_cleaned(source_url, title)
+            return True, 'ai_cleaned'
+        
+        return False, ''
     
     def save_update(self, update: Dict[str, Any]) -> bool:
         """
@@ -714,18 +794,23 @@ class BaseCrawler(ABC):
             batch = article_info[i:i+batch_size]
             logger.info(f"处理第 {i//batch_size + 1} 批文章，共 {len(batch)} 篇")
             
-            # 过滤已爬取的文章（使用数据库去重）
+            # 过滤已爬取的文章
             filtered_batch = []
             for title, url, list_date in batch:
                 if force_mode:
                     filtered_batch.append((title, url, list_date))
                     logger.info(f"强制模式：将重新爬取文章: {title} ({url})")
                 else:
-                    # 使用数据库检查是否已存在
                     temp_update = {'source_url': url}
                     source_identifier = self.generate_source_identifier(temp_update)
-                    if self.check_exists_in_db(url, source_identifier):
-                        logger.debug(f"跳过已爬取的文章: {title} ({url})")
+                    
+                    should_skip, reason = self.should_skip_update(
+                        source_url=url, 
+                        source_identifier=source_identifier, 
+                        title=title
+                    )
+                    if should_skip:
+                        logger.debug(f"跳过({reason}): {title}")
                     else:
                         filtered_batch.append((title, url, list_date))
             
@@ -880,21 +965,43 @@ class BaseCrawler(ABC):
         # 注意：不要在这里清空，让装饰器处理完后再清空
         # 装饰器会读取 self._pending_sync_updates 并执行实际同步
     
-    def should_crawl(self, url: str, source_identifier: str = '') -> bool:
+    def should_crawl(self, url: str, source_identifier: str = '', title: str = '') -> bool:
         """
-        检查是否需要爬取某个URL（使用数据库去重）
+        检查是否需要爬取某个URL
         
         Args:
             url: 要检查的URL
             source_identifier: 源标识符
+            title: 标题（用于日志）
             
         Returns:
-            True 如果需要爬取，False 如果不需要（已存在）
+            True 如果需要爬取，False 如果不需要
         """
-        if self.check_exists_in_db(url, source_identifier):
-            logger.info(f"跳过已爬取的URL: {url}")
+        should_skip, reason = self.should_skip_update(
+            source_url=url, 
+            source_identifier=source_identifier, 
+            title=title
+        )
+        if should_skip:
+            if reason == 'exists':
+                logger.debug(f"跳过已爬取: {url}")
+            elif reason == 'ai_cleaned':
+                logger.info(f"跳过AI清洗: {title or url}")
             return False
         return True
+    
+    @property
+    def crawl_report(self) -> CrawlReport:
+        """获取爬取报告"""
+        return self._crawl_report
+    
+    def set_total_discovered(self, count: int) -> None:
+        """设置发现总数（在子类中调用）"""
+        self._crawl_report.total_discovered = count
+    
+    def record_failed(self) -> None:
+        """记录失败数（在子类中调用）"""
+        self._crawl_report.failed += 1
 
     def run(self) -> List[str]:
         """
@@ -909,13 +1016,22 @@ class BaseCrawler(ABC):
             # 清空待同步列表
             self._pending_sync_updates = {}
             
+            # 重置爬取报告
+            self._crawl_report = CrawlReport(vendor=self.vendor, source_type=self.source_type)
+            
             results = self._crawl()
             
             # 批量同步到数据库
             if self._pending_sync_updates:
                 logger.debug(f"待同步数据: {len(self._pending_sync_updates)} 条")
                 self.batch_sync_to_database()
-                
+            
+            # 更新爬取报告
+            self._crawl_report.new_saved = len(results)
+            
+            # 打印爬取报告
+            self._crawl_report.print_report()
+            
             logger.info(f"爬取完成 {self.vendor} {self.source_type}, 共爬取 {len(results)} 个文件")
             return results
         except Exception as e:

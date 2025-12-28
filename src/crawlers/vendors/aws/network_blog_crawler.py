@@ -183,22 +183,28 @@ class AwsNetworkBlogCrawler(BaseCrawler):
             
             logger.info(f"总共扫描{total_scanned}篇文章，找到{len(network_articles)}篇网络相关文章")
             
+            # 设置发现总数
+            self.set_total_discovered(len(network_articles))
+            
             # 过滤已存在的文章
             if not force_mode:
                 filtered_articles = []
-                already_crawled = 0
                 
                 for article in network_articles:
                     temp_update = {'source_url': article['url']}
                     source_identifier = self.generate_source_identifier(temp_update)
                     
-                    if self.check_exists_in_db(article['url'], source_identifier):
-                        already_crawled += 1
-                        logger.debug(f"跳过已爬取: {article['title']}")
+                    should_skip, reason = self.should_skip_update(
+                        source_url=article['url'], 
+                        source_identifier=source_identifier,
+                        title=article['title']
+                    )
+                    if should_skip:
+                        logger.debug(f"跳过({reason}): {article['title']}")
                     else:
                         filtered_articles.append(article)
                 
-                logger.info(f"过滤后: {len(filtered_articles)}篇新文章需要爬取，{already_crawled}篇已存在")
+                logger.info(f"过滤后: {len(filtered_articles)}篇新文章需要爬取")
                 network_articles = filtered_articles
             
             # 使用线程池并行爬取每篇文章内容

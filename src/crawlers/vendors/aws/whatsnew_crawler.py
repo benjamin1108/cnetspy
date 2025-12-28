@@ -142,24 +142,32 @@ class AwsWhatsnewCrawler(BaseCrawler):
             article_links = self._parse_article_links(None)
             logger.info(f"解析到 {len(article_links)} 篇公告链接")
             
+            # 设置发现总数
+            self.set_total_discovered(len(article_links))
+            
             # 限制爬取数量
             article_links = article_links[:self.max_pages]
             logger.info(f"限制爬取 {len(article_links)} 篇公告")
             
-            # 过滤已存在的更新（检查数据库）
+            # 过滤已存在的更新（检查数据库 + AI清洗）
             articles_to_crawl = []
             for title, url, publish_date, product_name, content in article_links:
                 # 生成临时update字典用于identifier生成
                 temp_update = {'source_url': url}
                 source_identifier = self.generate_source_identifier(temp_update)
                 
-                # 检查数据库是否已存在
-                if not force_mode and self.check_exists_in_db(url, source_identifier):
-                    logger.debug(f"跳过已存在: {title}")
+                # 统一去重检查
+                should_skip, reason = self.should_skip_update(
+                    source_url=url, 
+                    source_identifier=source_identifier, 
+                    title=title
+                )
+                if not force_mode and should_skip:
+                    logger.debug(f"跳过({reason}): {title}")
                 else:
                     articles_to_crawl.append((title, url, publish_date, product_name, content))
             
-            logger.info(f"需要爬取 {len(articles_to_crawl)} 篇新公告，跳过 {len(article_links) - len(articles_to_crawl)} 篇已存在公告")
+            logger.info(f"需要爬取 {len(articles_to_crawl)} 篇新公告")
             
             # 使用线程池并行爬取
             if articles_to_crawl:

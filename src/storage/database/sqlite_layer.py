@@ -295,6 +295,45 @@ class UpdateDataLayer:
     def get_issue_statistics(self) -> Dict[str, Any]:
         """获取质量问题统计"""
         return self._quality.get_issue_statistics()
+        
+    def check_cleaned_by_ai(
+        self,
+        source_url: str,
+        issue_type: str = 'not_network_related'
+    ) -> bool:
+        """
+        检查某条记录是否已被 AI 清洗过
+        
+        用于爬虫去重: 如果某条 URL 已被 AI 分析判定为非网络相关并删除,
+        则不应再次爬取。
+        
+        Args:
+            source_url: 源链接
+            issue_type: 问题类型（默认 'not_network_related'）
+            
+        Returns:
+            如果已被清洗返回 True，否则返回 False
+        """
+        return self._quality.check_cleaned_by_ai(source_url, issue_type)
+        
+    def get_cleaned_urls(
+        self,
+        issue_type: str = 'not_network_related',
+        vendor: Optional[str] = None
+    ) -> List[str]:
+        """
+        获取所有被 AI 清洗过的 source_url 列表
+        
+        用于批量查询优化，避免逐条检查。
+        
+        Args:
+            issue_type: 问题类型
+            vendor: 厂商过滤
+                
+        Returns:
+            被清洗的 source_url 列表
+        """
+        return self._quality.get_cleaned_urls(issue_type, vendor)
     
     # ==================== 兼容性方法 ====================
     

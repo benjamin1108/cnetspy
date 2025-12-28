@@ -236,3 +236,183 @@ class TestQualityIssueTracking:
         
         for issue in deleted:
             assert issue["auto_action"] == "deleted"
+
+
+class TestAICleanedCheck:
+    """测试AI清洗检查功能 - 用于爬虫去重"""
+    
+    def test_check_cleaned_by_ai_returns_true_for_deleted(self, data_layer):
+        """测试已清洗的URL返回True"""
+        source_url = "https://aws.amazon.com/test-cleaned"
+        
+        # 插入一个已清洗的记录
+        data_layer.insert_quality_issue(
+            update_id="test-cleaned-001",
+            issue_type="not_network_related",
+            auto_action="deleted",
+            vendor="aws",
+            title="Test Cleaned Update",
+            source_url=source_url
+        )
+        
+        result = data_layer.check_cleaned_by_ai(source_url)
+        assert result is True
+    
+    def test_check_cleaned_by_ai_returns_false_for_kept(self, data_layer):
+        """测试保留的URL返回False"""
+        source_url = "https://aws.amazon.com/test-kept"
+        
+        # 插入一个保留的记录
+        data_layer.insert_quality_issue(
+            update_id="test-kept-001",
+            issue_type="not_network_related",
+            auto_action="kept",
+            vendor="aws",
+            title="Test Kept Update",
+            source_url=source_url
+        )
+        
+        result = data_layer.check_cleaned_by_ai(source_url)
+        assert result is False
+    
+    def test_check_cleaned_by_ai_returns_false_for_nonexistent(self, data_layer):
+        """测试不存在的URL返回False"""
+        result = data_layer.check_cleaned_by_ai("https://nonexistent.com/test")
+        assert result is False
+    
+    def test_check_cleaned_by_ai_empty_url_returns_false(self, data_layer):
+        """测试空URL返回False"""
+        result = data_layer.check_cleaned_by_ai("")
+        assert result is False
+    
+    def test_check_cleaned_by_ai_with_different_issue_type(self, data_layer):
+        """测试不同问题类型的检查"""
+        source_url = "https://aws.amazon.com/test-empty-sub"
+        
+        # 插入 empty_subcategory 类型，已删除
+        data_layer.insert_quality_issue(
+            update_id="test-empty-001",
+            issue_type="empty_subcategory",
+            auto_action="deleted",
+            vendor="aws",
+            source_url=source_url
+        )
+        
+        # 默认检查 not_network_related 类型，应返回 False
+        result = data_layer.check_cleaned_by_ai(source_url)
+        assert result is False
+        
+        # 指定 empty_subcategory 类型，应返回 True
+        result = data_layer.check_cleaned_by_ai(source_url, issue_type="empty_subcategory")
+        assert result is True
+    
+    def test_check_cleaned_by_ai_only_checks_deleted(self, data_layer):
+        """测试只检查 deleted 状态，不检查 kept 或 fixed"""
+        source_url = "https://aws.amazon.com/test-status"
+        
+        # 插入 kept 状态
+        data_layer.insert_quality_issue(
+            update_id="test-status-001",
+            issue_type="not_network_related",
+            auto_action="kept",
+            vendor="aws",
+            source_url=source_url
+        )
+        
+        result = data_layer.check_cleaned_by_ai(source_url)
+        assert result is False
+    
+    def test_get_cleaned_urls_returns_list(self, data_layer):
+        """测试获取已清洗URL列表"""
+        # 插入多个已清洗的记录
+        urls = [
+            "https://aws.amazon.com/cleaned-1",
+            "https://aws.amazon.com/cleaned-2",
+            "https://aws.amazon.com/cleaned-3"
+        ]
+        
+        for i, url in enumerate(urls):
+            data_layer.insert_quality_issue(
+                update_id=f"cleaned-{i}",
+                issue_type="not_network_related",
+                auto_action="deleted",
+                vendor="aws",
+                source_url=url
+            )
+        
+        # 插入一个保留的记录
+        data_layer.insert_quality_issue(
+            update_id="kept-1",
+            issue_type="not_network_related",
+            auto_action="kept",
+            vendor="aws",
+            source_url="https://aws.amazon.com/kept-1"
+        )
+        
+        cleaned_urls = data_layer.get_cleaned_urls()
+        
+        assert len(cleaned_urls) == 3
+        for url in urls:
+            assert url in cleaned_urls
+        assert "https://aws.amazon.com/kept-1" not in cleaned_urls
+    
+    def test_get_cleaned_urls_with_vendor_filter(self, data_layer):
+        """测试按厂商过滤已清洗URL"""
+        # AWS URL
+        data_layer.insert_quality_issue(
+            update_id="aws-cleaned-1",
+            issue_type="not_network_related",
+            auto_action="deleted",
+            vendor="aws",
+            source_url="https://aws.amazon.com/cleaned"
+        )
+        
+        # Azure URL
+        data_layer.insert_quality_issue(
+            update_id="azure-cleaned-1",
+            issue_type="not_network_related",
+            auto_action="deleted",
+            vendor="azure",
+            source_url="https://azure.microsoft.com/cleaned"
+        )
+        
+        # 按 AWS 过滤
+        aws_cleaned = data_layer.get_cleaned_urls(vendor="aws")
+        assert len(aws_cleaned) == 1
+        assert "https://aws.amazon.com/cleaned" in aws_cleaned
+        
+        # 按 Azure 过滤
+        azure_cleaned = data_layer.get_cleaned_urls(vendor="azure")
+        assert len(azure_cleaned) == 1
+        assert "https://azure.microsoft.com/cleaned" in azure_cleaned
+    
+    def test_get_cleaned_urls_empty_list(self, data_layer):
+        """测试无已清洗记录时返回空列表"""
+        cleaned_urls = data_layer.get_cleaned_urls()
+        assert cleaned_urls == []
+    
+    def test_check_cleaned_multiple_records_same_url(self, data_layer):
+        """测试同URL多条记录的情况"""
+        source_url = "https://aws.amazon.com/multi-record"
+        
+        # 第一次记录: kept
+        data_layer.insert_quality_issue(
+            update_id="multi-1",
+            issue_type="not_network_related",
+            auto_action="kept",
+            vendor="aws",
+            source_url=source_url
+        )
+        
+        # 第二次记录: deleted
+        data_layer.insert_quality_issue(
+            update_id="multi-2",
+            issue_type="not_network_related",
+            auto_action="deleted",
+            vendor="aws",
+            source_url=source_url
+        )
+        
+        # 应该返回 True，因为存在 deleted 记录
+        result = data_layer.check_cleaned_by_ai(source_url)
+        assert result is True
