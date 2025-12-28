@@ -94,14 +94,19 @@ def run_crawler(args: argparse.Namespace) -> int:
             return 1
         config['sources'] = {args.vendor: sources[args.vendor]}
         
-        # 过滤数据源
+        # 过滤数据源（支持模糊匹配）
         if args.source:
             vendor_sources = config['sources'][args.vendor]
-            if args.source not in vendor_sources:
+            source_pattern = args.source.lower()
+            matching_sources = {
+                name: cfg for name, cfg in vendor_sources.items()
+                if source_pattern in name.lower()
+            }
+            if not matching_sources:
                 logger.error(f"未找到数据源配置: {args.vendor}/{args.source}")
                 return 1
-            config['sources'][args.vendor] = {args.source: vendor_sources[args.source]}
-            logger.info(f"爬取目标: {args.vendor}/{args.source}")
+            config['sources'][args.vendor] = matching_sources
+            logger.info(f"爬取目标: {args.vendor} 的 {args.source} 数据源 (共 {len(matching_sources)} 个)")
         else:
             logger.info(f"爬取目标: {args.vendor} (全部数据源)")
     elif args.source:
