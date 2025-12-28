@@ -30,6 +30,8 @@ class AnalysisExecutor:
     
     # 删除报告收集器（类级别，用于批量分析后统一输出）
     deleted_records = []
+    # subcategory 为空的记录（不删除，仅报告）
+    empty_subcategory_records = []
     
     def __init__(self, analyzer, data_layer, config: Dict[str, Any]):
         """
@@ -51,8 +53,9 @@ class AnalysisExecutor:
         self.enable_file_save = config.get('enable_file_save', True)
         self.output_base_dir = config.get('output_base_dir', 'data/analyzed')
         
-        # 每次初始化时清空删除报告
+        # 每次初始化时清空报告
         AnalysisExecutor.deleted_records = []
+        AnalysisExecutor.empty_subcategory_records = []
     
     def execute_analysis(
         self, 
@@ -88,8 +91,13 @@ class AnalysisExecutor:
             # 1.5 检查是否与网络相关，不相关则删除
             is_network_related = result.get('is_network_related', True)
             if not is_network_related:
-                self._handle_non_network_content(update_id, update_data)
+                self._handle_non_network_content(update_id, update_data, reason='not_network_related')
                 return {'deleted': True, 'reason': 'not_network_related'}
+            
+            # 1.6 记录 product_subcategory 为空的情况（不删除，仅报告）
+            product_subcategory = result.get('product_subcategory', '')
+            if not product_subcategory:
+                self._record_empty_subcategory(update_id, update_data)
             
             # 2. 保存到文件（如果启用）
             should_save_file = save_to_file if save_to_file is not None else self.enable_file_save
@@ -171,13 +179,14 @@ class AnalysisExecutor:
             self.logger.error(f"保存分析文件失败: {e}")
             return None
     
-    def _handle_non_network_content(self, update_id: str, update_data: Dict[str, Any]) -> None:
+    def _handle_non_network_content(self, update_id: str, update_data: Dict[str, Any], reason: str = 'not_network_related') -> None:
         """
         处理非网络相关内容：删除记录并记录到报告
         
         Args:
             update_id: 记录ID
             update_data: 更新数据
+            reason: 删除原因 (not_network_related / empty_subcategory)
         """
         title = update_data.get('title', '')
         source_url = update_data.get('source_url', '')
@@ -201,10 +210,31 @@ class AnalysisExecutor:
         AnalysisExecutor.deleted_records.append({
             'update_id': update_id,
             'title': title,
+            'source_url': source_url,
+            'reason': reason
+        })
+        
+        reason_text = '非网络内容' if reason == 'not_network_related' else 'subcategory为空'
+        self.logger.info(f"删除[{reason_text}]: {title[:50]}...")
+    
+    def _record_empty_subcategory(self, update_id: str, update_data: Dict[str, Any]) -> None:
+        """
+        记录 subcategory 为空的情况（不删除，仅报告）
+        
+        Args:
+            update_id: 记录ID
+            update_data: 更新数据
+        """
+        title = update_data.get('title', '')
+        source_url = update_data.get('source_url', '')
+        
+        AnalysisExecutor.empty_subcategory_records.append({
+            'update_id': update_id,
+            'title': title,
             'source_url': source_url
         })
         
-        self.logger.info(f"删除非网络内容: {title[:50]}...")
+        self.logger.warning(f"subcategory为空: {title[:50]}...")
     
     @classmethod
     def print_deletion_report(cls) -> None:
@@ -213,17 +243,30 @@ class AnalysisExecutor:
         """
         if not cls.deleted_records:
             logger.info("本次分析无删除记录")
-            return
+        else:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"删除报告: 共删除 {len(cls.deleted_records)} 条非网络内容")
+            logger.info(f"{'='*60}")
+            
+            for idx, record in enumerate(cls.deleted_records, 1):
+                logger.info(f"{idx}. {record['title']}")
+                logger.info(f"   链接: {record['source_url']}")
+            
+            logger.info(f"{'='*60}")
         
-        logger.info(f"\n{'='*60}")
-        logger.info(f"删除报告: 共删除 {len(cls.deleted_records)} 条非网络相关内容")
-        logger.info(f"{'='*60}")
-        
-        for idx, record in enumerate(cls.deleted_records, 1):
-            logger.info(f"{idx}. {record['title']}")
-            logger.info(f"   链接: {record['source_url']}")
-        
-        logger.info(f"{'='*60}\n")
+        # 输出 subcategory 为空的报告
+        if cls.empty_subcategory_records:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"subcategory为空报告: {len(cls.empty_subcategory_records)} 条记录需手动处理")
+            logger.info(f"可使用 ./run.sh check --clean-empty 清理")
+            logger.info(f"{'='*60}")
+            
+            for idx, record in enumerate(cls.empty_subcategory_records, 1):
+                logger.info(f"{idx}. {record['title']}")
+                logger.info(f"   ID: {record['update_id']}")
+                logger.info(f"   链接: {record['source_url']}")
+            
+            logger.info(f"{'='*60}\n")
     
     @classmethod
     def get_deletion_report(cls) -> list:
@@ -238,6 +281,7 @@ class AnalysisExecutor:
     @classmethod
     def clear_deletion_report(cls) -> None:
         """
-        清空删除报告
+        清空报告
         """
         cls.deleted_records = []
+        cls.empty_subcategory_records = []

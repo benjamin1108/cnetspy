@@ -192,4 +192,10 @@ class UpdateAnalyzer(BaseAnalyzer):
         # 转换为 JSON 字符串存储
         validated['tags'] = json.dumps(tags, ensure_ascii=False)
         
+        # 6. 验证 is_network_related
+        is_network_related = result.get('is_network_related', True)
+        if isinstance(is_network_related, str):
+            is_network_related = is_network_related.lower() in ('true', 'yes', '1')
+        validated['is_network_related'] = bool(is_network_related)
+        
         return validated
