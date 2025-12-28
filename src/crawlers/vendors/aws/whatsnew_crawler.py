@@ -229,9 +229,9 @@ class AwsWhatsnewCrawler(BaseCrawler):
                 "sort_order": "desc",
                 "size": "100",
                 "item.locale": "en_US",
-                # 网络产品过滤：具体产品 tag + 大类 tag（networking/networking-and-content-delivery）
+                # 网络产品过滤：具体产品 tag + 大类 tag（networking-and-content-delivery）
                 # 大类 tag 会带来一些边缘案例，AI 分析时会判断 subcategory 为空，后续通过 check --clean-empty 清理
-                "tags.id": "whats-new-v2#general-products#amazon-vpc|whats-new-v2#general-products#aws-direct-connect|whats-new-v2#general-products#amazon-route-53|whats-new-v2#general-products#elastic-load-balancing|whats-new-v2#general-products#amazon-cloudfront|whats-new-v2#general-products#amazon-api-gateway|whats-new-v2#marketing-marchitecture#networking|whats-new-v2#marketing-marchitecture#networking-and-content-delivery|whats-new-v2#general-products#aws-global-accelerator|whats-new-v2#general-products#aws-transit-gateway|whats-new-v2#general-products#aws-vpn|whats-new-v2#general-products#aws-site-to-site|whats-new-v2#general-products#aws-client-vpn|whats-new-v2#general-products#aws-app-mesh|whats-new-v2#general-products#aws-privatelink|whats-new-v2#general-products#aws-network-firewall|whats-new-v2#general-products#amazon-vpc-lattice"
+                "tags.id": "whats-new-v2#general-products#amazon-vpc|whats-new-v2#general-products#aws-direct-connect|whats-new-v2#general-products#amazon-route-53|whats-new-v2#general-products#elastic-load-balancing|whats-new-v2#general-products#amazon-cloudfront|whats-new-v2#general-products#amazon-api-gateway|whats-new-v2#marketing-marchitecture#networking-and-content-delivery|whats-new-v2#general-products#aws-global-accelerator|whats-new-v2#general-products#aws-transit-gateway|whats-new-v2#general-products#aws-vpn|whats-new-v2#general-products#aws-site-to-site|whats-new-v2#general-products#aws-client-vpn|whats-new-v2#general-products#aws-app-mesh|whats-new-v2#general-products#aws-privatelink|whats-new-v2#general-products#aws-network-firewall|whats-new-v2#general-products#amazon-vpc-lattice"
             }
             
             page = 0
