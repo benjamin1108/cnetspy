@@ -207,18 +207,30 @@ class DataChecker:
         
         has_issue = False
         for field in REQUIRED_FIELDS:
+            # 查询空值记录的具体信息
             cursor.execute(f"""
-                SELECT vendor, COUNT(*) as count FROM updates 
+                SELECT update_id, vendor, title, source_url FROM updates 
                 WHERE {field} IS NULL OR {field} = ''
-                GROUP BY vendor
+                LIMIT 10
             """)
-            results = cursor.fetchall()
+            records = cursor.fetchall()
             
-            if results:
+            if records:
                 has_issue = True
-                for vendor, count in results:
+                # 统计总数
+                cursor.execute(f"""
+                    SELECT vendor, COUNT(*) as count FROM updates 
+                    WHERE {field} IS NULL OR {field} = ''
+                    GROUP BY vendor
+                """)
+                for vendor, count in cursor.fetchall():
                     print(f"  ❌ {vendor}: {field} 字段为空 ({count} 条)")
                     self.issues['empty_required'].append(f"{vendor}.{field}: {count}条")
+                
+                # 输出具体记录
+                for update_id, vendor, title, source_url in records:
+                    title_short = (title[:50] + '...') if title and len(title) > 50 else (title or 'N/A')
+                    print(f"     └ {update_id} | {title_short}")
         
         if not has_issue:
             print("  ✓ 所有必填字段完整")
@@ -268,19 +280,34 @@ class DataChecker:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT vendor, source_url FROM updates 
+            SELECT update_id, vendor, title, source_url FROM updates 
             WHERE source_url IS NOT NULL AND source_url != ''
         """)
         
-        invalid_urls = defaultdict(int)
-        for vendor, url in cursor.fetchall():
+        invalid_records = []  # (update_id, vendor, title, url)
+        for update_id, vendor, title, url in cursor.fetchall():
             if not URL_PATTERN.match(str(url)):
-                invalid_urls[vendor] += 1
+                invalid_records.append((update_id, vendor, title, url))
         
-        if invalid_urls:
-            for vendor, count in invalid_urls.items():
+        if invalid_records:
+            # 按厂商统计
+            vendor_counts = defaultdict(int)
+            for _, vendor, _, _ in invalid_records:
+                vendor_counts[vendor] += 1
+            
+            for vendor, count in vendor_counts.items():
                 print(f"  ❌ {vendor}: {count} 条无效URL")
                 self.issues['invalid_url'].append(f"{vendor}: {count}条")
+            
+            # 输出具体记录（最多10条）
+            for update_id, vendor, title, url in invalid_records[:10]:
+                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
+                url_short = (url[:50] + '...') if url and len(url) > 50 else (url or 'N/A')
+                print(f"     └ {update_id} | {title_short}")
+                print(f"       URL: {url_short}")
+            
+            if len(invalid_records) > 10:
+                print(f"     ... 还有 {len(invalid_records) - 10} 条")
         else:
             print("  ✓ 所有URL格式正确")
         print()
@@ -331,13 +358,24 @@ class DataChecker:
         # 检查未来日期
         today = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(f"""
-            SELECT vendor, COUNT(*) FROM updates 
+            SELECT update_id, vendor, title, publish_date FROM updates 
             WHERE publish_date > '{today}'
-            GROUP BY vendor
+            LIMIT 10
         """)
-        for vendor, count in cursor.fetchall():
-            anomalies.append(f"{vendor}: {count}条未来日期")
-            self.issues['anomalies'].append(f"{vendor}: 未来日期{count}条")
+        future_records = cursor.fetchall()
+        if future_records:
+            cursor.execute(f"""
+                SELECT vendor, COUNT(*) FROM updates 
+                WHERE publish_date > '{today}'
+                GROUP BY vendor
+            """)
+            for vendor, count in cursor.fetchall():
+                anomalies.append(f"{vendor}: {count}条未来日期")
+                self.issues['anomalies'].append(f"{vendor}: 未来日期{count}条")
+            # 输出具体记录
+            for update_id, vendor, title, pub_date in future_records:
+                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
+                print(f"     └ {update_id} | {pub_date} | {title_short}")
         
         # 检查过短标题 (少于5个字符) - 仅信息展示，不作为告警
         cursor.execute("""
@@ -352,13 +390,24 @@ class DataChecker:
         
         # 检查空内容
         cursor.execute("""
-            SELECT vendor, COUNT(*) FROM updates 
+            SELECT update_id, vendor, title FROM updates 
             WHERE (content IS NULL OR content = '') AND (description IS NULL OR description = '')
-            GROUP BY vendor
+            LIMIT 10
         """)
-        for vendor, count in cursor.fetchall():
-            if count > 0:
-                anomalies.append(f"{vendor}: {count}条无内容和描述")
+        empty_content_records = cursor.fetchall()
+        if empty_content_records:
+            cursor.execute("""
+                SELECT vendor, COUNT(*) FROM updates 
+                WHERE (content IS NULL OR content = '') AND (description IS NULL OR description = '')
+                GROUP BY vendor
+            """)
+            for vendor, count in cursor.fetchall():
+                if count > 0:
+                    anomalies.append(f"{vendor}: {count}条无内容和描述")
+            # 输出具体记录
+            for update_id, vendor, title in empty_content_records:
+                title_short = (title[:40] + '...') if title and len(title) > 40 else (title or 'N/A')
+                print(f"     └ {update_id} | {title_short}")
         
         # 检查无效的 vendor 值
         cursor.execute(f"""
