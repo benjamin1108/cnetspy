@@ -515,6 +515,60 @@ class StatsRepository(BaseRepository):
             self.logger.error(f"来源类型统计失败: {e}")
             return []
     
+    def get_tags_list(self, vendor: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        获取标签列表统计
+        
+        Args:
+            vendor: 厂商过滤（可选）
+            
+        Returns:
+            标签统计列表，每项包含 value, count
+        """
+        try:
+            import json
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clause = "tags IS NOT NULL AND tags != '' AND tags != '[]'"
+                params = []
+                
+                if vendor:
+                    where_clause += " AND vendor = ?"
+                    params.append(vendor)
+                
+                sql = f"""
+                    SELECT tags FROM updates
+                    WHERE {where_clause}
+                """
+                
+                cursor.execute(sql, params)
+                
+                # 统计所有标签的出现次数
+                tag_counts = {}
+                for row in cursor.fetchall():
+                    try:
+                        tags = json.loads(row['tags']) if isinstance(row['tags'], str) else row['tags']
+                        if isinstance(tags, list):
+                            for tag in tags:
+                                if tag and isinstance(tag, str):
+                                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                
+                # 转换为结果列表并按数量排序
+                results = [
+                    {'value': tag, 'count': count}
+                    for tag, count in tag_counts.items()
+                ]
+                results.sort(key=lambda x: x['count'], reverse=True)
+                
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"标签统计失败: {e}")
+            return []
+    
     def get_product_subcategory_statistics(
         self,
         vendor: Optional[str] = None,

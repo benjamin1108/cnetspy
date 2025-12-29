@@ -69,7 +69,7 @@ export interface UpdateQueryParams {
   date_to?: string;
   has_analysis?: boolean;
   keyword?: string;
-  tags?: string;
+  tag?: string;  // 单个标签筛选
   sort_by?: string;
   order?: 'asc' | 'desc';
   page?: number;

@@ -68,7 +68,10 @@ apiClient.interceptors.response.use(
 export const updatesApi = {
   // 获取更新列表
   async getUpdates(params: UpdateQueryParams = {}): Promise<ApiResponse<PaginatedResponse<UpdateBrief>>> {
-    const response = await apiClient.get('/updates', { params });
+    // 将前端的 tag 映射到后端的 tags 参数
+    const { tag, ...rest } = params;
+    const apiParams = { ...rest, tags: tag };
+    const response = await apiClient.get('/updates', { params: apiParams });
     return response.data;
   },
 
@@ -181,6 +184,12 @@ export const vendorsApi = {
   // 获取产品子类枚举
   async getProductSubcategories(vendor?: string): Promise<ApiResponse<{ value: string; count: number }[]>> {
     const response = await apiClient.get('/product-subcategories', { params: { vendor } });
+    return response.data;
+  },
+
+  // 获取标签列表
+  async getTags(vendor?: string): Promise<ApiResponse<{ value: string; count: number }[]>> {
+    const response = await apiClient.get('/tags', { params: { vendor } });
     return response.data;
   },
 };

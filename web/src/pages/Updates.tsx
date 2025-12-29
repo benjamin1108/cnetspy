@@ -4,7 +4,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useInfiniteUpdates, useVendors, useUpdateTypes, useProductSubcategories, useAvailableYears } from '@/hooks';
+import { useInfiniteUpdates, useVendors, useUpdateTypes, useProductSubcategories, useAvailableYears, useTags } from '@/hooks';
 import {
   Card,
   CardContent,
@@ -34,6 +34,7 @@ export function UpdatesPage() {
     update_type: searchParams.get('update_type') || undefined,
     product_category: searchParams.get('product_category') || undefined,
     product_subcategory: searchParams.get('product_subcategory') || undefined,
+    tag: searchParams.get('tag') || undefined,
     date_from: searchParams.get('date_from') || undefined,
     date_to: searchParams.get('date_to') || undefined,
     has_analysis: searchParams.get('has_analysis') === 'true' 
@@ -88,6 +89,10 @@ export function UpdatesPage() {
   const { data: yearsData } = useAvailableYears();
   const availableYears = yearsData?.data || [];
 
+  // 获取标签列表
+  const { data: tagsData } = useTags(queryParams.vendor);
+  const tags = tagsData?.data || [];
+
   // 更新查询参数
   const updateParams = useCallback((updates: Partial<UpdateQueryParams>) => {
     const newParams = new URLSearchParams(searchParams);
@@ -133,6 +138,7 @@ export function UpdatesPage() {
       queryParams.source_channel ||
       queryParams.update_type ||
       queryParams.product_subcategory ||
+      queryParams.tag ||
       queryParams.date_from ||
       queryParams.date_to ||
       queryParams.has_analysis !== undefined ||
@@ -187,22 +193,22 @@ export function UpdatesPage() {
   );
 
   // 生成筛选标签列表
-  const filterTags = useMemo(() => {
-    const tags: { key: string; label: React.ReactNode; onRemove: () => void }[] = [];
+  const filterTagsList = useMemo(() => {
+    const filterTagsList: { key: string; label: React.ReactNode; onRemove: () => void }[] = [];
     
     // 厂商
     if (queryParams.vendor) {
-      tags.push({
+      filterTagsList.push({
         key: 'vendor',
         label: VENDOR_DISPLAY_NAMES[queryParams.vendor] || queryParams.vendor,
-        onRemove: () => updateParams({ vendor: undefined, product_subcategory: undefined, update_type: undefined }),
+        onRemove: () => updateParams({ vendor: undefined, product_subcategory: undefined, update_type: undefined, tag: undefined }),
       });
     }
     
     // 来源类型 - 对用户只暴露 "公告" 和 "博客"，不区分底层的具体 blog 类型
     if (queryParams.source_channel) {
       const channelLabel = queryParams.source_channel === 'whatsnew' ? '公告' : '博客';
-      tags.push({
+      filterTagsList.push({
         key: 'channel',
         label: channelLabel,
         onRemove: () => updateParams({ source_channel: undefined }),
@@ -211,7 +217,7 @@ export function UpdatesPage() {
     
     // 更新类型
     if (queryParams.update_type) {
-      tags.push({
+      filterTagsList.push({
         key: 'type',
         label: UPDATE_TYPE_LABELS[queryParams.update_type] || queryParams.update_type,
         onRemove: () => updateParams({ update_type: undefined }),
@@ -220,22 +226,31 @@ export function UpdatesPage() {
     
     // 产品子类
     if (queryParams.product_subcategory) {
-      tags.push({
+      filterTagsList.push({
         key: 'subcategory',
         label: queryParams.product_subcategory,
         onRemove: () => updateParams({ product_subcategory: undefined }),
       });
     }
     
+    // 标签
+    if (queryParams.tag) {
+      filterTagsList.push({
+        key: 'tag',
+        label: <>标签「{queryParams.tag}」</>,
+        onRemove: () => updateParams({ tag: undefined }),
+      });
+    }
+    
     // 分析状态
     if (queryParams.has_analysis === true) {
-      tags.push({
+      filterTagsList.push({
         key: 'analyzed',
         label: '已分析',
         onRemove: () => updateParams({ has_analysis: undefined }),
       });
     } else if (queryParams.has_analysis === false) {
-      tags.push({
+      filterTagsList.push({
         key: 'not-analyzed',
         label: '未分析',
         onRemove: () => updateParams({ has_analysis: undefined }),
@@ -252,7 +267,7 @@ export function UpdatesPage() {
       } else {
         dateText = `至 ${queryParams.date_to}`;
       }
-      tags.push({
+      filterTagsList.push({
         key: 'date',
         label: dateText,
         onRemove: () => updateParams({ date_from: undefined, date_to: undefined }),
@@ -261,7 +276,7 @@ export function UpdatesPage() {
     
     // 关键词
     if (queryParams.keyword) {
-      tags.push({
+      filterTagsList.push({
         key: 'keyword',
         label: <>关键词「{queryParams.keyword}」</>,
         onRemove: () => {
@@ -271,7 +286,7 @@ export function UpdatesPage() {
       });
     }
     
-    return tags;
+    return filterTagsList;
   }, [queryParams, updateParams]);
 
   return (
@@ -280,17 +295,17 @@ export function UpdatesPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">更新列表</h1>
         <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-1.5">
-          {filterTags.length === 0 ? (
+          {filterTagsList.length === 0 ? (
             <span>浏览所有云厂商的产品更新</span>
           ) : (
             <>
               <span className="text-muted-foreground/70 mr-1">筛选：</span>
-              {filterTags.map((tag) => (
-                <FilterTag key={tag.key} onRemove={tag.onRemove}>
-                  {tag.label}
+              {filterTagsList.map((filterTag) => (
+                <FilterTag key={filterTag.key} onRemove={filterTag.onRemove}>
+                  {filterTag.label}
                 </FilterTag>
               ))}
-              {filterTags.length > 1 && (
+              {filterTagsList.length > 1 && (
                 <button
                   onClick={clearFilters}
                   className="text-xs text-muted-foreground/70 hover:text-destructive ml-1 transition-colors"
@@ -433,6 +448,22 @@ export function UpdatesPage() {
                     {updateTypes.map((item) => (
                       <option key={item.value} value={item.value}>
                         {item.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">标签</label>
+                  <Select
+                    value={queryParams.tag || ''}
+                    onChange={(e) => updateParams({ tag: e.target.value || undefined })}
+                    className="w-full"
+                  >
+                    <option value="">全部标签</option>
+                    {tags.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.value} ({item.count})
                       </option>
                     ))}
                   </Select>
@@ -618,12 +649,16 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
           {update.tags && update.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
               {update.tags.map((tag, idx) => (
-                <span
+                <button
                   key={idx}
-                  className="px-1.5 py-0.5 rounded text-xs tag-badge"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onFilter({ tag });
+                  }}
+                  className="px-1.5 py-0.5 rounded text-xs tag-badge hover:ring-2 hover:ring-offset-1 hover:ring-primary/30 cursor-pointer transition-all"
                 >
                   {tag}
-                </span>
+                </button>
               ))}
             </div>
           )}

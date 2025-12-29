@@ -235,6 +235,17 @@ export function useProductSubcategories(vendor?: string) {
 }
 
 /**
+ * 标签列表 Hook
+ */
+export function useTags(vendor?: string) {
+  return useQuery({
+    queryKey: ['tags', vendor] as const,
+    queryFn: () => vendorsApi.getTags(vendor),
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+}
+
+/**
  * 单条分析 Mutation
  */
 export function useAnalyzeSingle() {

@@ -118,6 +118,25 @@ async def list_update_types(
     return ApiResponse(success=True, data=result)
 
 
+@router.get("/tags", response_model=ApiResponse[List[dict]])
+async def list_tags(
+    vendor: Optional[str] = Query(None, description="厂商过滤"),
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    标签列表
+    
+    返回所有标签及其统计：
+    - value: 标签名称
+    - count: 使用该标签的更新数量
+    
+    支持按厂商过滤
+    """
+    tags = db.get_tags_list(vendor=vendor)
+    
+    return ApiResponse(success=True, data=tags)
+
+
 @router.get("/product-subcategories", response_model=ApiResponse[List[dict]])
 async def list_product_subcategories(
     vendor: str = Query(None, description="厂商过滤"),

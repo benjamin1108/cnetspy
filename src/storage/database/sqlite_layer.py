@@ -234,6 +234,10 @@ class UpdateDataLayer:
         """获取来源类型统计"""
         return self._stats.get_source_channel_statistics()
     
+    def get_tags_list(self, vendor: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取标签列表统计"""
+        return self._stats.get_tags_list(vendor=vendor)
+    
     def get_product_subcategory_statistics(
         self,
         vendor: Optional[str] = None,
