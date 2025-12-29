@@ -385,8 +385,8 @@ start_mcp_background() {
         echo $! > "$MCP_PID_FILE"
         echo -e "MCP Server 已后台启动 (PID: $!) ${GREEN}[热重载]${NC}"
     else
-        # 生产模式：多进程
-        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 127.0.0.1 --port 8089 --workers 2 > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
+        # 生产模式：MCP 必须单进程运行（全局工具注册表无法跨进程共享）
+        nohup "$PYTHON" -m uvicorn src.mcp.server:app --host 127.0.0.1 --port 8089 > "$SCRIPT_DIR/logs/mcp.log" 2>&1 &
         echo $! > "$MCP_PID_FILE"
         echo -e "MCP Server 已后台启动 (PID: $!)"
     fi

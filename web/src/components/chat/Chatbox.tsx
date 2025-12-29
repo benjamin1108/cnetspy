@@ -138,31 +138,43 @@ function ToolResultCard({ result }: { result: ToolResult }) {
   );
 }
 
-// 连接状态指示器
+// 连接状态指示器（只显示状态，自动连接）
 function ConnectionStatus() {
-  const { state, connectMcp, disconnectMcp } = useChat();
+  const { state } = useChat();
   const { mcpStatus, availableTools } = state;
 
-  const statusConfig = {
+  const statusConfig: Record<
+    string,
+    {
+      icon: typeof Plug;
+      text: string;
+      className: string;
+      spin?: boolean;
+      pulse?: boolean;
+    }
+  > = {
     disconnected: {
       icon: Plug,
-      text: '未连接',
+      text: '连接中...',
       className: 'text-muted-foreground',
+      pulse: true,
     },
     connecting: {
       icon: Loader2,
       text: '连接中...',
-      className: 'text-warning animate-spin',
+      className: 'text-warning',
+      spin: true,
     },
     connected: {
       icon: PlugZap,
-      text: `已连接 (${availableTools.length} 工具)`,
+      text: `${availableTools.length} 个工具就绪`,
       className: 'text-success',
     },
     error: {
       icon: AlertCircle,
-      text: '连接失败',
-      className: 'text-destructive',
+      text: '重连中...',
+      className: 'text-warning',
+      pulse: true,
     },
   };
 
@@ -170,18 +182,16 @@ function ConnectionStatus() {
   const Icon = config.icon;
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={mcpStatus === 'connected' ? disconnectMcp : connectMcp}
-        disabled={mcpStatus === 'connecting'}
+    <div className="flex items-center gap-1.5 text-xs">
+      <Icon
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors',
-          'hover:bg-accent disabled:opacity-50'
+          'w-3 h-3',
+          config.className,
+          config.spin && 'animate-spin',
+          config.pulse && 'animate-pulse'
         )}
-      >
-        <Icon className={cn('w-3.5 h-3.5', config.className)} />
-        <span className={config.className}>{config.text}</span>
-      </button>
+      />
+      <span className={config.className}>{config.text}</span>
     </div>
   );
 }
@@ -290,11 +300,6 @@ export function Chatbox() {
               <p className="text-sm text-muted-foreground max-w-[250px]">
                 我可以帮你分析云厂商的产品更新动态，支持复杂的数据查询和对比分析。
               </p>
-              {state.mcpStatus !== 'connected' && (
-                <p className="text-xs text-warning mt-2">
-                  提示：点击上方连接按钮启用高级分析功能
-                </p>
-              )}
             </div>
           ) : (
             state.messages.map((message) => (

@@ -74,7 +74,15 @@ def get_param_description(tool_name: str, param_name: str, default: str = "") ->
 
 
 def register_tool(tool: Tool, handler: Callable):
-    """注册单个工具"""
+    """
+    注册单个工具
+    
+    如果工具已存在（按名称判断），则跳过注册避免重复
+    """
+    # 检查是否已注册（避免重复）
+    if tool.name in _handlers:
+        return
+    
     _tools.append(tool)
     _handlers[tool.name] = handler
 

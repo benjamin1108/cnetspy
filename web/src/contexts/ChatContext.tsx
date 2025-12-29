@@ -191,6 +191,13 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
     mcpClientRef.current = null;
   }, []);
 
+  // 自动连接 MCP（组件挂载时自动连接，断线自动重连）
+  useEffect(() => {
+    if (config.mcpServers.length > 0 && state.mcpStatus === 'disconnected') {
+      connectMcp();
+    }
+  }, [config.mcpServers, state.mcpStatus, connectMcp]);
+
   // 调用工具
   const callTool = useCallback(async (toolCall: ToolCall): Promise<ToolResult> => {
     if (!mcpClientRef.current?.isConnected()) {
