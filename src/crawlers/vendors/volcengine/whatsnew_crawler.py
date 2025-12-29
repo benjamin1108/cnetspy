@@ -11,6 +11,8 @@ import re
 import sys
 import time
 import datetime
+import random
+import concurrent.futures
 from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
 
@@ -77,7 +79,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
     def _crawl(self) -> List[str]:
         """
         爬取火山引擎网络服务产品动态
-        使用Playwright进行动态渲染
+        使用Playwright进行动态渲染，并发处理多个子源
         
         Returns:
             保存的文件路径列表
@@ -92,39 +94,44 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         # 检查是否启用强制模式
         force_mode = self.crawler_config.get('force', False)
         
+        # 并发配置（内存受限时降低并发数）
+        max_concurrent = 2  # 最大并发数（火山引擎页面较重，不宜过高）
+        task_interval_min = 0.3
+        task_interval_max = 0.8
+        
         try:
-            from playwright.sync_api import sync_playwright
+            # 使用线程池并发处理
+            # 注：Playwright sync_api 不支持多线程共享 browser
+            # 每个线程需要创建独立的 playwright 实例
+            max_workers = min(len(self.sub_sources), max_concurrent)
             
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=['--no-sandbox', '--disable-dev-shm-usage']
-                )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_source = {}
                 
-                try:
-                    # 串行处理每个子源
-                    for idx, (source_name, source_config) in enumerate(self.sub_sources.items()):
-                        logger.info(f"处理任务: {source_name} ({idx + 1}/{len(self.sub_sources)})")
-                        
-                        try:
-                            source_updates = self._crawl_single_source(
-                                browser,
-                                source_name, 
-                                source_config, 
-                                force_mode
-                            )
-                            all_updates.extend(source_updates)
-                            logger.info(f"完成 {source_name}: {len(source_updates)} 条更新")
-                            
-                            # 间隔避免请求过快
-                            if idx < len(self.sub_sources) - 1:
-                                time.sleep(1)
-                                
-                        except Exception as e:
-                            logger.error(f"爬取 {source_name} 失败: {e}")
+                # 慢启动提交任务
+                for idx, (source_name, source_config) in enumerate(self.sub_sources.items()):
+                    if idx > 0:
+                        delay = random.uniform(task_interval_min, task_interval_max)
+                        time.sleep(delay)
                     
-                finally:
-                    browser.close()
+                    future = executor.submit(
+                        self._crawl_single_source_with_own_browser,  # 使用独立 browser 的方法
+                        source_name,
+                        source_config,
+                        force_mode
+                    )
+                    future_to_source[future] = source_name
+                    logger.info(f"提交任务: {source_name} ({idx + 1}/{len(self.sub_sources)})")
+                
+                # 收集所有更新
+                for future in concurrent.futures.as_completed(future_to_source):
+                    source_name = future_to_source[future]
+                    try:
+                        source_updates = future.result(timeout=120)
+                        all_updates.extend(source_updates)
+                        logger.info(f"✓ {source_name} 完成")
+                    except Exception as e:
+                        logger.error(f"爬取 {source_name} 失败: {e}")
             
             logger.info(f"总共收集到 {len(all_updates)} 条火山引擎网络更新")
             
@@ -143,6 +150,35 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         except Exception as e:
             logger.error(f"爬取火山引擎更新时发生错误: {e}")
             return saved_files
+    
+    def _crawl_single_source_with_own_browser(
+        self,
+        source_name: str,
+        source_config: Dict[str, Any],
+        force_mode: bool
+    ) -> List[Dict[str, Any]]:
+        """
+        在独立的 Playwright 实例中爬取单个源
+        
+        Playwright sync_api 不支持多线程共享 browser，
+        每个线程必须创建自己的 playwright 和 browser 实例
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+            
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-dev-shm-usage']
+                )
+                try:
+                    return self._crawl_single_source(browser, source_name, source_config, force_mode)
+                finally:
+                    browser.close()
+                    
+        except Exception as e:
+            logger.error(f"创建 Playwright 实例失败 [{source_name}]: {e}")
+            return []
     
     def _crawl_single_source(
         self,
@@ -188,14 +224,14 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             # 解析更新条目
             updates = self._parse_updates(html, product_name, url)
             
-            # 设置发现总数
+            # 线程安全地累加发现数
             self.set_total_discovered(len(updates))
             
             # 过滤已存在的更新（除非强制模式）
             if not force_mode:
                 updates = [u for u in updates if not self.should_skip_update(update=u)[0]]
             
-            logger.info(f"{source_name} 解析到 {len(updates)} 条新更新")
+            logger.info(f"{source_name} 新增 {len(updates)} 条")
             return updates
             
         except Exception as e:
@@ -251,14 +287,18 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
                 # 导航到页面
                 page.goto(url, wait_until='domcontentloaded')
                 
-                # 等待关键元素
+                # 专门等待 table 加载（增加等待时间应对内存紧张）
                 try:
-                    page.wait_for_selector('.ace-line, .volc-doceditor-container, article, table', timeout=10000)
+                    page.wait_for_selector('table', timeout=15000)
                 except:
-                    pass
+                    # table 未加载，尝试等待其他关键元素
+                    try:
+                        page.wait_for_selector('.ace-line, .volc-doceditor-container, article', timeout=3000)
+                    except:
+                        pass
                 
                 # 额外等待确保内容加载
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(300)
                 
                 html = page.content()
                 logger.info(f"Playwright获取页面成功: {url}")
@@ -333,7 +373,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
                 table_updates = self._parse_table(table, product_name, url, date_text)
                 updates.extend(table_updates)
             
-            logger.info(f"{product_name} 解析到 {len(updates)} 条更新")
+            logger.info(f"{product_name} 发现 {len(updates)} 条记录")
             return updates
             
         except Exception as e:

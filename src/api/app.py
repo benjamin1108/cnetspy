@@ -18,18 +18,28 @@ from .routes.stats import router as stats_router
 from .routes.vendors import router as vendors_router
 from .routes.chat import router as chat_router
 
+# 调度器（可选）
+_scheduler = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    global _scheduler
+    
     # Startup
     logger = logging.getLogger("uvicorn")
     logger.info(f"🚀 {settings.app_name} v{settings.version} 启动成功")
     logger.info(f"📖 API文档: http://{settings.host}:{settings.port}/docs")
     
+    # 启动调度器
+    _scheduler = _start_scheduler(logger)
+    
     yield
     
     # Shutdown
+    if _scheduler:
+        _scheduler.stop()
     logger.info(f"👋 {settings.app_name} 已关闭")
 
 
@@ -60,3 +70,27 @@ app.include_router(chat_router)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+def _start_scheduler(logger):
+    """启动调度器（如果配置启用）"""
+    try:
+        from src.utils.config import get_config
+        from src.scheduler import Scheduler
+        
+        config = get_config()
+        scheduler_config = config.get('scheduler', {})
+        
+        if not scheduler_config.get('enabled', False):
+            logger.info("📅 调度器未启用")
+            return None
+        
+        scheduler = Scheduler(scheduler_config)
+        if scheduler.start():
+            logger.info("📅 调度器已启动")
+            return scheduler
+        
+    except Exception as e:
+        logger.warning(f"调度器启动失败: {e}")
+    
+    return None

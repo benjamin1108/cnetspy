@@ -119,7 +119,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
                     try:
                         source_updates = future.result(timeout=120)
                         all_updates.extend(source_updates)
-                        logger.info(f"完成 {source_name}: {len(source_updates)} 条更新")
+                        logger.info(f"✓ {source_name} 完成")
                     except Exception as e:
                         logger.error(f"爬取 {source_name} 失败: {e}")
             
@@ -185,7 +185,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             if not force_mode:
                 updates = [u for u in updates if not self.should_skip_update(update=u)[0]]
             
-            logger.info(f"{source_name} 解析到 {len(updates)} 条新更新")
+            logger.info(f"{source_name} 新增 {len(updates)} 条")
             return updates
             
         except Exception as e:
@@ -282,7 +282,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
                 table_updates = self._parse_table(table, product_name, url, year)
                 updates.extend(table_updates)
             
-            logger.info(f"{product_name} 解析到 {len(updates)} 条更新")
+            logger.info(f"{product_name} 发现 {len(updates)} 条记录")
             return updates
             
         except Exception as e:

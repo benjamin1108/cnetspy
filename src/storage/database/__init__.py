@@ -15,6 +15,7 @@ from src.storage.database.analysis_repository import AnalysisRepository
 from src.storage.database.tasks_repository import TasksRepository
 from src.storage.database.stats_repository import StatsRepository
 from src.storage.database.quality_repository import QualityRepository
+from src.storage.database.task_report_repository import TaskReport, TaskReportRepository
 
 __all__ = [
     # 主入口
@@ -28,4 +29,7 @@ __all__ = [
     'TasksRepository',
     'StatsRepository',
     'QualityRepository',
+    # 任务报告
+    'TaskReport',
+    'TaskReportRepository',
 ]

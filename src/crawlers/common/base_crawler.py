@@ -7,6 +7,7 @@ import time
 import re
 import hashlib
 import datetime
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CrawlReport:
-    """爬取报告数据结构"""
+    """爬取报告数据结构（线程安全）"""
     vendor: str = ''
     source_type: str = ''
     total_discovered: int = 0         # 总发现数
@@ -41,11 +42,33 @@ class CrawlReport:
     skipped_ai_cleaned: int = 0       # 跳过（AI清洗过）
     failed: int = 0                   # 失败数
     ai_cleaned_urls: List[str] = field(default_factory=list)  # 被AI清洗的URL列表
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    
+    def increment_discovered(self, count: int = 1) -> None:
+        """线程安全地增加发现数"""
+        with self._lock:
+            self.total_discovered += count
+    
+    def increment_skipped_exists(self) -> None:
+        """线程安全地增加跳过数（已存在）"""
+        with self._lock:
+            self.skipped_exists += 1
+    
+    def increment_new_saved(self) -> None:
+        """线程安全地增加新增保存数"""
+        with self._lock:
+            self.new_saved += 1
+    
+    def increment_failed(self) -> None:
+        """线程安全地增加失败数"""
+        with self._lock:
+            self.failed += 1
     
     def add_skipped_ai_cleaned(self, url: str, title: str = '') -> None:
-        """记录被 AI 清洗的 URL"""
-        self.skipped_ai_cleaned += 1
-        self.ai_cleaned_urls.append(f"{title[:50]}..." if title else url)
+        """线程安全地记录被 AI 清洗的 URL"""
+        with self._lock:
+            self.skipped_ai_cleaned += 1
+            self.ai_cleaned_urls.append(f"{title[:50]}..." if title else url)
     
     def print_report(self) -> None:
         """打印爬取报告"""
@@ -203,7 +226,7 @@ class BaseCrawler(ABC):
         
         # 1. 检查数据库是否已存在
         if self.data_layer.check_update_exists(source_url, source_identifier or ''):
-            self._crawl_report.skipped_exists += 1
+            self._crawl_report.increment_skipped_exists()
             return True, 'exists'
         
         # 2. 检查是否被AI清洗过
@@ -742,12 +765,12 @@ class BaseCrawler(ABC):
         return self._crawl_report
     
     def set_total_discovered(self, count: int) -> None:
-        """设置发现总数（在子类中调用）"""
-        self._crawl_report.total_discovered = count
+        """线程安全地增加发现总数（在子类中调用）"""
+        self._crawl_report.increment_discovered(count)
     
     def record_failed(self) -> None:
-        """记录失败数（在子类中调用）"""
-        self._crawl_report.failed += 1
+        """线程安全地记录失败数（在子类中调用）"""
+        self._crawl_report.increment_failed()
 
     def run(self) -> List[str]:
         """

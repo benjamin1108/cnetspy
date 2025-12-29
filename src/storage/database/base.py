@@ -226,6 +226,39 @@ class DatabaseManager:
                 ON migration_history(status)
             ''')
             
+            # ==================== task_reports 表（每日任务报告）====================
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS task_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_date DATE NOT NULL,
+                    task_type TEXT NOT NULL,
+                    start_time DATETIME,
+                    end_time DATETIME,
+                    duration_seconds INTEGER,
+                    status TEXT,
+                    crawl_stats TEXT,
+                    crawl_total INTEGER DEFAULT 0,
+                    analyze_pending INTEGER DEFAULT 0,
+                    analyze_success INTEGER DEFAULT 0,
+                    analyze_failed INTEGER DEFAULT 0,
+                    marked_non_network INTEGER DEFAULT 0,
+                    missing_subcategory INTEGER DEFAULT 0,
+                    issue_details TEXT,
+                    report_content TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # task_reports 索引
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_task_reports_date 
+                ON task_reports(task_date)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_task_reports_type 
+                ON task_reports(task_type)
+            ''')
+            
             conn.commit()
             
             # 配置数据库参数

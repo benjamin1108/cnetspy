@@ -97,6 +97,114 @@ class DingTalkRobot:
             return {"errcode": -3, "errmsg": f"请求异常: {e}"}
         except Exception as e:
             return {"errcode": -4, "errmsg": f"未知错误: {e}"}
+    
+    def send_link(self, title: str, text: str, message_url: str, pic_url: str = "", timeout: int = 10) -> Dict[str, Any]:
+        """
+        发送 Link 卡片消息
+        
+        Args:
+            title: 消息标题
+            text: 消息内容
+            message_url: 点击跳转的链接
+            pic_url: 图片 URL（可选）
+            timeout: 请求超时时间
+            
+        Returns:
+            API 响应结果
+        """
+        if not self.webhook_url:
+            return {"errcode": -1, "errmsg": "webhook_url 未配置"}
+        
+        # 构建带签名的 URL
+        url = self.webhook_url
+        sign_params = self._generate_sign()
+        if sign_params:
+            connector = "&" if "?" in url else "?"
+            url = f"{url}{connector}timestamp={sign_params['timestamp']}&sign={sign_params['sign']}"
+        
+        # 构建请求体
+        payload = {
+            "msgtype": "link",
+            "link": {
+                "title": title,
+                "text": text,
+                "messageUrl": message_url,
+                "picUrl": pic_url
+            }
+        }
+        
+        try:
+            response = requests.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload),
+                timeout=timeout
+            )
+            return response.json()
+        except requests.Timeout:
+            return {"errcode": -2, "errmsg": "请求超时"}
+        except requests.RequestException as e:
+            return {"errcode": -3, "errmsg": f"请求异常: {e}"}
+        except Exception as e:
+            return {"errcode": -4, "errmsg": f"未知错误: {e}"}
+    
+    def send_action_card(
+        self, 
+        title: str, 
+        text: str, 
+        single_title: str = "查看详情", 
+        single_url: str = "",
+        timeout: int = 10
+    ) -> Dict[str, Any]:
+        """
+        发送 ActionCard 卡片消息（支持完整 Markdown + 底部按钮）
+        
+        Args:
+            title: 消息标题
+            text: Markdown 内容（支持完整 Markdown）
+            single_title: 按钮文字
+            single_url: 按钮跳转链接
+            timeout: 请求超时时间
+            
+        Returns:
+            API 响应结果
+        """
+        if not self.webhook_url:
+            return {"errcode": -1, "errmsg": "webhook_url 未配置"}
+        
+        # 构建带签名的 URL
+        url = self.webhook_url
+        sign_params = self._generate_sign()
+        if sign_params:
+            connector = "&" if "?" in url else "?"
+            url = f"{url}{connector}timestamp={sign_params['timestamp']}&sign={sign_params['sign']}"
+        
+        # 构建请求体
+        payload = {
+            "msgtype": "actionCard",
+            "actionCard": {
+                "title": title,
+                "text": text,
+                "singleTitle": single_title,
+                "singleURL": single_url,
+                "btnOrientation": "0"  # 按钮垂直排列
+            }
+        }
+        
+        try:
+            response = requests.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload),
+                timeout=timeout
+            )
+            return response.json()
+        except requests.Timeout:
+            return {"errcode": -2, "errmsg": "请求超时"}
+        except requests.RequestException as e:
+            return {"errcode": -3, "errmsg": f"请求异常: {e}"}
+        except Exception as e:
+            return {"errcode": -4, "errmsg": f"未知错误: {e}"}
 
 
 class DingTalkNotifier(BaseNotifier):

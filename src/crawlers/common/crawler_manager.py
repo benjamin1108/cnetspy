@@ -7,11 +7,22 @@ import os
 import threading
 import queue
 import concurrent.futures
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+from dataclasses import dataclass
 
 from src.utils.threading.process_lock_manager import ProcessLockManager, ProcessType
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class CrawlStats:
+    """爬取统计信息"""
+    discovered: int = 0      # 发现总数
+    new_saved: int = 0       # 新增保存
+    skipped_exists: int = 0  # 跳过（已存在）
+    skipped_ai: int = 0      # 跳过（AI清洗）
+    failed: int = 0          # 失败数
+
 
 class CrawlerManager:
     """爬虫管理器，负责调度各个爬虫"""
@@ -80,7 +91,7 @@ class CrawlerManager:
                 logger.error(f"加载通用爬虫类失败: {e}")
                 return None
     
-    def run_crawler(self, vendor: str, source_type: str, source_config: Dict[str, Any]) -> List[str]:
+    def run_crawler(self, vendor: str, source_type: str, source_config: Dict[str, Any]) -> Tuple[List[str], CrawlStats]:
         """
         运行单个爬虫
         
@@ -90,12 +101,12 @@ class CrawlerManager:
             source_config: 源配置
             
         Returns:
-            爬取结果文件路径列表
+            (爬取结果文件路径列表, 爬取统计信息)
         """
         crawler_class = self._get_crawler_class(vendor, source_type)
         if not crawler_class:
             logger.error(f"未找到合适的爬虫类: {vendor} {source_type}")
-            return []
+            return [], CrawlStats()
         
         # 确保配置中包含正确的测试模式和文章数量限制设置
         config_copy = self.config.copy()
@@ -114,7 +125,19 @@ class CrawlerManager:
         # 创建爬虫实例
         crawler = crawler_class(config_copy, vendor, source_type)
         
-        return crawler.run()
+        files = crawler.run()
+        
+        # 从爬虫报告中提取统计信息
+        report = crawler.crawl_report
+        stats = CrawlStats(
+            discovered=report.total_discovered,
+            new_saved=report.new_saved,
+            skipped_exists=report.skipped_exists,
+            skipped_ai=report.skipped_ai_cleaned,
+            failed=report.failed
+        )
+        
+        return files, stats
     
     def _worker(self, vendor: str, source_type: str, source_config: Dict[str, Any]):
         """
@@ -127,23 +150,26 @@ class CrawlerManager:
         """
         try:
             logger.info(f"线程开始执行爬虫任务: {vendor}/{source_type}")
-            result = self.run_crawler(vendor, source_type, source_config)
+            files, stats = self.run_crawler(vendor, source_type, source_config)
             
             # 线程安全地将结果放入队列
-            self.result_queue.put((vendor, source_type, result))
-            logger.info(f"爬虫任务完成并添加到结果队列: {vendor}/{source_type}, 获取了 {len(result)} 个文件")
+            self.result_queue.put((vendor, source_type, files, stats))
+            logger.info(f"爬虫任务完成: {vendor}/{source_type}, 发现 {stats.discovered}, 新增 {stats.new_saved}")
         except Exception as e:
             logger.error(f"爬虫任务异常: {vendor} {source_type} - {e}")
-            self.result_queue.put((vendor, source_type, []))
+            self.result_queue.put((vendor, source_type, [], CrawlStats()))
     
-    def run_multi_threaded(self) -> Dict[str, Dict[str, List[str]]]:
+    def run_multi_threaded(self) -> Tuple[Dict[str, Dict[str, List[str]]], Dict[str, Dict[str, CrawlStats]]]:
         """
         使用线程池运行所有爬虫（多线程并行执行）
         
         Returns:
-            爬取结果，格式为 {vendor: {source_type: [file_paths]}}
+            (爬取结果, 统计信息)
+            - 爬取结果格式: {vendor: {source_type: [file_paths]}}
+            - 统计信息格式: {vendor: {source_type: CrawlStats}}
         """
         results = {}
+        all_stats = {}
         crawl_tasks = []
         
         # 收集所有爬虫任务
@@ -195,29 +221,34 @@ class CrawlerManager:
         
         # 处理队列中的所有结果
         while not self.result_queue.empty():
-            vendor, source_type, result = self.result_queue.get()
+            vendor, source_type, files, stats = self.result_queue.get()
             
             # 线程安全地更新结果字典
             with self.lock:
                 if vendor not in results:
                     results[vendor] = {}
-                results[vendor][source_type] = result
+                if vendor not in all_stats:
+                    all_stats[vendor] = {}
+                results[vendor][source_type] = files
+                all_stats[vendor][source_type] = stats
         
-        return results
+        return results, all_stats
     
-    def run(self) -> Dict[str, Dict[str, List[str]]]:
+    def run(self) -> Tuple[Dict[str, Dict[str, List[str]]], Dict[str, Dict[str, CrawlStats]]]:
         """
         运行所有爬虫
         
         如果max_workers > 1则使用多线程执行，否则使用单线程顺序执行
         
         Returns:
-            爬取结果，格式为 {vendor: {source_type: [file_paths]}}
+            (爬取结果, 统计信息)
+            - 爬取结果格式: {vendor: {source_type: [file_paths]}}
+            - 统计信息格式: {vendor: {source_type: CrawlStats}}
         """
         # 获取进程锁，确保同一时间只有一个爬虫进程在运行
         if not self.process_lock_manager.acquire_lock():
             logger.error("无法获取爬虫进程锁，可能有其他爬虫进程正在运行或互斥进程正在运行")
-            return {}
+            return {}, {}
         
         self.lock_acquired = True
         logger.info("已获取爬虫进程锁，开始执行爬虫任务")
@@ -231,23 +262,27 @@ class CrawlerManager:
             # 单线程执行模式
             logger.info("使用单线程模式顺序运行爬虫")
             results = {}
+            all_stats = {}
             
             # 遍历所有数据源
             for vendor, vendor_sources in self.sources.items():
                 results[vendor] = {}
+                all_stats[vendor] = {}
                 
                 for source_type, source_config in vendor_sources.items():
                     logger.info(f"开始执行爬虫任务: {vendor}/{source_type}")
                     try:
                         # 直接运行爬虫，不使用线程池
-                        result = self.run_crawler(vendor, source_type, source_config)
-                        results[vendor][source_type] = result
-                        logger.info(f"爬虫任务完成: {vendor}/{source_type}, 获取了 {len(result)} 个文件")
+                        files, stats = self.run_crawler(vendor, source_type, source_config)
+                        results[vendor][source_type] = files
+                        all_stats[vendor][source_type] = stats
+                        logger.info(f"爬虫任务完成: {vendor}/{source_type}, 发现 {stats.discovered}, 新增 {stats.new_saved}")
                     except Exception as e:
                         logger.error(f"爬虫任务异常: {vendor} {source_type} - {e}")
                         results[vendor][source_type] = []
+                        all_stats[vendor][source_type] = CrawlStats()
             
-            return results
+            return results, all_stats
         finally:
             # 释放进程锁
             if self.lock_acquired:

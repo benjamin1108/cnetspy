@@ -48,6 +48,8 @@ show_help() {
     echo -e "  ${GREEN}check${NC}     数据质量检查"
     echo -e "  ${GREEN}test${NC}      运行测试"
     echo -e "  ${GREEN}mcp${NC}       启动 MCP Server (AI 对话分析)"
+        echo -e "  ${GREEN}scheduler${NC} 手动触发定时任务"
+        echo -e "  ${GREEN}report${NC}    生成报告（周报/月报）"
     echo -e "  ${GREEN}deploy${NC}    部署前端到生产目录 (~cnetspy-deploy)"
     echo -e "  ${GREEN}setup${NC}     初始化环境"
     echo -e "  ${GREEN}clean${NC}     清理临时文件"
@@ -122,6 +124,21 @@ show_help() {
     echo -e "  $0 mcp                            # stdio 模式（本地 Claude/Cursor）"
     echo -e "  $0 mcp --sse                      # SSE 模式（远程 HTTP 调用）"
     echo -e "  $0 mcp --sse --port 9000          # 自定义端口"
+        echo ""
+        echo -e "${YELLOW}scheduler 选项:${NC}"
+        echo -e "  --job <名称>        指定任务: daily_crawl_analyze, weekly_report, monthly_report"
+        echo -e "  --list             查看所有任务状态"
+        echo ""
+        echo -e "  $0 scheduler --list               # 查看任务列表"
+        echo -e "  $0 scheduler --job daily_crawl_analyze  # 立即执行每日爬取+分析"
+        echo ""
+        echo -e "${YELLOW}report 选项:${NC}"
+        echo -e "  --weekly           生成周报"
+        echo -e "  --monthly          生成月报"
+        echo -e "  --send             生成后发送通知"
+        echo ""
+        echo -e "  $0 report --weekly                # 生成周报"
+        echo -e "  $0 report --monthly --send        # 生成月报并发送"
 }
 
 # 设置环境
@@ -604,6 +621,161 @@ do_clean() {
     echo -e "${GREEN}清理完成${NC}"
 }
 
+# 定时任务管理
+do_scheduler() {
+    check_venv
+    
+    JOB_NAME=""
+    LIST_JOBS=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --job)
+                JOB_NAME="$2"
+                shift 2
+                ;;
+            --list)
+                LIST_JOBS=true
+                shift
+                ;;
+            -h|--help)
+                echo -e "${YELLOW}scheduler 选项:${NC}"
+                echo -e "  --job <名称>        指定任务: daily_crawl_analyze, weekly_report, monthly_report"
+                echo -e "  --list             查看所有任务状态"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}错误: 未知的 scheduler 选项: $1${NC}"
+                exit 1
+                ;;
+        esac
+    done
+    
+    if [ "$LIST_JOBS" = true ]; then
+        echo -e "${BLUE}查看定时任务状态...${NC}"
+        "$PYTHON" -c "
+from src.utils.config import get_config
+from src.scheduler import SchedulerConfig
+
+config = get_config()
+sch_config = SchedulerConfig.from_dict(config.get('scheduler', {}))
+
+status = '启用' if sch_config.enabled else '禁用'
+print(f'\n调度器状态: {status}')
+print(f'时区: {sch_config.timezone}')
+print('\n任务列表:')
+for name, job in sch_config.jobs.items():
+    job_status = '✅ 启用' if job.enabled else '❌ 禁用'
+    print(f'  - {name}: {job_status}, cron: {job.cron}')
+"
+    elif [ -n "$JOB_NAME" ]; then
+        echo -e "${BLUE}执行任务: $JOB_NAME ...${NC}"
+        "$PYTHON" -c "
+import sys
+import logging
+
+# 配置日志输出
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+
+from src.utils.config import get_config
+from src.scheduler import Scheduler
+
+config = get_config()
+scheduler = Scheduler(config.get('scheduler', {}))
+
+success = scheduler.run_job_now('$JOB_NAME')
+print()
+if success:
+    print('✅ 任务执行成功')
+else:
+    print('❌ 任务执行失败')
+sys.exit(0 if success else 1)
+"
+    else
+        echo -e "${YELLOW}用法: $0 scheduler --list | --job <任务名称>${NC}"
+        exit 1
+    fi
+}
+
+# 报告生成
+do_report() {
+    check_venv
+    
+    REPORT_TYPE=""
+    SEND_NOTIFY=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --weekly)
+                REPORT_TYPE="weekly"
+                shift
+                ;;
+            --monthly)
+                REPORT_TYPE="monthly"
+                shift
+                ;;
+            --send)
+                SEND_NOTIFY=true
+                shift
+                ;;
+            -h|--help)
+                echo -e "${YELLOW}report 选项:${NC}"
+                echo -e "  --weekly           生成周报"
+                echo -e "  --monthly          生成月报"
+                echo -e "  --send             生成后发送通知"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}错误: 未知的 report 选项: $1${NC}"
+                exit 1
+                ;;
+        esac
+    done
+    
+    if [ -z "$REPORT_TYPE" ]; then
+        echo -e "${YELLOW}用法: $0 report --weekly|--monthly [--send]${NC}"
+        exit 1
+    fi
+    
+    SEND_ARG=""
+    if [ "$SEND_NOTIFY" = true ]; then
+        SEND_ARG="--send"
+    fi
+    
+    echo -e "${BLUE}生成${REPORT_TYPE}报告...${NC}"
+    "$PYTHON" -c "
+import sys
+from src.reports import WeeklyReport, MonthlyReport
+from src.utils.config import get_config
+from src.notification import NotificationManager
+
+report_type = '$REPORT_TYPE'
+send_notify = '$SEND_NOTIFY' == 'true'
+
+if report_type == 'weekly':
+    report = WeeklyReport()
+else:
+    report = MonthlyReport()
+
+content = report.generate()
+filepath = report.save()
+print(f'报告已保存: {filepath}')
+
+if send_notify:
+    config = get_config()
+    manager = NotificationManager(config.get('notification', {}))
+    title = f'云网动态{report.report_name}'
+    result = manager.send_all(title, content)
+    for ch, r in result.items():
+        status = '成功' if r.success else '失败'
+        print(f'推送 {ch}: {status}')
+"
+}
+
 # 主入口
 case "${1:-help}" in
     start)
@@ -648,6 +820,14 @@ case "${1:-help}" in
         ;;
     clean)
         do_clean
+        ;;
+    scheduler)
+        shift
+        do_scheduler "$@"
+        ;;
+    report)
+        shift
+        do_report "$@"
         ;;
     help|--help|-h)
         show_help

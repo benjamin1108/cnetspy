@@ -41,6 +41,9 @@ slowapi>=0.1.9
 # MCP Server 依赖
 mcp>=1.0.0
 
+# 定时任务调度
+apscheduler>=3.10.0
+
 # Web服务器相关依赖
 Flask==2.3.3
 gunicorn==23.0.0

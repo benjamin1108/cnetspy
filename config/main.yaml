@@ -6,3 +6,4 @@ imports:
   - logging.yaml        # 日志配置
   - ai_model.yaml       # AI 模型配置
   - notification.yaml   # 通知推送配置
+  - scheduler.yaml      # 定时任务配置

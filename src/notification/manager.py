@@ -79,16 +79,22 @@ class NotificationManager:
                 except Exception as e:
                     self.logger.error(f"初始化通知器 {channel.value} 失败: {e}")
     
-    def get_notifier(self, channel: NotificationChannel) -> Optional[BaseNotifier]:
+    def get_notifier(self, channel: str) -> Optional[BaseNotifier]:
         """
         获取指定渠道的通知器
         
         Args:
-            channel: 通知渠道
+            channel: 通知渠道（字符串或枚举）
             
         Returns:
             对应的通知器实例，不存在则返回 None
         """
+        # 支持字符串和枚举两种方式
+        if isinstance(channel, str):
+            for ch, notifier in self.notifiers.items():
+                if ch.value == channel:
+                    return notifier
+            return None
         return self.notifiers.get(channel)
     
     def get_enabled_channels(self) -> List[NotificationChannel]:
