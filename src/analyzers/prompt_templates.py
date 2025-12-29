@@ -150,8 +150,11 @@ class PromptTemplates:
         else:
             subcategory_enum = "     * (无预定义枚举，请基于内容动态判定，使用小写英文+下划线格式)"
         
-        # 加载 Prompt 模板并填充参数
-        template = PromptTemplates._load_prompt_template('update_analysis')
+        # 根据数据源类型选择对应的 Prompt 模板
+        if PromptTemplates.is_blog_source(source_channel):
+            template = PromptTemplates._load_prompt_template('update_analysis_blog')
+        else:
+            template = PromptTemplates._load_prompt_template('update_analysis_whatsnew')
         
         prompt = template.format(
             vendor=vendor,

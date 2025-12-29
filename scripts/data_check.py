@@ -676,7 +676,7 @@ AI 分析质量校验
         return [r[0] for r in records]  # 返回 update_id 列表
     
     def delete_empty_subcategory(self, update_ids: list, confirmed: bool = False) -> int:
-        """删除指定的记录"""
+        """删除指定的记录，并同步更新 quality_issues 表"""
         if not update_ids:
             print("没有需要删除的记录")
             return 0
@@ -691,8 +691,20 @@ AI 分析质量校验
         conn = self.connect()
         cursor = conn.cursor()
         
-        # 批量删除
         placeholders = ','.join(['?' for _ in update_ids])
+        
+        # 1. 更新 quality_issues 表：标记为已删除，防止重复爬取
+        now = datetime.now().isoformat()
+        cursor.execute(f"""
+            UPDATE quality_issues 
+            SET auto_action = 'deleted',
+                status = 'resolved',
+                resolved_at = ?,
+                resolution = 'manual_deleted'
+            WHERE update_id IN ({placeholders})
+        """, [now] + update_ids)
+        
+        # 2. 删除 updates 表记录
         cursor.execute(f"DELETE FROM updates WHERE update_id IN ({placeholders})", update_ids)
         
         deleted_count = cursor.rowcount

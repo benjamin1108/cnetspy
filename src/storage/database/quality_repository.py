@@ -269,13 +269,24 @@ class QualityRepository(BaseRepository):
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
                     
-                    cursor.execute('''
-                        UPDATE quality_issues
-                        SET status = 'resolved',
-                            resolved_at = ?,
-                            resolution = ?
-                        WHERE id = ?
-                    ''', (datetime.now().isoformat(), resolution, issue_id))
+                    # 如果是 deleted，同步更新 auto_action 以阻止重爬
+                    if resolution == 'deleted':
+                        cursor.execute('''
+                            UPDATE quality_issues
+                            SET status = 'resolved',
+                                resolved_at = ?,
+                                resolution = ?,
+                                auto_action = 'deleted'
+                            WHERE id = ?
+                        ''', (datetime.now().isoformat(), resolution, issue_id))
+                    else:
+                        cursor.execute('''
+                            UPDATE quality_issues
+                            SET status = 'resolved',
+                                resolved_at = ?,
+                                resolution = ?
+                            WHERE id = ?
+                        ''', (datetime.now().isoformat(), resolution, issue_id))
                     
                     conn.commit()
                     return cursor.rowcount > 0
