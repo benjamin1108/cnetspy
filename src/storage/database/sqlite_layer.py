@@ -296,25 +296,20 @@ class UpdateDataLayer:
         """获取质量问题统计"""
         return self._quality.get_issue_statistics()
         
-    def check_cleaned_by_ai(
-        self,
-        source_url: str,
-        issue_type: str = 'not_network_related'
-    ) -> bool:
+    def check_cleaned_by_ai(self, source_url: str) -> bool:
         """
         检查某条记录是否已被 AI 清洗过
         
-        用于爬虫去重: 如果某条 URL 已被 AI 分析判定为非网络相关并删除,
-        则不应再次爬取。
+        用于爬虫去重: 如果某条 URL 已被 AI 分析判定为问题记录并删除,
+        则不应再次爬取。检查所有类型的删除记录。
         
         Args:
             source_url: 源链接
-            issue_type: 问题类型（默认 'not_network_related'）
             
         Returns:
             如果已被清洗返回 True，否则返回 False
         """
-        return self._quality.check_cleaned_by_ai(source_url, issue_type)
+        return self._quality.check_cleaned_by_ai(source_url)
         
     def get_cleaned_urls(
         self,

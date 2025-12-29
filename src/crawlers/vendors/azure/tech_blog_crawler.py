@@ -247,141 +247,121 @@ class AzureTechBlogCrawler(BaseCrawler):
             # 关闭WebDriver
             self._close_driver()
             
-    def _get_with_playwright(self, url: str) -> str:
+    def _get_with_playwright(self, url: str, max_retries: int = 3) -> str:
         """
         使用Playwright获取页面内容（带反检测和代理支持）
         
         Args:
             url: 页面URL
+            max_retries: 最大重试次数
             
         Returns:
             页面HTML内容
         """
         from playwright.sync_api import sync_playwright
+        import time
         
-        try:
-            if self.use_proxy:
-                logger.debug(f"使用Playwright获取页面(通过代理): {url}")
-            else:
-                logger.debug(f"使用Playwright获取页面: {url}")
-            
-            with sync_playwright() as p:
-                # 使用更真实的浏览器配置绕过反爬虫
-                # 如果启用代理，在launch时配置代理
-                launch_args = {
-                    'headless': True,
-                    'args': [
-                        '--no-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-blink-features=AutomationControlled',
-                        '--disable-infobars',
-                        '--window-size=1920,1080',
-                        '--disable-extensions',
-                        '--disable-plugins-discovery',
-                        '--start-maximized'
-                    ]
-                }
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    wait_time = 5 * attempt
+                    logger.info(f"Playwright 第 {attempt + 1} 次重试，等待 {wait_time} 秒...")
+                    time.sleep(wait_time)
                 
-                # 添加代理配置
-                if self.use_proxy and self.playwright_proxy:
-                    launch_args['proxy'] = self.playwright_proxy
-                    logger.debug(f"Playwright代理配置: {self.playwright_proxy.get('server', '')}")
+                if self.use_proxy:
+                    logger.debug(f"使用Playwright获取页面(通过代理): {url}")
+                else:
+                    logger.debug(f"使用Playwright获取页面: {url}")
                 
-                browser = p.chromium.launch(**launch_args)
-                try:
-                    # 创建带有真实浏览器指纹的上下文
-                    context = browser.new_context(
-                        viewport={'width': 1920, 'height': 1080},
-                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        locale='en-US',
-                        timezone_id='America/New_York',
-                        permissions=['geolocation'],
-                        java_script_enabled=True,
-                        bypass_csp=True,
-                        extra_http_headers={
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Accept-Encoding': 'gzip, deflate, br',
-                            'Connection': 'keep-alive',
-                            'Upgrade-Insecure-Requests': '1',
-                            'Sec-Fetch-Dest': 'document',
-                            'Sec-Fetch-Mode': 'navigate',
-                            'Sec-Fetch-Site': 'none',
-                            'Sec-Fetch-User': '?1',
-                            'Cache-Control': 'max-age=0'
-                        }
-                    )
+                # 每次重试都创建新的 Playwright 上下文
+                with sync_playwright() as p:
+                    launch_args = {
+                        'headless': True,
+                        'args': [
+                            '--no-sandbox',
+                            '--disable-dev-shm-usage',
+                            '--disable-blink-features=AutomationControlled',
+                            '--disable-infobars',
+                            '--window-size=1920,1080',
+                            '--disable-extensions',
+                            '--disable-plugins-discovery',
+                            '--start-maximized'
+                        ]
+                    }
                     
-                    page = context.new_page()
+                    if self.use_proxy and self.playwright_proxy:
+                        launch_args['proxy'] = self.playwright_proxy
+                        logger.debug(f"Playwright代理配置: {self.playwright_proxy.get('server', '')}")
                     
-                    # 注入反检测脚本
-                    page.add_init_script("""
-                        // 隐藏webdriver标识
-                        Object.defineProperty(navigator, 'webdriver', {
-                            get: () => undefined
-                        });
+                    browser = p.chromium.launch(**launch_args)
+                    try:
+                        context = browser.new_context(
+                            viewport={'width': 1920, 'height': 1080},
+                            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            locale='en-US',
+                            timezone_id='America/New_York',
+                            permissions=['geolocation'],
+                            java_script_enabled=True,
+                            bypass_csp=True,
+                            extra_http_headers={
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                                'Accept-Language': 'en-US,en;q=0.9',
+                                'Accept-Encoding': 'gzip, deflate, br',
+                                'Connection': 'keep-alive',
+                                'Upgrade-Insecure-Requests': '1',
+                                'Sec-Fetch-Dest': 'document',
+                                'Sec-Fetch-Mode': 'navigate',
+                                'Sec-Fetch-Site': 'none',
+                                'Sec-Fetch-User': '?1',
+                                'Cache-Control': 'max-age=0'
+                            }
+                        )
                         
-                        // 模拟正常的插件数组
-                        Object.defineProperty(navigator, 'plugins', {
-                            get: () => [1, 2, 3, 4, 5]
-                        });
+                        page = context.new_page()
                         
-                        // 模拟正常的语言设置
-                        Object.defineProperty(navigator, 'languages', {
-                            get: () => ['en-US', 'en']
-                        });
+                        page.add_init_script("""
+                            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+                            window.chrome = { runtime: {} };
+                        """)
                         
-                        // 隐藏Chrome自动化特征
-                        window.chrome = {
-                            runtime: {}
-                        };
+                        page.goto(url, wait_until='load', timeout=60000)
+                        page.wait_for_timeout(3000)
                         
-                        // 模拟正常的权限查询
-                        const originalQuery = window.navigator.permissions.query;
-                        window.navigator.permissions.query = (parameters) => (
-                            parameters.name === 'notifications' ?
-                                Promise.resolve({ state: Notification.permission }) :
-                                originalQuery(parameters)
-                        );
-                    """)
-                    
-                    # 访问页面
-                    page.goto(url, wait_until='networkidle', timeout=60000)
-                    
-                    # 等待页面加载完成
-                    page.wait_for_timeout(3000)
-                    
-                    # 模拟真实用户行为：随机移动鼠标
-                    page.mouse.move(100, 200)
-                    page.wait_for_timeout(500)
-                    page.mouse.move(300, 400)
-                    
-                    # 滚动触发懒加载
-                    page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
-                    page.wait_for_timeout(1500)
-                    
-                    page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                    page.wait_for_timeout(1500)
-                    
-                    page.evaluate('window.scrollTo(0, 0)')
-                    page.wait_for_timeout(1000)
-                    
-                    html = page.content()
-                    logger.info(f"成功获取页面内容，大小: {len(html)} 字节")
-                    
-                    # 检测是否被拦截（页面内容过小说明可能被拦截）
-                    if len(html) < 1000:
-                        logger.warning(f"页面内容过小({len(html)}字节)，可能被反爬虫拦截")
-                    
-                    context.close()
-                    return html
-                finally:
-                    browser.close()
-        except Exception as e:
-            logger.error(f"Playwright获取页面内容失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise e
+                        page.mouse.move(100, 200)
+                        page.wait_for_timeout(500)
+                        page.mouse.move(300, 400)
+                        
+                        page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+                        page.wait_for_timeout(1500)
+                        page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                        page.wait_for_timeout(1500)
+                        page.evaluate('window.scrollTo(0, 0)')
+                        page.wait_for_timeout(1000)
+                        
+                        html = page.content()
+                        logger.info(f"成功获取页面内容，大小: {len(html)} 字节")
+                        
+                        if len(html) < 1000:
+                            logger.warning(f"页面内容过小({len(html)}字节)，可能被反爬虫拦截")
+                        
+                        context.close()
+                        return html
+                    finally:
+                        browser.close()
+                        
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Playwright 第 {attempt + 1}/{max_retries} 次尝试失败: {e}")
+                continue
+        
+        logger.error(f"Playwright 获取页面内容失败（已重试 {max_retries} 次）: {last_error}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise last_error
     
     def _parse_article_links(self, html: str) -> List[Tuple[str, str, Optional[str]]]:
         """

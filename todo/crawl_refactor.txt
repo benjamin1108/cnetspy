@@ -1,0 +1,46 @@
+分析报告
+一、基类已有方法（可复用）
+方法	功能
+_extract_publish_date	提取发布日期
+_html_to_markdown	HTML 转 Markdown
+_clean_markdown	清理 Markdown
+_is_likely_blog_post	判断是否博客文章
+_parse_article_content	解析文章内容
+_extract_article_content	提取文章内容
+二、问题清单
+问题类型	描述	涉及
+命名不一致	同样功能不同名字	_locate_article_content (AWS) vs _locate_and_extract_content (Azure) vs _extract_article_content (GCP)
+重复实现	基类有但子类又写一遍	AWS 重写 _html_to_markdown，GCP 重写 _clean_markdown，Azure/GCP 重写 _extract_publish_date
+职责混乱	同名方法做不同的事	AWS 只定位返回 BeautifulSoup，Azure/GCP 定位+转换返回 str
+方法粒度不一	AWS 拆太细，GCP 过度拆分	GCP 有 _extract_title_for_link, _clean_title, _normalize_url 等小方法
+返回类型不一致	同类方法返回类型不同	定位方法有返回 BeautifulSoup 有返回 str
+三、重构方案
+目标：统一接口，复用基类，减少重复
+1. 统一内容处理流程（所有厂商一致）
+plaintext
+_parse_article_content(url, html, list_date)
+    ├── _extract_publish_date(soup, list_date, url)     # 基类方法
+    ├── _clean_non_content(soup)                        # 清理噪音（各厂商可重写）
+    ├── _locate_article_content(soup, url) → BeautifulSoup  # 只定位，不转换
+    ├── _process_images(article, url)                   # 处理图片（各厂商可重写）
+    └── _html_to_markdown(article) → str                # 基类方法
+2. 方法命名规范
+功能	统一命名	返回类型
+定位文章主体	_locate_article_content	BeautifulSoup
+清理非内容区域	_clean_non_content	None
+处理图片	_process_images	None
+提取发布日期	_extract_publish_date	str
+HTML转Markdown	_html_to_markdown	str
+清理Markdown	_clean_markdown	str
+3. 删除冗余方法
+删除	原因
+Azure _locate_and_extract_content	合并到 _locate_article_content + _html_to_markdown
+GCP _extract_article_content	同上
+GCP _clean_markdown	使用基类方法
+AWS _html_to_markdown	使用基类方法
+GCP 细碎方法（5个）	合并到主流程
+4. 执行步骤
+在基类添加 _locate_article_content 和 _clean_non_content 默认实现
+修改 AWS：删除重复的 _html_to_markdown，使用基类
+修改 Azure：拆分 _locate_and_extract_content 为 _locate_article_content + 基类方法
+修改 GCP：同上，删除冗余方法

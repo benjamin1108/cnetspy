@@ -286,7 +286,7 @@ class TestAICleanedCheck:
         assert result is False
     
     def test_check_cleaned_by_ai_with_different_issue_type(self, data_layer):
-        """测试不同问题类型的检查"""
+        """测试不同问题类型的删除记录都会被检测到"""
         source_url = "https://aws.amazon.com/test-empty-sub"
         
         # 插入 empty_subcategory 类型，已删除
@@ -298,12 +298,8 @@ class TestAICleanedCheck:
             source_url=source_url
         )
         
-        # 默认检查 not_network_related 类型，应返回 False
+        # 不限制 issue_type，所有被删除的记录都应返回 True
         result = data_layer.check_cleaned_by_ai(source_url)
-        assert result is False
-        
-        # 指定 empty_subcategory 类型，应返回 True
-        result = data_layer.check_cleaned_by_ai(source_url, issue_type="empty_subcategory")
         assert result is True
     
     def test_check_cleaned_by_ai_only_checks_deleted(self, data_layer):

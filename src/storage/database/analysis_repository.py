@@ -63,7 +63,7 @@ class AnalysisRepository(BaseRepository):
                 # 构建查询 SQL
                 sql = f'''
                     SELECT update_id, vendor, source_channel, title, content,
-                           product_name, product_category
+                           source_url, raw_filepath, product_name, product_category
                     FROM updates
                     WHERE {where_clause}
                     ORDER BY publish_date DESC

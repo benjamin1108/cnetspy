@@ -329,6 +329,126 @@ class AwsNetworkBlogCrawler(BaseCrawler):
         
         return article_md, pub_date
     
+    def _clean_non_content(self, soup: BeautifulSoup) -> None:
+        """
+        移除页头、页尾、侧边栏等非内容区域
+        
+        Args:
+            soup: BeautifulSoup对象
+        """
+        # 移除常见的页头元素
+        for header in soup.select('header, .header, #header, .top-nav, .aws-header, .navigation, nav, .top-bar, .lb-header'):
+            header.decompose()
+        
+        # 移除常见的页尾元素
+        for footer in soup.select('footer, .footer, #footer, .aws-footer, .bottom-bar, .lb-footer'):
+            footer.decompose()
+        
+        # 移除常见的侧边栏元素
+        for sidebar in soup.select('.sidebar, #sidebar, .side-nav, .aws-sidebar, .column-right, .column-left, aside'):
+            sidebar.decompose()
+        
+        # 移除常见的广告和推广元素
+        for promo in soup.select('.ad, .ads, .advertisement, .promo, .promotion, .banner, .aws-promo, .aws-banner'):
+            promo.decompose()
+        
+        # 移除导航元素
+        for nav in soup.select('.breadcrumb, .breadcrumbs, .navigation, .nav, .menu'):
+            nav.decompose()
+        
+        # 移除评论区
+        for comments in soup.select('.comments, #comments, .comment-section, .disqus, .discourse'):
+            comments.decompose()
+        
+        # 移除社交媒体分享按钮
+        for social in soup.select('.share, .social, .social-media, .social-buttons, .aws-social'):
+            social.decompose()
+        
+        # 移除相关文章推荐
+        for related in soup.select('.related, .related-posts, .suggested, .aws-related, .recommended'):
+            related.decompose()
+        
+        # 移除脚本、样式等无关元素
+        for tag in soup.find_all(['script', 'style', 'noscript', 'iframe', 'svg']):
+            tag.decompose()
+    
+    def _locate_article_content(self, soup: BeautifulSoup, url: str) -> Optional[BeautifulSoup]:
+        """
+        更精确地定位文章主体内容
+        
+        Args:
+            soup: BeautifulSoup对象
+            url: 文章URL
+            
+        Returns:
+            包含文章主体内容的BeautifulSoup对象，或None
+        """
+        # 优先级从高到低尝试找到文章主体
+        selectors = [
+            # 最可能的文章内容选择器
+            'article .lb-post-content',
+            'article .lb-grid-content',
+            '.blog-post-content',
+            '.post-content',
+            '.article-content',
+            '.entry-content',
+            '.post-body',
+            '.content-body',
+            
+            # 次优先级选择器
+            'main article',
+            'main .content',
+            'article',
+            '.post',
+            '#content .post',
+            '.blog-content',
+            '.lb-grid-container > div > div',  # AWS博客通常使用的容器结构
+            
+            # 最后的备选选择器
+            'main',
+            '#content',
+            '.content',
+            '.container'
+        ]
+        
+        # 尝试所有选择器
+        for selector in selectors:
+            elements = soup.select(selector)
+            if elements:
+                # 找到内容最长的元素，这通常是正文
+                main_element = max(elements, key=lambda x: len(str(x)))
+                logger.debug(f"找到文章主体，使用选择器: {selector}")
+                return main_element
+        
+        # 如果还是找不到，尝试一个启发式方法：寻找最长的<div>或<section>
+        candidates = []
+        for tag in soup.find_all(['div', 'section']):
+            # 排除明显不是内容的元素
+            if tag.has_attr('class') and any(c in str(tag['class']) for c in ['header', 'footer', 'sidebar', 'menu', 'nav']):
+                continue
+            
+            # 排除太短的内容
+            if len(str(tag)) < 1000:  # 文章通常至少有1000个字符
+                continue
+            
+            # 判断是否包含文章特征(段落、标题等)
+            if len(tag.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol'])) > 5:
+                candidates.append(tag)
+        
+        if candidates:
+            # 找到内容最长的候选元素
+            main_element = max(candidates, key=lambda x: len(str(x)))
+            logger.debug("使用启发式方法找到文章主体")
+            return main_element
+        
+        # 最后的备选：返回<body>
+        body = soup.find('body')
+        if body:
+            logger.warning(f"未找到具体文章主体，使用<body>: {url}")
+            return body
+        
+        return None
+    
     def _process_images(self, article: BeautifulSoup, base_url: str) -> None:
         """
         处理文章中的图片 - 支持懒加载和srcset

@@ -68,6 +68,10 @@ class GeminiClient:
         response_schema = {
             "type": "object",
             "properties": {
+                "is_network_related": {
+                    "type": "boolean",
+                    "description": "是否与云网络产品/服务相关"
+                },
                 "title_translated": {
                     "type": "string",
                     "description": "中文翻译标题，不超过50字"
@@ -90,7 +94,7 @@ class GeminiClient:
                     "description": "3-8个关键词标签"
                 }
             },
-            "required": ["title_translated", "content_summary", "update_type", "product_subcategory", "tags"]
+            "required": ["is_network_related", "title_translated", "content_summary", "update_type", "product_subcategory", "tags"]
         }
         
         # 保存生成配置 (启用结构化输出)

@@ -13,6 +13,7 @@ import logging
 import time
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tabulate import tabulate
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -338,11 +339,19 @@ class AnalyzeUpdatesScript:
     def _print_summary(self, total, success, fail, elapsed):
         """打印统计摘要"""
         print("\n")  # 换行
-        self.logger.info("✅ 分析完成!")
-        self.logger.info(f"总计: {total} 条")
-        self.logger.info(f"成功: {success} 条 ({success/total*100:.1f}%)")
-        self.logger.info(f"失败: {fail} 条 ({fail/total*100:.1f}%)")
-        self.logger.info(f"总耗时: {self._format_time(elapsed)}")
+        
+        # 使用 tabulate 输出格式化报告
+        print("\n" + "=" * 60)
+        print("📊 分析任务报告")
+        print("=" * 60)
+        
+        summary_data = [
+            ["总计", f"{total} 条", ""],
+            ["✅ 成功", f"{success} 条", f"{success/total*100:.1f}%" if total > 0 else "0%"],
+            ["❌ 失败", f"{fail} 条", f"{fail/total*100:.1f}%" if total > 0 else "0%"],
+            ["⏱️  耗时", self._format_time(elapsed), ""],
+        ]
+        print(tabulate(summary_data, headers=["指标", "数值", "百分比"], tablefmt="simple"))
         
         # 输出质量报告（从数据库读取）
         AnalysisExecutor.print_analysis_report(self.data_layer)

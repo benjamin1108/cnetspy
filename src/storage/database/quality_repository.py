@@ -421,18 +421,17 @@ class QualityRepository(BaseRepository):
     
     def check_cleaned_by_ai(
         self,
-        source_url: str,
-        issue_type: str = 'not_network_related'
+        source_url: str
     ) -> bool:
         """
         检查某条记录是否已被 AI 清洗过（通过 source_url 查询）
         
-        用于爬虫去重：如果某条 URL 已被 AI 分析判定为非网络相关并删除，
-        则不应再次爬取。
+        用于爬虫去重：如果某条 URL 已被 AI 分析判定为问题记录并删除，
+        则不应再次爬取。检查所有类型的删除记录（not_network_related、
+        empty_subcategory 等）。
         
         Args:
             source_url: 源链接
-            issue_type: 问题类型（默认 'not_network_related'）
             
         Returns:
             如果已被清洗返回 True，否则返回 False
@@ -445,13 +444,13 @@ class QualityRepository(BaseRepository):
                 cursor = conn.cursor()
                 
                 # 检查 quality_issues 表中是否存在该 source_url 且为自动删除
+                # 不限制 issue_type，所有被删除的记录都应跳过
                 cursor.execute('''
                     SELECT 1 FROM quality_issues
                     WHERE source_url = ?
-                    AND issue_type = ?
                     AND auto_action = 'deleted'
                     LIMIT 1
-                ''', (source_url, issue_type))
+                ''', (source_url,))
                 
                 result = cursor.fetchone()
                 return result is not None

@@ -13,6 +13,7 @@ import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
+from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
@@ -291,25 +292,29 @@ class AnalysisExecutor:
             stats = data_layer.get_issue_statistics()
             
             if stats['total_open'] == 0 and stats['total_resolved'] == 0:
-                logger.info("本次分析无质量问题记录")
                 return
             
-            logger.info(f"\n{'='*60}")
-            logger.info(f"质量问题报告")
-            logger.info(f"{'='*60}")
-            logger.info(f"待处理: {stats['total_open']} 条")
-            logger.info(f"已解决: {stats['total_resolved']} 条")
-            logger.info(f"已忽略: {stats['total_ignored']} 条")
+            print("\n" + "=" * 60)
+            print("🔍 质量问题报告")
+            print("=" * 60)
+            
+            # 问题统计表格
+            status_data = [
+                ["⚠️  待处理", stats['total_open']],
+                ["✅ 已解决", stats['total_resolved']],
+                ["⏭️  已忽略", stats['total_ignored']],
+            ]
+            print(tabulate(status_data, headers=["状态", "数量"], tablefmt="simple"))
             
             if stats['by_type']:
-                logger.info(f"\n按类型统计(待处理):")
-                for issue_type, count in stats['by_type'].items():
-                    logger.info(f"  - {issue_type}: {count}")
+                print("\n按类型统计(待处理):")
+                type_data = [[t, c] for t, c in stats['by_type'].items()]
+                print(tabulate(type_data, headers=["问题类型", "数量"], tablefmt="simple"))
             
             if stats['total_open'] > 0:
-                logger.info(f"\n使用 ./run.sh check --issues 查看详情")
+                print("\n💡 使用 ./run.sh check --issues 查看详情")
             
-            logger.info(f"{'='*60}\n")
+            print("=" * 60 + "\n")
             
         except Exception as e:
             logger.error(f"获取分析报告失败: {e}")

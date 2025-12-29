@@ -11,6 +11,7 @@ import logging.config
 import os
 import sys
 from typing import Dict, Any, Optional
+from tabulate import tabulate
 
 # 添加项目根目录到路径
 base_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -154,14 +155,27 @@ def run_crawler(args: argparse.Namespace) -> int:
     
     # 输出结果摘要
     total_files = 0
+    crawl_data = []  # 收集报告数据
+    
     for vendor, vendor_results in result.items():
         for source_type, files in vendor_results.items():
             count = len(files)
             total_files += count
             if count > 0:
-                logger.info(f"完成: {vendor}/{source_type} - {count} 个文件")
+                crawl_data.append([vendor, source_type, count])
     
-    logger.info(f"爬取完成，共 {total_files} 个文件")
+    # 格式化输出报告
+    print("\n" + "=" * 60)
+    print("🕷️ 爬取任务报告")
+    print("=" * 60)
+    
+    if crawl_data:
+        print(tabulate(crawl_data, headers=["厂商", "数据源", "文件数"], tablefmt="simple"))
+        print("-" * 40)
+    
+    print(f"总计: {total_files} 个文件")
+    print("=" * 60 + "\n")
+    
     return 0
 
 

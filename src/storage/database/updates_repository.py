@@ -18,6 +18,26 @@ class UpdatesRepository(BaseRepository):
     # 必填字段列表
     REQUIRED_FIELDS = ['update_id', 'vendor', 'source_channel', 'source_url', 'title', 'publish_date']
     
+    def _validate_update_data(self, update_data: Dict[str, Any]) -> tuple:
+        """
+        校验 Update 数据
+        
+        Returns:
+            (is_valid, error_message)
+        """
+        # 必填字段校验
+        for field in self.REQUIRED_FIELDS:
+            value = update_data.get(field)
+            if not value or (isinstance(value, str) and not value.strip()):
+                return False, f"必填字段 {field} 为空"
+        
+        # URL 格式校验
+        source_url = update_data.get('source_url', '')
+        if not source_url.startswith(('http://', 'https://')):
+            return False, f"source_url 格式无效 - {source_url}"
+        
+        return True, None
+    
     def insert_update(self, update_data: Dict[str, Any]) -> bool:
         """
         插入单条 Update 记录
@@ -28,17 +48,10 @@ class UpdatesRepository(BaseRepository):
         Returns:
             成功返回 True，失败返回 False
         """
-        # 必填字段校验
-        for field in self.REQUIRED_FIELDS:
-            value = update_data.get(field)
-            if not value or (isinstance(value, str) and not value.strip()):
-                self.logger.error(f"插入失败: 必填字段 {field} 为空")
-                return False
-        
-        # URL 格式校验
-        source_url = update_data.get('source_url', '')
-        if not source_url.startswith(('http://', 'https://')):
-            self.logger.error(f"插入失败: source_url 格式无效 - {source_url}")
+        # 数据校验
+        is_valid, error_msg = self._validate_update_data(update_data)
+        if not is_valid:
+            self.logger.error(f"插入失败: {error_msg}")
             return False
         
         try:
@@ -150,6 +163,13 @@ class UpdatesRepository(BaseRepository):
                     
                     for update_data in updates_data:
                         try:
+                            # 数据校验
+                            is_valid, error_msg = self._validate_update_data(update_data)
+                            if not is_valid:
+                                self.logger.error(f"批量插入跳过: {error_msg}")
+                                fail_count += 1
+                                continue
+                            
                             self.logger.debug(
                                 f"插入数据: update_id={update_data.get('update_id')}, "
                                 f"vendor={update_data.get('vendor')}, "

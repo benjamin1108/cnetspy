@@ -139,7 +139,13 @@ class TestSyncDecorator:
     
     def test_decorator_handles_exception(self):
         """测试装饰器异常处理"""
-        from src.crawlers.common.sync_decorator import sync_to_database_decorator
+        from src.crawlers.common.sync_decorator import (
+            sync_to_database_decorator,
+            get_crawler_integration
+        )
+        
+        # 禁用数据库同步，避免写入生产库
+        get_crawler_integration().disable()
         
         @sync_to_database_decorator
         def original_func(self):
