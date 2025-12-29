@@ -49,7 +49,10 @@ class ReportData(BaseModel):
     generated_at: Optional[str] = Field(None, description="生成时间")
     
     # AI 摘要
-    ai_summary: Optional[str] = Field(None, description="AI 生成的月度趋势摘要")
+    ai_summary: Optional[str] = Field(None, description="AI 生成的月度趋势摘要（Markdown）")
+    
+    # HTML 报告
+    html_filepath: Optional[str] = Field(None, description="HTML 报告文件路径")
     
     # 统计数据
     total_count: int = Field(0, description="更新总数")

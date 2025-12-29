@@ -274,7 +274,7 @@ export function DashboardPage() {
 
   // 产品热度数据
   const productHotness = productHotnessData?.data || [];
-  const maxProductCount = productHotness.length > 0 ? productHotness[0].count : 0;
+  const maxProductCount: number = productHotness.length > 0 ? productHotness[0].count : 0;
 
   // 更新类型统计聚合
   const typeStats = useMemo(() => {

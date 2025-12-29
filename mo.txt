@@ -1,0 +1,245 @@
+我们需要一个基于AI的组装月报模块，下面是具体方案，但是你要注意几点
+
+让AI省的HTML模版中样式必须采用css变量符合我们的要求，可以进行暗色、浅色切换，你需要适配
+
+数据库字段你也要逐一严格确认，与我们的方案中的字段严格适配，同时你要考虑适当优化提示词，不要让AI总结看起来像一个大话精，也要考虑如果没有那么多趋势怎么办，没有那么多更新怎么办
+
+请你根据下面方案给我详细的方案评审。追一给出你需要新增的代码，方法，适配的字段，修改的提示词等全面的细节报告
+
+“数据层（程序处理）”与“表现层（HTML模板）”分离，仅让 AI 负责“认知层（摘要/洞察）”，这是工业级应用最稳健的做法。
+
+这种模式下，你的工作流变成了：
+
+SQL: 统计总数、活跃厂商（这一步程序算更准，不用 AI）。
+
+AI: 输入 Top N 数据，输出一段 JSON 格式的分析摘要。
+
+Code: 读取 HTML 模板，将 AI 的摘要填入头部，然后遍历数据库记录，用固定的 HTML 片段循环填充详细列表。
+
+以下是拆解后的完整方案：
+
+第一部分：AI 提示词（仅生成摘要）
+我们不再让 AI 写 HTML，而是让它返回 JSON 数据。
+
+提示词：
+
+Markdown
+
+# Role
+你是由 "CloudNetSpy" 开发的首席云竞争情报分析师。
+
+# Task
+阅读我提供的【本月云厂商更新列表】，基于这些数据生成一份【月度分析摘要 JSON】。
+
+# Data Source
+(在此处放入你的 Top 50 条数据的 JSON 或 CSV，包含 vendor, title, type, category)
+
+# Requirement
+请分析数据，返回如下结构的纯 JSON 数据（不要 Markdown 代码块，直接返回 JSON）：
+
+{
+  "insight_title": "本月核心趋势标题（如：AI 基础设施大战升级）",
+  "insight_summary": "一段 100 字左右的宏观总结，概括本月最大的动作（如 AWS 在 GenAI 的布局，或 Google 的降价策略）。",
+  "top_trends": [
+    {
+      "emoji": "🚀",
+      "title": "趋势 1 标题",
+      "desc": "趋势 1 的简短说明（30字以内）"
+    },
+    {
+      "emoji": "💰",
+      "title": "趋势 2 标题",
+      "desc": "趋势 2 的简短说明"
+    },
+    {
+      "emoji": "🛡️",
+      "title": "趋势 3 标题",
+      "desc": "趋势 3 的简短说明"
+    }
+  ]
+}
+第二部分：HTML 骨架模板（主文件）
+这是你的主 HTML 文件。你需要用你的后端语言（Python Jinja2, Go Template, Node.js 等）替换 {{变量}}。
+
+HTML
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudNetSpy Monthly Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-deep: #09090b; --bg-card: #18181b; --bg-card-hover: #27272a; --border: #27272a;
+            /* 品牌色 */
+            --aws: #FF9900; --google: #4285F4; --azure: #007FFF; --huawei: #C7000B; 
+            --aliyun: #FF6A00; --tencent: #0052D9; --volc: #1664FF;
+        }
+        body { background-color: var(--bg-deep); color: #e4e4e7; font-family: -apple-system, sans-serif; }
+        
+        .glass-card {
+            background-color: var(--bg-card); border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        .glass-card:hover { border-color: #52525b; background-color: var(--bg-card-hover); }
+
+        /* 厂商标签 - 程序需根据 vendor 动态添加对应 class */
+        .badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; width: fit-content; }
+        .badge-aws { color: var(--aws); background: rgba(255, 153, 0, 0.1); border-color: rgba(255, 153, 0, 0.2); border-width: 1px; }
+        .badge-google { color: var(--google); background: rgba(66, 133, 244, 0.1); border-color: rgba(66, 133, 244, 0.2); border-width: 1px; }
+        .badge-azure { color: var(--azure); background: rgba(0, 127, 255, 0.1); border-color: rgba(0, 127, 255, 0.2); border-width: 1px; }
+        .badge-huawei { color: var(--huawei); background: rgba(199, 0, 11, 0.1); border-color: rgba(199, 0, 11, 0.2); border-width: 1px; }
+        .badge-default { color: #a1a1aa; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); border-width: 1px; }
+
+        /* 链接样式 */
+        .card-link { color: inherit; text-decoration: none; }
+        .card-link:hover { color: #818cf8; text-decoration: underline; text-decoration-color: rgba(129, 140, 248, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen py-10 px-4 md:px-8 max-w-6xl mx-auto">
+
+    <header class="flex justify-between items-end mb-10 pb-6 border-b border-zinc-800">
+        <div>
+            <div class="text-indigo-500 font-bold tracking-widest text-xs uppercase mb-2">Monthly Competitive Intelligence</div>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">{{report_month}} · 云厂商竞争态势报告</h1>
+            <p class="text-zinc-400 text-sm">统计周期：{{date_range}}</p>
+        </div>
+    </header>
+
+    <section class="mb-12">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[140px]">
+            <div class="glass-card rounded-2xl p-6 flex flex-col justify-between">
+                <div class="text-zinc-500 text-sm font-medium">本月监测总更新</div>
+                <div class="text-5xl font-bold text-white">{{total_count}}</div>
+            </div>
+            
+            <div class="glass-card rounded-2xl p-6 flex flex-col justify-between">
+                <div class="text-zinc-500 text-sm font-medium">最活跃厂商</div>
+                <div>
+                    <div class="text-2xl font-bold text-white">{{top_vendor_name}}</div>
+                    <div class="text-zinc-400 text-xs mt-1">更新量 Top 1</div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 md:col-span-2 md:row-span-2 flex flex-col">
+                <div class="text-indigo-400 text-sm font-bold uppercase mb-4 tracking-wide">💡 分析师总结</div>
+                
+                <h3 class="text-white font-bold mb-2">{{ai_json.insight_title}}</h3>
+                <p class="text-zinc-400 text-sm leading-relaxed mb-6">{{ai_json.insight_summary}}</p>
+                
+                <div class="space-y-4 border-t border-zinc-800 pt-4 overflow-y-auto">
+                    <div class="flex gap-3">
+                        <span class="text-xl">{{trend_emoji}}</span>
+                        <div>
+                            <h4 class="text-white font-medium text-sm">{{trend_title}}</h4>
+                            <p class="text-zinc-500 text-xs mt-0.5">{{trend_desc}}</p>
+                        </div>
+                    </div>
+                    </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 md:col-span-2 flex flex-col justify-center">
+                <div class="text-zinc-500 text-sm font-medium mb-4">热点细分领域 Top 3</div>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-24 text-xs text-right text-zinc-400 truncate">{{category_name}}</div>
+                        <div class="flex-1 bg-zinc-800 rounded-full h-2">
+                            <div class="bg-purple-500 h-2 rounded-full" style="width: {{percent}}%"></div>
+                        </div>
+                        <div class="w-8 text-xs text-white">{{count}}</div>
+                    </div>
+                    </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="flex justify-between items-end mb-6">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-indigo-500"></i> 本月重点更新
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 auto-rows-min grid-flow-row-dense">
+            {{details_html_content}}
+        </div>
+    </section>
+
+    <footer class="mt-12 py-8 border-t border-zinc-800 text-center">
+        <p class="text-zinc-600 text-xs">Generated by CloudNetSpy Engine</p>
+    </footer>
+</body>
+</html>
+第三部分：程序生成的 Card HTML 片段
+你需要编写代码遍历数据库记录。根据记录的权重（重要性），选择生成 "Hero Card" 还是 "Standard Card" 的 HTML 字符串。
+
+逻辑建议：
+
+如果 update_type 是 new_product, pricing, compliance -> 使用 Hero Card (col-span-2)
+
+其他 -> 使用 Standard Card (col-span-1)
+
+1. Hero Card 模板 (Python f-string 示例)
+Python
+
+hero_card_template = f"""
+<div class="glass-card rounded-2xl p-6 md:col-span-2 relative overflow-hidden group" style="background: linear-gradient(145deg, rgba(24, 24, 27, 1) 0%, rgba(39, 39, 42, 1) 100%); border: 1px solid rgba(255,255,255,0.1);">
+    <div class="flex justify-between items-start mb-4">
+        <span class="badge badge-{vendor_slug}">{vendor_display_name}</span>
+        <span class="text-zinc-500 text-xs font-mono">{publish_date_mm_dd}</span>
+    </div>
+    <div>
+        <h3 class="text-lg font-bold text-white mb-2 leading-tight">
+            <a href="https://cnetspy.site/next/updates/{update_id}" target="_blank" class="card-link transition-colors">
+                {title_translated}
+            </a>
+        </h3>
+        <p class="text-zinc-400 text-sm line-clamp-2">
+            {content_summary}
+        </p>
+    </div>
+    <div class="mt-4 flex gap-2">
+        <span class="text-[10px] text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20">
+            {update_type_display}
+        </span>
+    </div>
+</div>
+"""
+2. Standard Card 模板
+Python
+
+standard_card_template = f"""
+<div class="glass-card rounded-2xl p-5 md:col-span-1 group">
+    <div class="flex justify-between items-start mb-3">
+        <span class="badge badge-{vendor_slug}">{vendor_display_name}</span>
+        <span class="text-zinc-500 text-xs font-mono">{publish_date_mm_dd}</span>
+    </div>
+    <div class="flex-1 flex flex-col">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-2 leading-snug">
+            <a href="https://cnetspy.site/next/updates/{update_id}" target="_blank" class="card-link transition-colors">
+                {title_translated}
+            </a>
+        </h3>
+        <p class="text-xs text-zinc-500 line-clamp-3 mb-2">
+            {content_summary}
+        </p>
+    </div>
+    <div class="mt-auto pt-3 border-t border-zinc-800/50 flex justify-between items-center">
+        <span class="text-[10px] text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+            {product_subcategory}
+        </span>
+        <a href="https://cnetspy.site/next/updates/{update_id}" target="_blank" class="text-zinc-600 hover:text-white transition transform group-hover:translate-x-1">
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+        </a>
+    </div>
+</div>
+"""
+总结
+AI 只负责生成那段 JSON，它不需要知道 HTML 长什么样，这解决了 AI 偷懒和格式错误的问题。
+
+HTML 模板是固定的，保证了视觉风格的统一（深色模式、玻璃拟态）。
+
+程序 控制循环和卡片类型，保证了数据的完整性（不会漏条目）和链接的准确性。

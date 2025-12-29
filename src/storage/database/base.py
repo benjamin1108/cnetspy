@@ -272,6 +272,8 @@ class DatabaseManager:
                     ai_summary TEXT,
                     vendor_stats TEXT,
                     total_count INTEGER DEFAULT 0,
+                    html_content TEXT,
+                    html_filepath TEXT,
                     generated_at DATETIME NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )

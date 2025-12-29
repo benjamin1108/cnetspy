@@ -31,7 +31,9 @@ class ReportRepository(BaseRepository):
         date_to: str,
         ai_summary: str,
         vendor_stats: Dict[str, Any],
-        total_count: int
+        total_count: int,
+        html_content: Optional[str] = None,
+        html_filepath: Optional[str] = None
     ) -> int:
         """
         保存报告（存在则更新）
@@ -43,9 +45,11 @@ class ReportRepository(BaseRepository):
             week: 周数（周报必填）
             date_from: 开始日期
             date_to: 结束日期
-            ai_summary: AI 生成的摘要
+            ai_summary: AI 生成的摘要（Markdown 格式）
             vendor_stats: 厂商统计数据
             total_count: 更新总数
+            html_content: HTML 格式的完整报告内容
+            html_filepath: HTML 报告文件路径
             
         Returns:
             报告 ID
@@ -73,10 +77,12 @@ class ReportRepository(BaseRepository):
                             ai_summary = ?,
                             vendor_stats = ?,
                             total_count = ?,
+                            html_content = ?,
+                            html_filepath = ?,
                             generated_at = ?
                         WHERE id = ?
                     ''', (date_from, date_to, ai_summary, vendor_stats_json, 
-                          total_count, now, existing['id']))
+                          total_count, html_content, html_filepath, now, existing['id']))
                     conn.commit()
                     return existing['id']
                 else:
@@ -84,10 +90,10 @@ class ReportRepository(BaseRepository):
                     cursor.execute('''
                         INSERT INTO reports 
                         (report_type, year, month, week, date_from, date_to, 
-                         ai_summary, vendor_stats, total_count, generated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ai_summary, vendor_stats, total_count, html_content, html_filepath, generated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (report_type, year, month, week, date_from, date_to,
-                          ai_summary, vendor_stats_json, total_count, now))
+                          ai_summary, vendor_stats_json, total_count, html_content, html_filepath, now))
                     conn.commit()
                     return cursor.lastrowid
                     

@@ -236,6 +236,7 @@ export interface ReportData {
   date_to: string;
   generated_at: string | null;
   ai_summary: string | null;
+  html_filepath: string | null;
   total_count: number;
   vendor_summaries: VendorSummary[];
   updates_by_vendor: Record<string, ReportUpdateItem[]>;

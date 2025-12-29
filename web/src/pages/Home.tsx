@@ -79,7 +79,7 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
               {update.title_translated || update.title}
             </Link>
             <span className="timeline-timestamp whitespace-nowrap">
-              {format(parseISO(update.publish_date), 'HH:mm')}
+              {format(parseISO(update.publish_date), 'MM-dd')}
             </span>
           </div>
           

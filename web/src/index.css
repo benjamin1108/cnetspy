@@ -53,44 +53,44 @@ html {
 
 /* Custom CSS Variables - 科技感蓝色主题 */
 :root {
-  /* 浅色模式 - 明亮科技感 */
-  --background: 214 40% 98%;
-  --foreground: 217 33% 17%;
-  --card: 210 50% 99%;
-  --card-foreground: 217 33% 17%;
-  --popover: 210 50% 99%;
-  --popover-foreground: 217 33% 17%;
+  /* 浅色模式 - 深度护眼 */
+  --background: 214 20% 92%;
+  --foreground: 217 33% 15%;
+  --card: 210 20% 95%;
+  --card-foreground: 217 33% 15%;
+  --popover: 210 20% 95%;
+  --popover-foreground: 217 33% 15%;
   --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 214 32% 91%;
-  --secondary-foreground: 217 33% 17%;
-  --muted: 214 32% 91%;
-  --muted-foreground: 215 20% 45%;
+  --secondary: 214 20% 85%;
+  --secondary-foreground: 217 33% 15%;
+  --muted: 214 20% 85%;
+  --muted-foreground: 215 20% 40%;
   --accent: 199 89% 48%;
-  --accent-foreground: 217 33% 17%;
+  --accent-foreground: 217 33% 15%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 85%;
-  --input: 214 32% 85%;
+  --border: 214 20% 78%;
+  --input: 214 20% 78%;
   --ring: 199 89% 48%;
   --radius: 0.5rem;
 
   /* 语义化变量 */
-  --text-primary: 217 33% 17%;
-  --text-secondary: 215 20% 45%;
-  --text-tertiary: 215 15% 60%;
-  --bg-elevated: 210 50% 99%;
-  --bg-hover: 214 40% 95%;
+  --text-primary: 217 33% 15%;
+  --text-secondary: 215 20% 40%;
+  --text-tertiary: 215 15% 55%;
+  --bg-elevated: 210 20% 95%;
+  --bg-hover: 214 20% 88%;
   --success: 158 64% 52%;
   --success-foreground: 0 0% 100%;
   --warning: 43 96% 56%;
-  --warning-foreground: 217 33% 17%;
+  --warning-foreground: 217 33% 15%;
 
   /* AI 分析特色 - 科技青蓝 */
   --ai-accent: 192 91% 50%;
   --ai-accent-foreground: 192 91% 25%;
-  --ai-bg: 192 80% 97%;
-  --ai-border: 192 60% 80%;
+  --ai-bg: 192 50% 92%;
+  --ai-border: 192 30% 70%;
 
   /* 分类标签色 */
   --category: 262 83% 58%;

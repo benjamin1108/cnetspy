@@ -594,10 +594,15 @@ do_deploy() {
     echo -e "构建前端..."
     npm run build
     
-    # 复制到部署目录
+    # 检查构建是否成功
+    if [ ! -f "dist/index.html" ]; then
+        echo -e "${RED}构建失败！dist 目录不存在或为空${NC}"
+        exit 1
+    fi
+    
+    # 使用 rsync 复制到部署目录（保持文件新鲜）
     echo -e "复制文件..."
-    rm -rf "$DEPLOY_DIR"/*
-    cp -r dist/* "$DEPLOY_DIR/"
+    rsync -av --delete dist/ "$DEPLOY_DIR/"
     
     echo -e "${GREEN}部署完成!${NC}"
     echo -e "部署目录: ${GREEN}$DEPLOY_DIR${NC}"

@@ -73,6 +73,11 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# 报告文件服务（HTML 报告）
+reports_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'report'))
+if os.path.exists(reports_dir):
+    app.mount("/reports", StaticFiles(directory=reports_dir), name="reports")
+
 
 def _start_scheduler(logger):
     """启动调度器（如果配置启用）"""

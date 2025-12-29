@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--weekly', action='store_true', help='生成周报')
     parser.add_argument('--monthly', action='store_true', help='生成月报')
     parser.add_argument('--send', action='store_true', help='发送通知')
+    parser.add_argument('--output', action='store_true', help='输出HTML内容到控制台（默认不输出）')
     
     args = parser.parse_args()
     
@@ -35,7 +36,10 @@ def main():
     
     # 生成报告
     content = report.generate()
-    print(content)
+    
+    # 只在明确请求时才输出HTML
+    if args.output:
+        print(content)
     
     # 发送通知
     if args.send:

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudNetSpy Monthly Report - {{report_month}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* 继承父页面主题变量，只定义报告特有的样式 */
+        
+        /* 厂商品牌色（固定） */
+        .report-content {
+            --aws: #FF9900;
+            --gcp: #4285F4;
+            --azure: #007FFF;
+            --huawei: #C7000B;
+            --tencentcloud: #0052D9;
+            --volcengine: #1664FF;
+        }
+        
+        .report-content .glass-card {
+            background-color: hsl(var(--card));
+            border: 1px solid hsl(var(--border));
+            transition: all 0.2s ease;
+        }
+        .report-content .glass-card:hover { 
+            border-color: hsl(var(--muted-foreground)); 
+            background-color: hsl(var(--accent) / 0.05); 
+        }
+
+        /* 厂商标签 */
+        .report-content .badge { 
+            font-size: 0.65rem; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            width: fit-content;
+            border-width: 1px;
+        }
+        .report-content .badge-aws { color: var(--aws); background: rgba(255, 153, 0, 0.1); border-color: rgba(255, 153, 0, 0.2); }
+        .report-content .badge-gcp { color: var(--gcp); background: rgba(66, 133, 244, 0.1); border-color: rgba(66, 133, 244, 0.2); }
+        .report-content .badge-azure { color: var(--azure); background: rgba(0, 127, 255, 0.1); border-color: rgba(0, 127, 255, 0.2); }
+        .report-content .badge-huawei { color: var(--huawei); background: rgba(199, 0, 11, 0.1); border-color: rgba(199, 0, 11, 0.2); }
+        .report-content .badge-tencentcloud { color: var(--tencentcloud); background: rgba(0, 82, 217, 0.1); border-color: rgba(0, 82, 217, 0.2); }
+        .report-content .badge-volcengine { color: var(--volcengine); background: rgba(22, 100, 255, 0.1); border-color: rgba(22, 100, 255, 0.2); }
+        .report-content .badge-default { color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); }
+
+        /* 更新类型标签 */
+        .report-content .type-tag {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border-width: 1px;
+        }
+        .report-content .type-new_product { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.1); border-color: hsl(var(--primary) / 0.2); }
+        .report-content .type-new_feature { color: #22c55e; background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); }
+        .report-content .type-enhancement { color: #3b82f6; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); }
+        .report-content .type-pricing { color: #f59e0b; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); }
+        .report-content .type-deprecation { color: #ef4444; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
+        .report-content .type-region { color: #06b6d4; background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); }
+        .report-content .type-default { color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); }
+
+        /* 链接样式 */
+        .report-content .card-link { color: inherit; text-decoration: none; }
+        .report-content .card-link:hover { color: hsl(var(--primary)); text-decoration: underline; text-decoration-color: hsl(var(--primary) / 0.5); }
+        
+        /* 进度条 */
+        .report-content .progress-bar {
+            background: hsl(var(--border));
+            border-radius: 9999px;
+            height: 8px;
+        }
+        .report-content .progress-fill {
+            border-radius: 9999px;
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        
+        /* 厂商筛选按钮 */
+        .report-content .vendor-filter-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card));
+            color: hsl(var(--muted-foreground));
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .report-content .vendor-filter-btn:hover {
+            border-color: hsl(var(--primary));
+            color: hsl(var(--foreground));
+        }
+        .report-content .vendor-filter-btn.active {
+            background: hsl(var(--primary));
+            border-color: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+        }
+        
+        /* 文字颜色工具类 */
+        .report-content .text-primary { color: hsl(var(--foreground)); }
+        .report-content .text-secondary { color: hsl(var(--muted-foreground)); }
+        .report-content .text-muted { color: hsl(var(--muted-foreground) / 0.7); }
+        .report-content .text-accent { color: hsl(var(--primary)); }
+        .report-content .border-color { border-color: hsl(var(--border)); }
+    </style>
+</head>
+<body>
+<div class="report-content min-h-screen py-10 px-4 md:px-8 max-w-6xl mx-auto">
+
+    <header class="flex justify-between items-end mb-10 pb-6 border-b border-color">
+        <div>
+            <div class="font-bold tracking-widest text-xs uppercase mb-2 text-accent">Monthly Competitive Intelligence</div>
+            <h1 class="text-3xl md:text-4xl font-bold mb-2 text-primary">{{report_month}} · 云厂商竞争态势报告</h1>
+            <p class="text-sm text-muted">统计周期：{{date_range}}</p>
+        </div>
+    </header>
+
+    <section class="mb-12">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- 更新总数 -->
+            <div class="glass-card rounded-2xl p-6 flex flex-col justify-between min-h-[140px]">
+                <div class="text-sm font-medium text-muted">本月监测总更新</div>
+                <div class="text-5xl font-bold text-primary">{{total_count}}</div>
+            </div>
+            
+            <!-- 最活跃厂商 -->
+            <div class="glass-card rounded-2xl p-6 flex flex-col justify-between min-h-[140px]">
+                <div class="text-sm font-medium text-muted">最活跃厂商</div>
+                <div>
+                    <div class="text-2xl font-bold text-primary">{{top_vendor_name}}</div>
+                    <div class="text-xs mt-1 text-muted">{{top_vendor_count}} 条更新</div>
+                </div>
+            </div>
+
+            <!-- 热点细分领域 -->
+            <div class="glass-card rounded-2xl p-6 md:col-span-2 flex flex-col justify-center min-h-[140px]">
+                <div class="text-sm font-medium mb-4 text-muted">热点细分领域</div>
+                <div class="space-y-3">
+                    {{category_bars_html}}
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI 分析师总结 - 独立区块 -->
+        <div class="glass-card rounded-2xl p-6 mt-4">
+            <div class="text-sm font-bold uppercase mb-4 tracking-wide text-accent">💡 分析师总结</div>
+            
+            <h3 class="font-bold mb-2 text-lg text-primary">{{insight_title}}</h3>
+            <p class="text-sm leading-relaxed mb-4 text-secondary">{{insight_summary}}</p>
+            
+            {{#if top_trends}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 border-color">
+                {{top_trends_html}}
+            </div>
+            {{/if}}
+        </div>
+    </section>
+
+    <section>
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-primary">
+                <i class="fa-solid fa-layer-group text-accent"></i> 本月重点更新
+            </h2>
+            <!-- 厂商筛选按钮 -->
+            <div class="flex flex-wrap gap-2" id="vendor-filters">
+                <button class="vendor-filter-btn active" data-vendor="all" onclick="filterByVendor('all')">全部</button>
+                {{vendor_filter_buttons}}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 auto-rows-min grid-flow-row-dense" id="updates-grid">
+            {{details_html_content}}
+        </div>
+    </section>
+
+    <script>
+    function filterByVendor(vendor) {
+        // 更新按钮状态
+        document.querySelectorAll('.vendor-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.vendor === vendor) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // 筛选卡片
+        document.querySelectorAll('.update-card').forEach(card => {
+            if (vendor === 'all' || card.dataset.vendor === vendor) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+    </script>
+
+    <footer class="mt-12 py-8 border-t text-center border-color">
+        <p class="text-xs text-muted">Generated by CloudNetSpy Engine · <a href="https://cnetspy.site" class="card-link" target="_blank">cnetspy.site</a></p>
+    </footer>
+</div>
+</body>
+</html>

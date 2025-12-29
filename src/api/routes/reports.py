@@ -62,10 +62,38 @@ async def get_report(
         for vendor, stats in sorted(vendor_stats.items(), key=lambda x: x[1].get('count', 0), reverse=True)
     ]
     
-    # 构建按厂商分组的更新列表
+    # 构建按厂商分组的更新列表，关联查询完整信息
     updates_by_vendor = {}
+    all_update_ids = []
+    
     for vendor, stats in vendor_stats.items():
-        updates_by_vendor[vendor] = stats.get('updates', [])
+        for u in stats.get('updates', []):
+            all_update_ids.append(u.get('update_id'))
+    
+    # 批量查询更新详情
+    update_details = {}
+    if all_update_ids:
+        for uid in all_update_ids:
+            detail = db.get_update_by_id(uid)
+            if detail:
+                update_details[uid] = detail
+    
+    # 组装完整更新信息
+    for vendor, stats in vendor_stats.items():
+        enriched_updates = []
+        for u in stats.get('updates', []):
+            uid = u.get('update_id')
+            detail = update_details.get(uid, {})
+            enriched_updates.append({
+                'update_id': uid,
+                'title': u.get('title') or detail.get('title', ''),
+                'publish_date': u.get('publish_date') or detail.get('publish_date', ''),
+                'update_type': u.get('update_type') or detail.get('update_type', ''),
+                'content_summary': detail.get('content_summary', ''),
+                'product_subcategory': detail.get('product_subcategory', ''),
+                'source_channel': detail.get('source_channel', ''),
+            })
+        updates_by_vendor[vendor] = enriched_updates
     
     # 构建响应
     report = ReportData(
@@ -74,6 +102,7 @@ async def get_report(
         date_to=report_data.get('date_to', ''),
         generated_at=report_data.get('generated_at'),
         ai_summary=report_data.get('ai_summary'),
+        html_filepath=report_data.get('html_filepath'),
         total_count=report_data.get('total_count', 0),
         vendor_summaries=vendor_summaries,
         updates_by_vendor=updates_by_vendor
