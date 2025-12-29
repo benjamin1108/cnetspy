@@ -9,10 +9,10 @@ import { useState } from 'react';
 import { ThemeSwitcher } from '@/components/ui';
 
 const navItems = [
-  { path: '/', label: '时间流' },
-  { path: '/updates', label: '更新列表' },
+  { path: '/', label: 'TimeLine' },
+  { path: '/updates', label: '更新汇总' },
+  { path: '/reports', label: '周月报' },
   { path: '/dashboard', label: '仪表盘' },
-  { path: '/reports', label: '竞争分析' },
 ];
 
 export function Header() {

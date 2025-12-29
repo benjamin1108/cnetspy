@@ -238,6 +238,10 @@ class MonthlyReport(BaseReport):
             logger.info("调用 Gemini 生成月度洞察 JSON...")
             response = self._gemini.generate_text(prompt)
             
+            # DEBUG: 打印原始响应
+            logger.debug(f"AI 原始响应 (前500字符): {response[:500]}")
+            logger.debug(f"AI 响应长度: {len(response)} 字符")
+            
             # 解析 JSON
             # 尝试清理可能的 Markdown 代码块
             response = response.strip()
@@ -249,8 +253,11 @@ class MonthlyReport(BaseReport):
                 response = response[:-3]
             response = response.strip()
             
+            logger.debug(f"清理后的响应 (前300字符): {response[:300]}")
+            
             insight = json.loads(response)
             logger.info(f"AI 洞察生成成功: {insight.get('insight_title', '')}")
+            logger.debug(f"解析得到的 insight: {insight}")
             
             # 确保字段存在
             return {
@@ -261,9 +268,11 @@ class MonthlyReport(BaseReport):
             
         except json.JSONDecodeError as e:
             logger.error(f"AI 返回的 JSON 解析失败: {e}")
+            logger.error(f"无法解析的响应内容: {response[:1000]}")
             return default_insight
         except Exception as e:
             logger.error(f"AI 洞察生成失败: {e}")
+            logger.error(f"异常时的响应: {response[:500] if 'response' in locals() else 'N/A'}")
             return default_insight
     
     # ==================== 渲染层 ====================

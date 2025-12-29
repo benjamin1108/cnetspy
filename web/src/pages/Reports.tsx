@@ -95,7 +95,8 @@ function parseAiSummary(markdown: string | undefined) {
     }
     
     // 趋势项 (emoji **标题**: 描述)
-    const trendMatch = line.match(/^([^\s]+)\s+\*\*([^*]+)\*\*[：:]\s*(.+)$/);
+    // 支持 FontAwesome HTML 标签格式：<i class="..."></i> **标题**: 描述
+    const trendMatch = line.match(/^(<i\s+class="[^"]+"><\/i>|[^\s]+)\s+\*\*([^*]+)\*\*[：:]\s*(.+)$/);
     if (trendMatch && inTrends) {
       if (currentTrend) trends.push(currentTrend);
       currentTrend = {
@@ -216,8 +217,8 @@ export function ReportsPage() {
       {/* 页面头部 */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-border">
         <div>
-          <p className="text-xs uppercase tracking-widest text-primary font-bold mb-2">
-            Monthly Competitive Intelligence
+          <p className="text-sm uppercase tracking-wider text-primary font-bold mb-2">
+            月度竞争情报
           </p>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">
             {year}年{month.toString().padStart(2, '0')}月 · 云厂商竞争态势报告
@@ -309,28 +310,63 @@ export function ReportsPage() {
           
           {/* AI 分析师总结 */}
           {aiInsight.title && (
-            <section className="timeline-card group rounded-xl p-5">
-              <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
-                💡 分析师总结
-              </div>
-              
-              <h3 className="font-bold text-base text-foreground mb-2">{aiInsight.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground mb-4">{aiInsight.summary}</p>
-              
-              {aiInsight.trends.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/50 pt-4">
-                  {aiInsight.trends.map((trend, i) => (
-                    <div key={i} className="timeline-card group rounded-lg p-3 flex gap-3">
-                      <span className="text-xl flex-shrink-0">{trend.emoji}</span>
-                      <div>
-                        <h4 className="font-medium text-sm mb-1 text-foreground group-hover:text-primary transition-colors">{trend.title}</h4>
-                        <p className="text-xs leading-relaxed text-muted-foreground">{trend.desc}</p>
-                      </div>
+            <>
+              {/* 1-2 个趋势：左右两个独立框 */}
+              {aiInsight.trends.length > 0 && aiInsight.trends.length <= 2 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 左侧：分析师总结框 */}
+                  <section className="timeline-card group rounded-xl p-5">
+                    <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                      💡 分析师总结
                     </div>
-                  ))}
+                    <h3 className="font-bold text-base text-foreground mb-2">{aiInsight.title}</h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{aiInsight.summary}</p>
+                  </section>
+                  
+                  {/* 右侧：趋势框（上下布局） */}
+                  <section className="timeline-card group rounded-xl p-5">
+                    <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                      📊 本月趋势
+                    </div>
+                    <div className="space-y-3">
+                      {aiInsight.trends.map((trend, i) => (
+                        <div key={i} className="timeline-card group rounded-lg p-3 flex gap-3">
+                          <span className="text-xl flex-shrink-0" dangerouslySetInnerHTML={{ __html: trend.emoji }} />
+                          <div>
+                            <h4 className="font-medium text-base mb-1 text-foreground group-hover:text-primary transition-colors">{trend.title}</h4>
+                            <p className="text-sm leading-relaxed text-muted-foreground">{trend.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
+              ) : (
+                /* 0 或 3 个趋势：上下布局 */
+                <section className="timeline-card group rounded-xl p-5">
+                  <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                    💡 分析师总结
+                  </div>
+                  
+                  <h3 className="font-bold text-base text-foreground mb-2">{aiInsight.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground mb-4">{aiInsight.summary}</p>
+                  
+                  {aiInsight.trends.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/50 pt-4">
+                      {aiInsight.trends.map((trend, i) => (
+                        <div key={i} className="timeline-card group rounded-lg p-3 flex gap-3">
+                          <span className="text-xl flex-shrink-0" dangerouslySetInnerHTML={{ __html: trend.emoji }} />
+                          <div>
+                            <h4 className="font-medium text-base mb-1 text-foreground group-hover:text-primary transition-colors">{trend.title}</h4>
+                            <p className="text-sm leading-relaxed text-muted-foreground">{trend.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
               )}
-            </section>
+            </>
           )}
           
           {/* 重点更新 */}
@@ -345,7 +381,7 @@ export function ReportsPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSelectedVendor('all')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
                     selectedVendor === 'all'
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-card border-border text-muted-foreground hover:border-primary'
@@ -357,7 +393,7 @@ export function ReportsPage() {
                   <button
                     key={v.vendor}
                     onClick={() => setSelectedVendor(v.vendor)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
                       selectedVendor === v.vendor
                         ? 'bg-primary text-primary-foreground border-primary'
                         : 'bg-card border-border text-muted-foreground hover:border-primary'
@@ -409,7 +445,7 @@ export function ReportsPage() {
                           to={`/updates/${update.update_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 block min-h-[2.5rem]"
+                          className="text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 block min-h-[2.5rem]"
                         >
                           {update.title}
                         </Link>
@@ -418,7 +454,7 @@ export function ReportsPage() {
                       {/* 中间弹性区域：摘要 */}
                       <div className="flex-1 py-2">
                         {update.content_summary && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 group-hover:text-muted-foreground/80">
+                          <p className="text-sm text-muted-foreground line-clamp-2 group-hover:text-muted-foreground/80">
                             {stripMarkdown(update.content_summary)}
                           </p>
                         )}
