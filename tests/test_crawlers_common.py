@@ -662,5 +662,5 @@ class TestSetTotalDiscovered:
         crawler.set_total_discovered(50)
         crawler.set_total_discovered(30)
         
-        # set_total_discovered 是设置，不是累加
-        assert crawler._crawl_report.total_discovered == 30
+        # set_total_discovered 是累加（多页/多线程分别报告）
+        assert crawler._crawl_report.total_discovered == 80

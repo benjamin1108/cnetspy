@@ -95,19 +95,21 @@ class TestPromptTemplatesLoading:
     
     def test_load_prompt_template_exists(self):
         """测试加载存在的模板"""
-        # update_analysis.prompt.txt 应该存在
-        template = PromptTemplates._load_prompt_template("update_analysis")
+        # update_analysis_whatsnew.prompt.txt 应该存在
+        template = PromptTemplates._load_prompt_template("update_analysis_whatsnew")
         assert template is not None
         assert len(template) > 0
     
     def test_load_prompt_template_cached(self):
         """测试模板缓存"""
+        # 清除缓存
+        PromptTemplates._prompt_cache.clear()
         # 第一次加载
-        PromptTemplates._load_prompt_template("update_analysis")
+        PromptTemplates._load_prompt_template("update_analysis_blog")
         # 检查缓存
-        assert "update_analysis" in PromptTemplates._prompt_cache
+        assert "update_analysis_blog" in PromptTemplates._prompt_cache
         # 第二次加载应使用缓存
-        template = PromptTemplates._load_prompt_template("update_analysis")
+        template = PromptTemplates._load_prompt_template("update_analysis_blog")
         assert template is not None
     
     def test_load_prompt_template_not_exists(self):
