@@ -76,6 +76,36 @@ class UpdateService:
         
         return items, pagination
     
+    def get_updates_by_filters(
+        self,
+        filters: dict,
+        sort_by: str = "publish_date",
+        order: str = "desc"
+    ) -> List[Dict]:
+        """
+        按条件查询所有更新（不分页）
+        
+        用于报告等需要获取全部数据的场景
+        
+        Args:
+            filters: 过滤条件字典（date_from, date_to, has_analysis 等）
+            sort_by: 排序字段
+            order: 排序方向
+            
+        Returns:
+            更新列表
+        """
+        # 查询所有符合条件的数据（limit 设置足够大）
+        rows = self.db.query_updates_paginated(
+            filters=filters,
+            limit=1000,  # 报告场景不会超过这个数
+            offset=0,
+            sort_by=sort_by,
+            order=order
+        )
+        
+        return [self._process_update_row(row) for row in rows]
+    
     def get_update_detail(self, update_id: str) -> Optional[Dict]:
         """
         获取更新详情

@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { updatesApi, statsApi, vendorsApi, analysisApi } from '@/api';
+import { updatesApi, statsApi, vendorsApi, analysisApi, reportsApi } from '@/api';
 import type { UpdateQueryParams } from '@/types';
 
 // Query Keys
@@ -300,5 +300,32 @@ export function useTranslateContent() {
       // 刷新更新详情缓存
       queryClient.invalidateQueries({ queryKey: queryKeys.updates.detail(updateId) });
     },
+  });
+}
+
+// ==================== 竞争分析报告 ====================
+
+/**
+ * 报告数据 Hook
+ */
+export function useReportData(reportType: 'weekly' | 'monthly', params: {
+  year?: number;
+  month?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ['reports', reportType, params],
+    queryFn: () => reportsApi.getReport(reportType, params),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+/**
+ * 可用月份列表 Hook
+ */
+export function useAvailableMonths() {
+  return useQuery({
+    queryKey: ['reports', 'available-months'],
+    queryFn: () => reportsApi.getAvailableMonths('monthly'),
+    staleTime: 1000 * 60 * 60, // 1 hour
   });
 }

@@ -704,76 +704,7 @@ sys.exit(0 if success else 1)
 # 报告生成
 do_report() {
     check_venv
-    
-    REPORT_TYPE=""
-    SEND_NOTIFY=false
-    
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --weekly)
-                REPORT_TYPE="weekly"
-                shift
-                ;;
-            --monthly)
-                REPORT_TYPE="monthly"
-                shift
-                ;;
-            --send)
-                SEND_NOTIFY=true
-                shift
-                ;;
-            -h|--help)
-                echo -e "${YELLOW}report 选项:${NC}"
-                echo -e "  --weekly           生成周报"
-                echo -e "  --monthly          生成月报"
-                echo -e "  --send             生成后发送通知"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}错误: 未知的 report 选项: $1${NC}"
-                exit 1
-                ;;
-        esac
-    done
-    
-    if [ -z "$REPORT_TYPE" ]; then
-        echo -e "${YELLOW}用法: $0 report --weekly|--monthly [--send]${NC}"
-        exit 1
-    fi
-    
-    SEND_ARG=""
-    if [ "$SEND_NOTIFY" = true ]; then
-        SEND_ARG="--send"
-    fi
-    
-    echo -e "${BLUE}生成${REPORT_TYPE}报告...${NC}"
-    "$PYTHON" -c "
-import sys
-from src.reports import WeeklyReport, MonthlyReport
-from src.utils.config import get_config
-from src.notification import NotificationManager
-
-report_type = '$REPORT_TYPE'
-send_notify = '$SEND_NOTIFY' == 'true'
-
-if report_type == 'weekly':
-    report = WeeklyReport()
-else:
-    report = MonthlyReport()
-
-content = report.generate()
-filepath = report.save()
-print(f'报告已保存: {filepath}')
-
-if send_notify:
-    config = get_config()
-    manager = NotificationManager(config.get('notification', {}))
-    title = f'云网动态{report.report_name}'
-    result = manager.send_all(title, content)
-    for ch, r in result.items():
-        status = '成功' if r.success else '失败'
-        print(f'推送 {ch}: {status}')
-"
+    "$PYTHON" -m src.reports.cli "$@"
 }
 
 # 主入口

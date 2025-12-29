@@ -780,3 +780,129 @@ body {
   background: hsl(var(--chat-error-bg));
   color: hsl(var(--chat-error-fg));
 }
+
+/* ===== 时间流样式 ===== */
+
+/* 时间流容器 */
+.timeline-container {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+/* 左侧时间轴线 */
+.timeline-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.75rem;
+  width: 2px;
+  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.1));
+  z-index: 0;
+}
+
+/* 时间流卡片 */
+.timeline-card {
+  position: relative;
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.timeline-card:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.15);
+  transform: translateY(-2px);
+}
+
+.dark .timeline-card {
+  background: hsl(var(--card) / 0.4);
+  border-color: hsl(var(--border) / 0.3);
+}
+
+.dark .timeline-card:hover {
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.2);
+}
+
+/* 厂商颜色条 */
+.timeline-vendor-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0.75rem 0 0 0.75rem;
+  opacity: 0.9;
+}
+
+/* 时间流日期标签 */
+.timeline-date-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* 时间流更新类型标签 */
+.timeline-type-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.timeline-type-feature {
+  background: hsl(var(--success) / 0.15);
+  color: hsl(var(--success));
+  border: 1px solid hsl(var(--success) / 0.2);
+}
+
+.timeline-type-pricing {
+  background: hsl(var(--warning) / 0.15);
+  color: hsl(var(--warning));
+  border: 1px solid hsl(var(--warning) / 0.2);
+}
+
+.timeline-type-security {
+  background: hsl(var(--destructive) / 0.15);
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive) / 0.2);
+}
+
+.timeline-type-default {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+}
+
+/* 今日摘要面板 */
+.daily-brief-panel {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-left: 4px solid hsl(var(--primary));
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.dark .daily-brief-panel {
+  background: hsl(var(--card) / 0.5);
+}
+
+/* 时间流时间戳 */
+.timeline-timestamp {
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  color: hsl(var(--muted-foreground) / 0.7);
+}

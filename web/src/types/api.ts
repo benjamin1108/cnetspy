@@ -206,3 +206,50 @@ export const SOURCE_CHANNEL_LABELS: Record<string, string> = {
   'tech-blog': '博客',
   'infra-blog': '博客',
 };
+
+// ==================== 报告相关类型 ====================
+
+// 报告中的更新项
+export interface ReportUpdateItem {
+  update_id: string;
+  vendor: string;
+  title: string;
+  title_translated: string | null;
+  content_summary: string | null;
+  publish_date: string;
+  update_type: string | null;
+  source_channel: string;
+}
+
+// 厂商统计摘要
+export interface VendorSummary {
+  vendor: string;
+  count: number;
+  analyzed: number;
+  update_types: Record<string, number>;
+}
+
+// 报告数据
+export interface ReportData {
+  report_type: 'weekly' | 'monthly';
+  date_from: string;
+  date_to: string;
+  generated_at: string | null;
+  ai_summary: string | null;
+  total_count: number;
+  vendor_summaries: VendorSummary[];
+  updates_by_vendor: Record<string, ReportUpdateItem[]>;
+}
+
+// 可用月份
+export interface AvailableMonth {
+  year: number;
+  month: number;
+  label: string;
+}
+
+// 报告类型标签
+export const REPORT_TYPE_LABELS: Record<string, string> = {
+  weekly: '周报',
+  monthly: '月报',
+};

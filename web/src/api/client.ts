@@ -20,6 +20,8 @@ import type {
   AnalysisTaskStatus,
   VendorTypeMatrixItem,
   TrendData,
+  ReportData,
+  AvailableMonth,
 } from '@/types';
 
 // 获取 API 基础路径（生产环境使用 /next/api/v1）
@@ -242,6 +244,26 @@ export const analysisApi = {
 export const healthApi = {
   async check(): Promise<{ status: string; database: string; version: string }> {
     const response = await apiClient.get('/health');
+    return response.data;
+  },
+};
+
+/**
+ * 竞争分析报告 API
+ */
+export const reportsApi = {
+  // 获取报告数据
+  async getReport(reportType: 'weekly' | 'monthly', params: {
+    year?: number;
+    month?: number;
+  } = {}): Promise<ApiResponse<ReportData>> {
+    const response = await apiClient.get(`/reports/${reportType}`, { params });
+    return response.data;
+  },
+
+  // 获取可用月份列表
+  async getAvailableMonths(reportType: 'monthly'): Promise<ApiResponse<AvailableMonth[]>> {
+    const response = await apiClient.get(`/reports/${reportType}/available-months`);
     return response.data;
   },
 };

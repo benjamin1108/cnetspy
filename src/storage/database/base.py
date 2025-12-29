@@ -259,6 +259,34 @@ class DatabaseManager:
                 ON task_reports(task_type)
             ''')
             
+            # ==================== reports 表（周报/月报）====================
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_type TEXT NOT NULL,
+                    year INTEGER NOT NULL,
+                    month INTEGER,
+                    week INTEGER,
+                    date_from TEXT NOT NULL,
+                    date_to TEXT NOT NULL,
+                    ai_summary TEXT,
+                    vendor_stats TEXT,
+                    total_count INTEGER DEFAULT 0,
+                    generated_at DATETIME NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # reports 索引
+            cursor.execute('''
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique 
+                ON reports(report_type, year, month)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_reports_type 
+                ON reports(report_type)
+            ''')
+            
             conn.commit()
             
             # 配置数据库参数
