@@ -1,0 +1,32 @@
+# 通知模块配置
+
+notification:
+  # 钉钉机器人配置
+  dingtalk:
+    enabled: true
+    robots:
+      - name: "TEST-BOT"
+        webhook_url: "${DINGTALK_TESTBOT_WEBHOOK}"
+        secret: "${DINGTALK_TESTBOT_SECRET}"
+      # - name: "产品管理群"
+      #   webhook_url: "${DINGTALK_PRODUCT_WEBHOOK}"
+      #   secret: "${DINGTALK_PRODUCT_SECRET}"
+      # - name: "分析师-r1"
+      #   webhook_url: "${DINGTALK_ANALYST_WEBHOOK}"
+      #   secret: "${DINGTALK_ANALYST_SECRET}"
+      # - name: "技术团队密集"
+      #   webhook_url: "${DINGTALK_TECH_WEBHOOK}"
+      #   secret: "${DINGTALK_TECH_SECRET}"
+
+  # 邮件配置
+  email:
+    enabled: true
+    smtp_server: "${EMAIL_SMTP_SERVER}"
+    smtp_port: 587
+    use_tls: true
+    sender: "${EMAIL_SENDER}"
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    recipients:
+      - "21586750@qq.com"
+    subject_prefix: "[云网动态]"
