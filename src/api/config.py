@@ -37,7 +37,7 @@ class APISettings(BaseSettings):
     # 服务器配置
     host: str = "0.0.0.0"
     port: int = 8000
-    workers: int = 4
+    workers: int = 1
 
 
 settings = APISettings()

@@ -294,11 +294,13 @@ do_api() {
             --port "$PORT" \
             --reload
     else
-        # 生产模式：多进程
+        # 生产模式：从配置文件读取 workers 数
+        WORKERS=$("$PYTHON" -c "from src.api.config import settings; print(settings.workers)")
+        echo -e "生产模式: 使用 $WORKERS 个工作进程"
         "$PYTHON" -m uvicorn src.api.app:app \
             --host "$HOST" \
             --port "$PORT" \
-            --workers 4
+            --workers "$WORKERS"
     fi
 }
 

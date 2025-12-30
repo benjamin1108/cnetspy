@@ -3,7 +3,7 @@
 
 scheduler:
   # 是否启用调度器
-  enabled: false  # 默认禁用，启用后随 API 服务自动运行
+  enabled: true  # 默认禁用，启用后随 API 服务自动运行
   
   # 时区设置
   timezone: "Asia/Shanghai"
@@ -13,7 +13,7 @@ scheduler:
     # 每日爬取 + 分析（串联执行）
     daily_crawl_analyze:
       enabled: true
-      cron: "0 8 * * *"  # 每天 08:00 执行
+      cron: "0 8 * * *"  # 每天 09:42 执行
       vendors: []  # 空列表表示爬取所有厂商
       auto_analyze: true  # 爬取完成后自动分析
       notify_on_complete: true  # 完成后发送通知
