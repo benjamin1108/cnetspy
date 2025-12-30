@@ -615,29 +615,41 @@ class BaseCrawler(ABC):
         
         return None
     
-    def _get_with_playwright(self, url: str, wait_for_selector: str = None) -> Optional[str]:
+    def _get_with_playwright(self, url: str, wait_for_selector: str = None, blocked_resources: List[str] = None) -> Optional[str]:
         """
         使用Playwright获取页面内容（带重试和懒加载处理）
         
         Args:
             url: 目标URL
             wait_for_selector: 等待的CSS选择器（可选）
+            blocked_resources: 要阻止加载的资源类型列表（可选）
             
         Returns:
             网页HTML内容或None（如果失败）
         """
         from playwright.sync_api import sync_playwright
         
+        # 默认阻止的资源类型
+        if blocked_resources is None:
+            blocked_resources = ["image", "media", "font", "stylesheet"]
+        
         for i in range(self.retry):
             try:
                 logger.info(f"使用Playwright获取页面: {url}")
                 with sync_playwright() as p:
                     browser = p.chromium.launch(
-                        headless=True,
-                        args=['--no-sandbox', '--disable-dev-shm-usage']
+                        headless=True,  # 使用新版headless模式
+                        args=['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
                     )
                     try:
                         page = browser.new_page()
+                        
+                        # 拦截并阻止非必要资源加载
+                        if blocked_resources:
+                            page.route("**/*", lambda route: route.abort() 
+                                if route.request.resource_type in blocked_resources 
+                                else route.continue_())
+                            
                         page.set_default_timeout(30000)
                         page.goto(url, wait_until='domcontentloaded')
                         

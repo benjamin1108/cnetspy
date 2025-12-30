@@ -130,9 +130,12 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         
         logger.info(f"正在爬取 {source_name} (product: {product_name}): {url}")
         
-        # 使用基类提供的 Playwright 方法获取页面，如果JS渲染不是必须的，
-        # BaseCrawler的_get_with_playwright内部有requests作为回退，这里无需分别调用
-        html = self._get_with_playwright(url)
+        # 使用基类提供的 Playwright 方法获取页面
+        # 火山引擎页面渲染依赖样式表，因此不屏蔽 stylesheet
+        html = self._get_with_playwright(
+            url, 
+            blocked_resources=["image", "media", "font"]
+        )
         
         if not html:
             logger.error(f"获取页面失败: {source_name}")

@@ -280,8 +280,10 @@ class AzureTechBlogCrawler(BaseCrawler):
                     launch_args = {
                         'headless': True,
                         'args': [
+                            '--headless=new',
                             '--no-sandbox',
                             '--disable-dev-shm-usage',
+                            '--disable-gpu',
                             '--disable-blink-features=AutomationControlled',
                             '--disable-infobars',
                             '--window-size=1920,1080',
@@ -320,6 +322,11 @@ class AzureTechBlogCrawler(BaseCrawler):
                         )
                         
                         page = context.new_page()
+
+                        # 拦截并阻止非必要资源加载
+                        page.route("**/*", lambda route: route.abort() 
+                            if route.request.resource_type in ["image", "media", "font", "stylesheet"] 
+                            else route.continue_())
                         
                         page.add_init_script("""
                             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
