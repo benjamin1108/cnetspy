@@ -6,18 +6,12 @@
 """
 
 import logging
-import os
 import re
-import sys
-import time
 import datetime
-import random
-import concurrent.futures
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
-import requests
 
 from src.crawlers.common.base_crawler import BaseCrawler
 
@@ -25,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class VolcengineWhatsnewCrawler(BaseCrawler):
-    """火山引擎网络服务产品动态爬虫"""
+    """火山引擎网络服务产品动态爬虫 (串行模式)"""
     
     def __init__(self, config: Dict[str, Any], vendor: str, source_type: str):
         """初始化火山引擎产品动态爬虫"""
@@ -34,13 +28,8 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         self.sub_sources = self._extract_sub_sources()
         
         # 从配置中获取type字段作为source_channel
-        # 火山引擎的子源都是documentation类型
-        actual_source_type = 'whatsnew'  # documentation -> whatsnew
-        if self.sub_sources:
-            first_sub = next(iter(self.sub_sources.values()))
-            config_type = first_sub.get('type', '')
-            if config_type == 'documentation':
-                actual_source_type = 'whatsnew'
+        # 火山引擎的子源都是documentation类型, 统一映射为whatsnew
+        actual_source_type = 'whatsnew'
         
         # 使用从配置获取的type初始化父类
         super().__init__(config, vendor, actual_source_type)
@@ -79,7 +68,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
     def _crawl(self) -> List[str]:
         """
         爬取火山引擎网络服务产品动态
-        使用Playwright进行动态渲染，并发处理多个子源
+        串行处理多个子源
         
         Returns:
             保存的文件路径列表
@@ -90,99 +79,33 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         
         saved_files = []
         all_updates = []
-        
-        # 检查是否启用强制模式
         force_mode = self.crawler_config.get('force', False)
         
-        # 并发配置（内存受限时降低并发数）
-        max_concurrent = 2  # 最大并发数（火山引擎页面较重，不宜过高）
-        task_interval_min = 0.3
-        task_interval_max = 0.8
+        # 串行循环处理所有子源
+        for source_name, source_config in self.sub_sources.items():
+            try:
+                source_updates = self._crawl_single_source(source_name, source_config, force_mode)
+                all_updates.extend(source_updates)
+                logger.info(f"✓ {source_name} 完成")
+            except Exception as e:
+                logger.error(f"爬取 {source_name} 失败: {e}")
         
-        try:
-            # 使用线程池并发处理
-            # 注：Playwright sync_api 不支持多线程共享 browser
-            # 每个线程需要创建独立的 playwright 实例
-            max_workers = min(len(self.sub_sources), max_concurrent)
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_source = {}
-                
-                # 慢启动提交任务
-                for idx, (source_name, source_config) in enumerate(self.sub_sources.items()):
-                    if idx > 0:
-                        delay = random.uniform(task_interval_min, task_interval_max)
-                        time.sleep(delay)
-                    
-                    future = executor.submit(
-                        self._crawl_single_source_with_own_browser,  # 使用独立 browser 的方法
-                        source_name,
-                        source_config,
-                        force_mode
-                    )
-                    future_to_source[future] = source_name
-                    logger.info(f"提交任务: {source_name} ({idx + 1}/{len(self.sub_sources)})")
-                
-                # 收集所有更新
-                for future in concurrent.futures.as_completed(future_to_source):
-                    source_name = future_to_source[future]
-                    try:
-                        source_updates = future.result(timeout=120)
-                        all_updates.extend(source_updates)
-                        logger.info(f"✓ {source_name} 完成")
-                    except Exception as e:
-                        logger.error(f"爬取 {source_name} 失败: {e}")
-            
-            logger.info(f"总共收集到 {len(all_updates)} 条火山引擎网络更新")
-            
-            # 保存每条更新
-            for update in all_updates:
-                try:
-                    file_path = self.save_update(update)
-                    if file_path:
-                        saved_files.append(file_path)
-                except Exception as e:
-                    logger.error(f"保存更新失败 [{update.get('title', 'Unknown')}]: {e}")
-            
-            logger.info(f"成功保存 {len(saved_files)} 个火山引擎更新文件")
-            return saved_files
-            
-        except Exception as e:
-            logger.error(f"爬取火山引擎更新时发生错误: {e}")
-            return saved_files
-    
-    def _crawl_single_source_with_own_browser(
-        self,
-        source_name: str,
-        source_config: Dict[str, Any],
-        force_mode: bool
-    ) -> List[Dict[str, Any]]:
-        """
-        在独立的 Playwright 实例中爬取单个源
+        logger.info(f"总共收集到 {len(all_updates)} 条火山引擎网络更新")
         
-        Playwright sync_api 不支持多线程共享 browser，
-        每个线程必须创建自己的 playwright 和 browser 实例
-        """
-        try:
-            from playwright.sync_api import sync_playwright
-            
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=['--no-sandbox', '--disable-dev-shm-usage']
-                )
-                try:
-                    return self._crawl_single_source(browser, source_name, source_config, force_mode)
-                finally:
-                    browser.close()
-                    
-        except Exception as e:
-            logger.error(f"创建 Playwright 实例失败 [{source_name}]: {e}")
-            return []
-    
+        # 保存每条更新
+        for update in all_updates:
+            try:
+                file_path = self.save_update(update)
+                if file_path:
+                    saved_files.append(file_path)
+            except Exception as e:
+                logger.error(f"保存更新失败 [{update.get('title', 'Unknown')}]: {e}")
+        
+        logger.info(f"成功保存 {len(saved_files)} 个火山引擎更新文件")
+        return saved_files
+
     def _crawl_single_source(
         self,
-        browser,
         source_name: str, 
         source_config: Dict[str, Any], 
         force_mode: bool
@@ -191,8 +114,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         爬取单个火山引擎服务的更新
         
         Args:
-            browser: Playwright browser实例
-            product_name: 产品名称
+            source_name: 产品名称
             source_config: 服务配置
             force_mode: 是否强制模式
             
@@ -204,119 +126,33 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             logger.warning(f"源 {source_name} 没有配置URL")
             return []
         
-        # 从配置获取product字段
         product_name = source_config.get('product', source_name)
         
         logger.info(f"正在爬取 {source_name} (product: {product_name}): {url}")
         
-        try:
-            # 先尝试requests（部分页面是服务端渲染）
-            html = self._get_page_content_requests(url)
-            
-            # 如果requests失败或内容不完整，使用Playwright
-            if not html or not self._is_content_complete(html):
-                html = self._get_page_content_playwright(browser, url)
-            
-            if not html:
-                logger.error(f"获取页面失败: {source_name}")
-                return []
-            
-            # 解析更新条目
-            updates = self._parse_updates(html, product_name, url)
-            
-            # 线程安全地累加发现数
-            self.set_total_discovered(len(updates))
-            
-            # 过滤已存在的更新（除非强制模式）
-            if not force_mode:
-                updates = [u for u in updates if not self.should_skip_update(update=u)[0]]
-            
-            logger.info(f"{source_name} 新增 {len(updates)} 条")
-            return updates
-            
-        except Exception as e:
-            logger.error(f"爬取 {source_name} 时发生错误: {e}")
-            return []
-    
-    def _get_page_content_requests(self, url: str) -> Optional[str]:
-        """
-        使用requests获取页面内容
+        # 使用基类提供的 Playwright 方法获取页面，如果JS渲染不是必须的，
+        # BaseCrawler的_get_with_playwright内部有requests作为回退，这里无需分别调用
+        html = self._get_with_playwright(url)
         
-        Args:
-            url: 页面URL
-            
-        Returns:
-            页面HTML内容
-        """
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml',
-                'Accept-Language': 'zh-CN,zh;q=0.9'
-            }
-            
-            response = requests.get(url, headers=headers, timeout=30)
-            if response.status_code == 200:
-                logger.debug(f"requests获取页面成功: {url}")
-                return response.text
-            else:
-                logger.debug(f"requests返回状态码 {response.status_code}: {url}")
-                
-        except Exception as e:
-            logger.debug(f"requests获取页面失败: {url} - {e}")
-        
-        return None
-    
-    def _get_page_content_playwright(self, browser, url: str) -> Optional[str]:
-        """
-        使用Playwright获取页面内容
-        
-        Args:
-            browser: Playwright browser实例
-            url: 页面URL
-            
-        Returns:
-            页面HTML内容
-        """
-        try:
-            context = browser.new_context()
-            try:
-                page = context.new_page()
-                page.set_default_timeout(30000)
-                
-                # 导航到页面
-                page.goto(url, wait_until='domcontentloaded')
-                
-                # 专门等待 table 加载（增加等待时间应对内存紧张）
-                try:
-                    page.wait_for_selector('table', timeout=15000)
-                except:
-                    # table 未加载，尝试等待其他关键元素
-                    try:
-                        page.wait_for_selector('.ace-line, .volc-doceditor-container, article', timeout=3000)
-                    except:
-                        pass
-                
-                # 额外等待确保内容加载
-                page.wait_for_timeout(300)
-                
-                html = page.content()
-                logger.info(f"Playwright获取页面成功: {url}")
-                return html
-                
-            finally:
-                context.close()
-                
-        except Exception as e:
-            logger.error(f"Playwright获取页面失败: {url} - {e}")
-        
-        return None
-    
-    def _is_content_complete(self, html: str) -> bool:
-        """检查HTML内容是否完整（包含表格或关键元素）"""
         if not html:
-            return False
-        return any(keyword in html for keyword in ['.ace-line', 'ace-table', '<table', 'article'])
+            logger.error(f"获取页面失败: {source_name}")
+            self.crawl_report.increment_failed()
+            return []
+        
+        # 解析更新条目
+        updates = self._parse_updates(html, product_name, url)
+        
+        # 线程安全地累加发现数 (在串行模式下 'set' 已经足够安全)
+        self.set_total_discovered(len(updates))
+        
+        # 过滤已存在的更新（除非强制模式）
+        if not force_mode:
+            original_count = len(updates)
+            updates = [u for u in updates if not self.should_skip_update(update=u)[0]]
+            logger.debug(f"{source_name} 过滤了 {original_count - len(updates)} 条已存在的更新")
+
+        logger.info(f"{source_name} 新增 {len(updates)} 条")
+        return updates
     
     def _parse_updates(
         self, 

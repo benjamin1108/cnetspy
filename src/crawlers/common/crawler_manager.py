@@ -4,9 +4,6 @@
 import importlib
 import logging
 import os
-import threading
-import queue
-import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 
@@ -25,7 +22,7 @@ class CrawlStats:
 
 
 class CrawlerManager:
-    """爬虫管理器，负责调度各个爬虫"""
+    """爬虫管理器，负责调度各个爬虫（串行执行）"""
     
     def __init__(self, config: Dict[str, Any]):
         """
@@ -36,12 +33,6 @@ class CrawlerManager:
         """
         self.config = config
         self.sources = config.get('sources', {})
-        # 获取最大工作线程数，默认为1（单线程）
-        self.max_workers = config.get('crawler', {}).get('max_workers', 1)
-        # 创建线程锁，用于保护共享资源
-        self.lock = threading.RLock()
-        # 创建结果队列，用于线程安全地收集结果
-        self.result_queue = queue.Queue()
         
         # 初始化进程锁管理器
         self.process_lock_manager = ProcessLockManager.get_instance(ProcessType.CRAWLER)
@@ -139,106 +130,9 @@ class CrawlerManager:
         
         return files, stats
     
-    def _worker(self, vendor: str, source_type: str, source_config: Dict[str, Any]):
-        """
-        工作线程函数，用于执行爬虫任务
-        
-        Args:
-            vendor: 厂商名称
-            source_type: 源类型
-            source_config: 源配置
-        """
-        try:
-            logger.info(f"线程开始执行爬虫任务: {vendor}/{source_type}")
-            files, stats = self.run_crawler(vendor, source_type, source_config)
-            
-            # 线程安全地将结果放入队列
-            self.result_queue.put((vendor, source_type, files, stats))
-            logger.info(f"爬虫任务完成: {vendor}/{source_type}, 发现 {stats.discovered}, 新增 {stats.new_saved}")
-        except Exception as e:
-            logger.error(f"爬虫任务异常: {vendor} {source_type} - {e}")
-            self.result_queue.put((vendor, source_type, [], CrawlStats()))
-    
-    def run_multi_threaded(self) -> Tuple[Dict[str, Dict[str, List[str]]], Dict[str, Dict[str, CrawlStats]]]:
-        """
-        使用线程池运行所有爬虫（多线程并行执行）
-        
-        Returns:
-            (爬取结果, 统计信息)
-            - 爬取结果格式: {vendor: {source_type: [file_paths]}}
-            - 统计信息格式: {vendor: {source_type: CrawlStats}}
-        """
-        results = {}
-        all_stats = {}
-        crawl_tasks = []
-        
-        # 收集所有爬虫任务
-        for vendor, vendor_sources in self.sources.items():
-            for source_type, source_config in vendor_sources.items():
-                crawl_tasks.append((vendor, source_type, source_config))
-        
-        logger.info(f"共有 {len(crawl_tasks)} 个爬虫任务，使用 {self.max_workers} 个线程执行")
-        
-        # --- 开始：添加模块预加载逻辑 ---
-        modules_to_preload = set()
-        logger.info("开始预加载爬虫模块...")
-        for vendor, source_type, _ in crawl_tasks:
-            try:
-                # 尝试构建特定爬虫模块名
-                module_source_type = source_type.replace('-', '_')
-                specific_module_name = f"src.crawlers.vendors.{vendor}.{module_source_type}_crawler"
-                modules_to_preload.add(specific_module_name)
-
-                # 也可以考虑预加载通用爬虫，但优先确保特定爬虫加载
-                # generic_module_name = f"src.crawlers.vendors.{vendor}.generic_crawler"
-                # modules_to_preload.add(generic_module_name)
-
-            except Exception as e:
-                # 在构建模块名时不太可能出错，但以防万一
-                logger.warning(f"构建模块名时出错 ({vendor}/{source_type}): {e}")
-
-        loaded_count = 0
-        failed_count = 0
-        for module_name in modules_to_preload:
-            try:
-                importlib.import_module(module_name)
-                loaded_count += 1
-            except ImportError:
-                # _get_crawler_class 稍后会处理加载通用爬虫的情况，这里只记录警告
-                logger.warning(f"预加载模块失败 (ImportError): {module_name} - 将在运行时尝试加载通用爬虫")
-                failed_count += 1
-            except Exception as e:
-                logger.error(f"预加载模块时发生意外错误: {module_name} - {e}")
-                failed_count += 1
-
-        logger.info(f"模块预加载完成: 成功 {loaded_count} 个, 失败/跳过 {failed_count} 个")
-        # --- 结束：添加模块预加载逻辑 ---
-        
-        # 使用线程池执行爬虫任务
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for vendor, source_type, source_config in crawl_tasks:
-                executor.submit(self._worker, vendor, source_type, source_config)
-        
-        # 处理队列中的所有结果
-        while not self.result_queue.empty():
-            vendor, source_type, files, stats = self.result_queue.get()
-            
-            # 线程安全地更新结果字典
-            with self.lock:
-                if vendor not in results:
-                    results[vendor] = {}
-                if vendor not in all_stats:
-                    all_stats[vendor] = {}
-                results[vendor][source_type] = files
-                all_stats[vendor][source_type] = stats
-        
-        return results, all_stats
-    
     def run(self) -> Tuple[Dict[str, Dict[str, List[str]]], Dict[str, Dict[str, CrawlStats]]]:
         """
-        运行所有爬虫
-        
-        如果max_workers > 1则使用多线程执行，否则使用单线程顺序执行
+        运行所有爬虫（串行执行）
         
         Returns:
             (爬取结果, 统计信息)
@@ -251,16 +145,9 @@ class CrawlerManager:
             return {}, {}
         
         self.lock_acquired = True
-        logger.info("已获取爬虫进程锁，开始执行爬虫任务")
+        logger.info("已获取爬虫进程锁，开始按顺序串行执行所有爬虫任务")
         
         try:
-            # 根据配置决定使用多线程还是单线程
-            if self.max_workers > 1:
-                logger.info(f"使用多线程模式运行爬虫，线程数: {self.max_workers}")
-                return self.run_multi_threaded()
-            
-            # 单线程执行模式
-            logger.info("使用单线程模式顺序运行爬虫")
             results = {}
             all_stats = {}
             
@@ -272,7 +159,7 @@ class CrawlerManager:
                 for source_type, source_config in vendor_sources.items():
                     logger.info(f"开始执行爬虫任务: {vendor}/{source_type}")
                     try:
-                        # 直接运行爬虫，不使用线程池
+                        # 直接运行爬虫
                         files, stats = self.run_crawler(vendor, source_type, source_config)
                         results[vendor][source_type] = files
                         all_stats[vendor][source_type] = stats

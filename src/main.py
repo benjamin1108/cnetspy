@@ -147,7 +147,7 @@ def run_crawler(args: argparse.Namespace) -> int:
     
     # 运行爬虫
     crawler_manager = CrawlerManager(config)
-    result = crawler_manager.run()
+    result, _ = crawler_manager.run()
     
     if not result:
         logger.error("爬虫任务失败")

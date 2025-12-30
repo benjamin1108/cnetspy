@@ -89,7 +89,7 @@ class AwsNetworkBlogCrawler(BaseCrawler):
     
     def _crawl(self) -> List[str]:
         """
-        通过API爬取AWS网络相关博客
+        通过API爬取AWS网络相关博客, 并发处理
         
         Returns:
             保存的文件路径列表
@@ -110,11 +110,35 @@ class AwsNetworkBlogCrawler(BaseCrawler):
             self.set_total_discovered(len(network_articles))
             
             # 2. 过滤已存在的文章
-            if not force_mode:
-                network_articles = self._filter_new_articles(network_articles)
+            articles_to_crawl = self._filter_new_articles(network_articles) if not force_mode else network_articles
             
             # 3. 并行爬取文章内容
-            all_updates = self._crawl_articles_parallel(network_articles)
+            all_updates = []
+            if articles_to_crawl:
+                # 使用全局配置的并发参数
+                max_workers_config = self.crawler_config.get('max_workers', 10)
+                max_workers = min(max_workers_config, len(articles_to_crawl))
+                logger.info(f"使用 {max_workers} 个线程并行爬取 {len(articles_to_crawl)} 篇文章")
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_article = {
+                        executor.submit(self._crawl_single_article, article): article
+                        for article in articles_to_crawl
+                    }
+                    
+                    completed = 0
+                    for future in concurrent.futures.as_completed(future_to_article):
+                        article = future_to_article[future]
+                        completed += 1
+                        try:
+                            update = future.result()
+                            if update:
+                                all_updates.append(update)
+                                logger.info(f"[{completed}/{len(articles_to_crawl)}] 成功: {article['title'][:50]}")
+                            else:
+                                logger.warning(f"[{completed}/{len(articles_to_crawl)}] 失败: {article['title'][:50]}")
+                        except Exception as e:
+                            logger.error(f"[{completed}/{len(articles_to_crawl)}] 异常 [{article['title'][:30]}]: {e}")
             
             # 4. 保存文章
             saved_files = self._save_updates(all_updates)

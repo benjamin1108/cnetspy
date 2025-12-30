@@ -168,7 +168,8 @@ class AwsWhatsnewCrawler(BaseCrawler):
             
             # 使用线程池并行爬取
             if articles_to_crawl:
-                max_workers = min(10, len(articles_to_crawl))  # 最多10个并发
+                max_workers_config = self.crawler_config.get('max_workers', 10)  # 从全局配置读取，默认10
+                max_workers = min(max_workers_config, len(articles_to_crawl))
                 logger.info(f"使用 {max_workers} 个线程并行爬取")
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

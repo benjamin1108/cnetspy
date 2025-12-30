@@ -97,13 +97,13 @@ class HuaweiWhatsnewCrawler(BaseCrawler):
         force_mode = self.crawler_config.get('force', False)
         
         try:
-            # 从配置读取并发参数
-            max_concurrent = self.anti_crawler_config.get('max_concurrent', 2)
+            # 使用全局配置的并发参数
+            max_workers_config = self.crawler_config.get('max_workers', 5)
+            max_workers = min(len(self.sub_sources), max_workers_config)
+            
+            # 原有的慢启动参数可以保留
             task_interval_min = self.anti_crawler_config.get('task_interval_min', 1.5)
             task_interval_max = self.anti_crawler_config.get('task_interval_max', 2.5)
-            
-            # 使用线程池处理多个子源
-            max_workers = min(len(self.sub_sources), max_concurrent)
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_source = {}

@@ -66,8 +66,9 @@ class GcpWhatsnewCrawler(BaseCrawler):
         force_mode = self.crawler_config.get('force', False)
         
         try:
-            # 使用线程池并行处理多个子源
-            max_workers = min(len(self.sub_sources), 5)  # 最夒5个并发
+            # 使用全局配置的并发参数
+            max_workers_config = self.crawler_config.get('max_workers', 5)
+            max_workers = min(len(self.sub_sources), max_workers_config)  # 使用配置的并发数
             logger.info(f"使用 {max_workers} 个线程并行爬取")
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

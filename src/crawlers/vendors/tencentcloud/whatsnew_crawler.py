@@ -93,8 +93,9 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
         force_mode = self.crawler_config.get('force', False)
         
         try:
-            # 使用线程池处理多个子源
-            max_workers = min(len(self.sub_sources), 5)  # 最多5个并发
+            # 使用全局配置的并发参数
+            max_workers_config = self.crawler_config.get('max_workers', 5)
+            max_workers = min(len(self.sub_sources), max_workers_config)
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_source = {}
