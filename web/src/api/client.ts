@@ -22,6 +22,7 @@ import type {
   TrendData,
   ReportData,
   AvailableMonth,
+  AvailableWeek,
 } from '@/types';
 
 // 获取 API 基础路径（生产环境使用 /next/api/v1）
