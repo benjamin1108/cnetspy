@@ -1,44 +1,30 @@
 /**
  * 竞争分析报告页面
- * 
- * 直接用前端组件渲染报告数据，样式与 HTML 报告一致
+ *
+ * 使用 Recharts 高度定制，模仿 Tremor/SaaS 现代极简风格
  */
 
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
+} from 'recharts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 import { useAvailableMonths } from '@/hooks';
 import { Select, Loading } from '@/components/ui';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { reportsApi } from '@/api';
-import { getVendorColor, cn } from '@/lib/utils';
+import { getVendorColor, getVendorName, cn } from '@/lib/utils';
 import { getUpdateTypeMeta } from '@/components/icons';
 import { UPDATE_TYPE_LABELS, SOURCE_CHANNEL_LABELS } from '@/types';
-
-// 厂商显示名
-const VENDOR_NAMES: Record<string, string> = {
-  aws: 'AWS',
-  gcp: 'GCP',
-  azure: 'Azure',
-  huawei: '华为云',
-  tencentcloud: '腾讯云',
-  volcengine: '火山引擎',
-};
-
-// 厂商 FontAwesome 图标
-const VENDOR_ICONS: Record<string, string> = {
-  aws: 'fab fa-aws',
-  gcp: 'fab fa-google',
-  azure: 'fab fa-microsoft',
-  huawei: 'fas fa-cloud',
-  tencentcloud: 'fas fa-cloud',
-  volcengine: 'fas fa-cloud',
-};
 
 // 更新类型标签样式映射
 function getTypeTagClass(updateType: string | null | undefined): string {
   if (!updateType) return 'timeline-type-default';
-  
+
   const typeMap: Record<string, string> = {
     new_feature: 'timeline-type-feature',
     new_product: 'timeline-type-feature',
@@ -47,7 +33,7 @@ function getTypeTagClass(updateType: string | null | undefined): string {
     security: 'timeline-type-security',
     compliance: 'timeline-type-security',
   };
-  
+
   return typeMap[updateType] || 'timeline-type-default';
 }
 
@@ -75,142 +61,158 @@ function stripMarkdown(text: string | null | undefined): string {
     .trim();
 }
 
-
-
-// 解析 AI 摘要 Markdown 为结构化数据
-function parseAiSummary(markdown: string | undefined) {
-  if (!markdown) return { title: '', summary: '', trends: [] };
-  
-  const lines = markdown.split('\n').filter(l => l.trim());
-  let title = '';
-  let summary = '';
-  const trends: Array<{ emoji: string; title: string; desc: string }> = [];
-  
-  let inTrends = false;
-  let currentTrend: { emoji: string; title: string; desc: string } | null = null;
-  
-  for (const line of lines) {
-    // 标题 (## xxx)
-    if (line.startsWith('## ') && !title) {
-      title = line.replace('## ', '').trim();
-      continue;
-    }
-    
-    // 趋势标题 (### 本月趋势)
-    if (line.startsWith('### ')) {
-      inTrends = true;
-      continue;
-    }
-    
-    // 趋势项 (emoji **标题**: 描述)
-    // 支持 FontAwesome HTML 标签格式：<i class=\"...\"></i> **标题**: 描述
-    const trendMatch = line.match(/^(<i\s+class=\"[^\"]+\"><\/i>|[^\s]+)\s+\**([^*]+)\**[：:]\s*(.+)$/);
-    if (trendMatch && inTrends) {
-      if (currentTrend) trends.push(currentTrend);
-      currentTrend = {
-        emoji: trendMatch[1],
-        title: trendMatch[2],
-        desc: trendMatch[3],
-      };
-      continue;
-    }
-    
-    // 普通段落
-    if (!inTrends && !title) continue;
-    if (!inTrends && title) {
-      summary += (summary ? ' ' : '') + line.trim();
-    } else if (currentTrend) {
-      currentTrend.desc += ' ' + line.trim();
-    }
-  }
-  
-  if (currentTrend) trends.push(currentTrend);
-  
-  return { title, summary, trends };
-}
-
 export function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedVendor, setSelectedVendor] = useState<string>('all');
-  
+  const [selectedType, setSelectedType] = useState<string>('all');
+
   const reportType = (searchParams.get('type') as 'weekly' | 'monthly') || 'monthly';
   const urlYear = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined;
   const urlMonth = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
-  
+
   const { data: monthsData } = useAvailableMonths();
   const availableMonths = monthsData?.data || [];
-  
-  // 计算默认月份：优先使用有效报告列表的最新月份
+
   const getDefaultMonth = () => {
     if (urlYear && urlMonth) return { year: urlYear, month: urlMonth };
-    
-    // 如果有可用报告列表，使用最新的一个（列表第一个）
     if (availableMonths.length > 0) {
       const latest = availableMonths[0];
       return { year: latest.year, month: latest.month };
     }
-    
-    // 否则默认为当前月（截止今天）
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   };
-  
+
   const { year, month } = getDefaultMonth();
-  
-  // 获取报告数据
+
   const { data: reportData, isLoading, error } = useQuery({
     queryKey: ['report', reportType, year, month],
     queryFn: () => reportsApi.getReport(reportType, { year, month }),
   });
-  
+
   const report = reportData?.data;
-  const topVendor = report?.vendor_summaries?.[0];
-  
-  // 解析 AI 摘要
-  const aiInsight = useMemo(() => parseAiSummary(report?.ai_summary ?? undefined), [report?.ai_summary]);
-  
-  // 统计热点产品
-  const hotProducts = useMemo(() => {
+
+  // 1. 数据解析：AI 洞察 (仅支持结构化 JSON，带降级处理)
+  const aiInsight = useMemo(() => {
+    const raw = report?.ai_summary;
+    if (!raw) return { insight_title: '', insight_summary: '', top_trends: [] };
+
+    if (typeof raw === 'object') {
+      return raw as any;
+    }
+
+    // 如果是字符串，尝试解析 JSON
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // 解析失败，说明是纯 Markdown 文本，降级处理，不报错
+        return {
+          insight_title: '本月摘要',
+          insight_summary: raw,
+          top_trends: []
+        };
+      }
+    }
+    return { insight_title: '', insight_summary: '', top_trends: [] };
+  }, [report?.ai_summary]);
+
+  // 2. 数据统计：厂商分布（饼图数据）
+  const vendorPieData = useMemo(() => {
+    if (!report?.vendor_summaries) return [];
+    return report.vendor_summaries
+      .filter(v => v.count > 0)
+      .map(v => ({
+        name: getVendorName(v.vendor),
+        value: v.count,
+        color: getVendorColor(v.vendor),
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [report?.vendor_summaries]);
+
+  // 3. 数据统计：热门领域（柱状图数据）
+  const categoryBarData = useMemo(() => {
     if (!report?.updates_by_vendor) return [];
-    const productCount: Record<string, number> = {};
-    
-    Object.values(report.updates_by_vendor).forEach((updates: any) => {
-      updates.forEach((u: any) => {
+
+    // 统计每个领域的总数以及各厂商的贡献数
+    const categoryStats: Record<string, { total: number; vendors: Record<string, number> }> = {};
+
+    Object.entries(report.updates_by_vendor).forEach(([vendor, updates]) => {
+      (updates as any[]).forEach((u: any) => {
         const cat = u.product_subcategory || '其他';
-        productCount[cat] = (productCount[cat] || 0) + 1;
+        if (!categoryStats[cat]) {
+          categoryStats[cat] = { total: 0, vendors: {} };
+        }
+        categoryStats[cat].total += 1;
+        categoryStats[cat].vendors[vendor] = (categoryStats[cat].vendors[vendor] || 0) + 1;
       });
     });
-    
-    return Object.entries(productCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({ name, count }));
+
+    return Object.entries(categoryStats)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 5) // 取 Top 5
+      .map(([name, stats]) => {
+        // 找出该领域贡献最大的厂商（Dominant Vendor）
+        let dominantVendor = 'unknown';
+        let maxCount = -1;
+
+        Object.entries(stats.vendors).forEach(([v, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            dominantVendor = v;
+          }
+        });
+
+        // 格式化名称：厂商 - 类别
+        const displayName = dominantVendor !== 'unknown'
+          ? `${getVendorName(dominantVendor)} - ${name}`
+          : name;
+
+        return {
+          name: displayName,
+          count: stats.total,
+          color: getVendorColor(dominantVendor) // 使用主导厂商的颜色
+        };
+      });
   }, [report?.updates_by_vendor]);
-  
-  // 获取筛选后的更新列表
+
+  // 4. 数据筛选：更新列表
   const filteredUpdates = useMemo(() => {
     if (!report?.updates_by_vendor) return [];
-    
-    const allUpdates: Array<{ vendor: string; update: any }> = [];
+
+    let allUpdates: Array<{ vendor: string; update: any }> = [];
     Object.entries(report.updates_by_vendor).forEach(([vendor, updates]) => {
       (updates as any[]).forEach(update => {
         allUpdates.push({ vendor, update });
       });
     });
-    
-    // 按日期排序
-    allUpdates.sort((a, b) => 
-      new Date(b.update.publish_date).getTime() - new Date(a.update.publish_date).getTime()
-    );
-    
+
+    // 过滤厂商
     if (selectedVendor !== 'all') {
-      return allUpdates.filter(item => item.vendor === selectedVendor);
+      allUpdates = allUpdates.filter(item => item.vendor === selectedVendor);
     }
-    
+
+    // 过滤类型
+    if (selectedType !== 'all') {
+      allUpdates = allUpdates.filter(item => item.update.update_type === selectedType);
+    }
+
+    // 排序：Hero (重点) > 日期
+    const heroTypes = ['new_product', 'pricing', 'compliance'];
+
+    allUpdates.sort((a, b) => {
+      const isHeroA = heroTypes.includes(a.update.update_type);
+      const isHeroB = heroTypes.includes(b.update.update_type);
+
+      if (isHeroA && !isHeroB) return -1;
+      if (!isHeroA && isHeroB) return 1;
+
+      return new Date(b.update.publish_date).getTime() - new Date(a.update.publish_date).getTime();
+    });
+
     return allUpdates;
-  }, [report?.updates_by_vendor, selectedVendor]);
-  
-  // 切换月份
+  }, [report?.updates_by_vendor, selectedVendor, selectedType]);
+
   const handleMonthChange = (value: string) => {
     const [y, m] = value.split('-');
     const params = new URLSearchParams(searchParams);
@@ -218,11 +220,23 @@ export function ReportsPage() {
     params.set('month', m);
     setSearchParams(params);
     setSelectedVendor('all');
+    setSelectedType('all');
   };
-  
+
+  const typeOptions = useMemo(() => {
+    const types = new Set<string>();
+    if (report?.updates_by_vendor) {
+      Object.values(report.updates_by_vendor).forEach((updates: any) => {
+        updates.forEach((u: any) => {
+          if (u.update_type) types.add(u.update_type);
+        });
+      });
+    }
+    return Array.from(types).map(t => ({ value: t, label: UPDATE_TYPE_LABELS[t] || t }));
+  }, [report]);
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* 页面头部 */}
+    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="月度竞争情报"
         eyebrow="INTELLIGENCE // REPORT"
@@ -252,242 +266,265 @@ export function ReportsPage() {
           )}
         </Select>
       </PageHeader>
-      
+
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loading />
-        </div>
+        <div className="flex items-center justify-center h-64"><Loading /></div>
       ) : error || !report ? (
         <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-4">
           <p>{year}年{month}月的报告尚未生成</p>
         </div>
       ) : (
         <>
-          {/* 统计摘要面板 */}
-          <section className="timeline-card group rounded-xl p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* 左侧：更新总数 */}
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                  <i className="fas fa-chart-line text-3xl text-primary"></i>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">本月更新</div>
-                  <div className="text-3xl font-bold text-foreground">{report.total_count}</div>
-                </div>
+          {/* 第一层：核心指标 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="timeline-card p-4 flex flex-col justify-between">
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wider">更新总数</div>
+              <div className="text-3xl font-bold text-foreground mt-1">{report.total_count}</div>
+              <div className="text-xs text-muted-foreground mt-1">本月监测更新总数</div>
+            </div>
+
+            <div className="timeline-card p-4 flex flex-col justify-between">
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wider">最活跃厂商</div>
+              <div className="text-xl font-bold text-foreground mt-1 truncate">
+                {vendorPieData[0]?.name || '-'}
               </div>
-              
-              {/* 中间：最活跃厂商 */}
-              <div className="flex items-center gap-4">
-                {topVendor?.vendor && (
-                  <div 
-                    className="w-16 h-16 rounded-xl flex items-center justify-center text-white"
-                    style={{ backgroundColor: getVendorColor(topVendor.vendor) }}
-                  >
-                    <i className={`${VENDOR_ICONS[topVendor.vendor] || 'fas fa-cloud'} text-3xl`}></i>
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">最活跃厂商</div>
-                  <div className="text-lg font-bold text-foreground">
-                    {topVendor?.vendor ? VENDOR_NAMES[topVendor.vendor] || topVendor.vendor : '-'}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{topVendor?.count || 0} 条更新</div>
-                </div>
-              </div>
-              
-              {/* 右侧：热点领域 */}
-              <div>
-                <div className="text-xs text-muted-foreground mb-3">热点领域 TOP 3</div>
-                <div className="space-y-2">
-                  {hotProducts.slice(0, 3).map((p, i) => (
-                    <div key={p.name} className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded flex items-center justify-center bg-primary/10 text-primary text-xs font-bold">
-                        {i + 1}
-                      </div>
-                      <div className="flex-1 text-sm text-foreground truncate">{p.name}</div>
-                      <div className="text-sm font-bold text-primary">{p.count}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {vendorPieData[0]?.value || 0} 条更新 · 占比 {report.total_count > 0 ? Math.round((vendorPieData[0]?.value || 0) / report.total_count * 100) : 0}%
               </div>
             </div>
-          </section>
-          
-          {/* AI 分析师总结 */}
-          {aiInsight.title && (
-            <>
-              {/* 1-2 个趋势：左右两个独立框 */}
-              {aiInsight.trends.length > 0 && aiInsight.trends.length <= 2 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* 左侧：分析师总结框 */}
-                  <section className="timeline-card group rounded-xl p-5">
-                    <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
-                      💡 分析师总结
-                    </div>
-                    <h3 className="font-bold text-base text-foreground mb-2">{aiInsight.title}</h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">{aiInsight.summary}</p>
-                  </section>
-                  
-                  {/* 右侧：趋势框（上下布局） */}
-                  <section className="timeline-card group rounded-xl p-5">
-                    <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
-                      📊 本月趋势
-                    </div>
-                    <div className="space-y-3">
-                      {aiInsight.trends.map((trend, i) => (
-                        <div key={i} className="timeline-card group rounded-lg p-3 flex gap-3">
-                          <span className="text-xl flex-shrink-0" dangerouslySetInnerHTML={{ __html: trend.emoji }} />
-                          <div>
-                            <h4 className="font-medium text-base mb-1 text-foreground group-hover:text-primary transition-colors">{trend.title}</h4>
-                            <p className="text-sm leading-relaxed text-muted-foreground">{trend.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              ) : (
-                /* 0 或 3 个趋势：上下布局 */
-                <section className="timeline-card group rounded-xl p-5">
-                  <div className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
-                    💡 分析师总结
+
+            <div className="timeline-card p-4 flex flex-col justify-between">
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wider">热门领域 Top 1</div>
+              <div className="text-xl font-bold text-foreground mt-1 truncate">
+                {categoryBarData[0]?.name || '-'}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {categoryBarData[0]?.count || 0} 条更新
+              </div>
+            </div>
+          </div>
+
+          {/* 第二层：统计图表 (Modern Recharts Style) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* 环形图 (模仿 DonutChart) */}
+             <div className="timeline-card p-4 h-[300px] flex flex-col">
+                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">厂商分布</div>
+                <div className="flex-1 w-full min-h-0 relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={vendorPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                        stroke="none"
+                        cornerRadius={4}
+                      >
+                        {vendorPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        itemStyle={{ color: 'hsl(var(--foreground))', fontSize: '12px', fontWeight: 600 }}
+                        formatter={(value: any) => [`${value} 条`, '更新数量']}
+                        cursor={false}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* 中心文字：总数 */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-2xl font-bold text-foreground">{report.total_count}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</span>
                   </div>
-                  
-                  <h3 className="font-bold text-base text-foreground mb-2">{aiInsight.title}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground mb-4">{aiInsight.summary}</p>
-                  
-                  {aiInsight.trends.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/50 pt-4">
-                      {aiInsight.trends.map((trend, i) => (
-                        <div key={i} className="timeline-card group rounded-lg p-3 flex gap-3">
-                          <span className="text-xl flex-shrink-0" dangerouslySetInnerHTML={{ __html: trend.emoji }} />
-                          <div>
-                            <h4 className="font-medium text-base mb-1 text-foreground group-hover:text-primary transition-colors">{trend.title}</h4>
-                            <p className="text-sm leading-relaxed text-muted-foreground">{trend.desc}</p>
-                          </div>
+                </div>
+                {/* 底部图例 */}
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-2">
+                    {vendorPieData.slice(0, 5).map(v => (
+                        <div key={v.name} className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: v.color }}></span>
+                            <span className="text-xs text-muted-foreground">{v.name}</span>
                         </div>
-                      ))}
+                    ))}
+                </div>
+              </div>
+
+              {/* 极简条形图 (模仿 BarList) */}
+              <div className="timeline-card p-4 h-[300px] flex flex-col">
+                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">热门更新领域 Top 5</div>
+                <div className="flex-1 flex flex-col justify-center gap-3">
+                    {categoryBarData.map((item) => {
+                        // 计算百分比作为宽度
+                        const max = Math.max(...categoryBarData.map(d => d.count));
+                        const percent = max > 0 ? (item.count / max) * 100 : 0;
+
+                        return (
+                            <div key={item.name} className="w-full">
+                                <div className="flex justify-between items-center mb-1 text-xs">
+                                    <span className="font-medium text-foreground">{item.name}</span>
+                                    <span className="text-muted-foreground">{item.count}</span>
+                                </div>
+                                <div className="h-2 w-full bg-muted/50 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-1000 ease-out"
+                                        style={{ width: `${percent}%`, backgroundColor: item.color }}
+                                    ></div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {categoryBarData.length === 0 && <div className="text-center text-muted-foreground text-xs">暂无数据</div>}
+                </div>
+              </div>
+          </div>
+
+          {/* 第三层：AI 洞察 */}
+          <div className="timeline-card p-5 md:p-6">
+            <div className="flex items-center gap-3 mb-4 border-b border-border/50 pb-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                 <i className="fas fa-robot text-primary text-lg"></i>
+              </div>
+              <div>
+                 <h3 className="text-lg font-bold text-foreground">AI 智能洞察</h3>
+              </div>
+            </div>
+
+            <div className="ai-summary-content">
+               <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                 {aiInsight.insight_summary}
+               </ReactMarkdown>
+            </div>
+
+            {/* 趋势列表 */}
+            {aiInsight.top_trends.length > 0 && (
+              <div className={cn(
+                "mt-6 grid grid-cols-1 gap-3",
+                aiInsight.top_trends.length === 1 ? "md:grid-cols-1" :
+                aiInsight.top_trends.length % 3 === 0 ? "md:grid-cols-3" : "md:grid-cols-2"
+              )}>
+                {aiInsight.top_trends.map((trend: any, i: number) => (
+                  <div key={i} className="bg-muted/30 hover:bg-muted/50 transition-colors rounded-lg p-3 border border-border/50 flex gap-3 h-full">
+                    <span className="text-xl flex-shrink-0 pt-0.5" dangerouslySetInnerHTML={{ __html: trend.emoji }} />
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm text-foreground mb-1">{trend.title}</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3" title={trend.desc}>
+                        {trend.desc}
+                      </p>
                     </div>
-                  )}
-                </section>
-              )}
-            </>
-          )}
-          
-          {/* 重点更新 */}
-          <section>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
-              <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
-                <i className="fas fa-layer-group text-primary"></i>
-                本月重点更新
-              </h2>
-              
-              {/* 厂商筛选 */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedVendor('all')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${selectedVendor === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary'}`}
-                >
-                  全部
-                </button>
-                {report.vendor_summaries?.map((v: any) => (
-                  <button
-                    key={v.vendor}
-                    onClick={() => setSelectedVendor(v.vendor)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${selectedVendor === v.vendor ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary'}`}
-                  >
-                    {VENDOR_NAMES[v.vendor] || v.vendor}
-                  </button>
+                  </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* 第四层：更新列表 */}
+          <section>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-foreground">
+                <i className="fas fa-layer-group text-primary"></i>
+                详细更新列表
+                <span className="text-sm font-normal text-muted-foreground ml-2">({filteredUpdates.length})</span>
+              </h2>
+
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={selectedVendor}
+                  onChange={(e) => setSelectedVendor(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                >
+                  <option value="all">所有厂商</option>
+                  {report.vendor_summaries.map((v: any) => (
+                    <option key={v.vendor} value={v.vendor}>{getVendorName(v.vendor)}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                >
+                  <option value="all">所有类型</option>
+                  {typeOptions.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            
-            {/* 更新卡片网格 - 与时间流样式一致 */}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredUpdates.map(({ vendor, update }) => {
                 const vendorColor = getVendorColor(vendor);
-                // 这里也使用 getUpdateTypeMeta
                 const typeMeta = getUpdateTypeMeta(update.update_type);
                 const TypeIcon = typeMeta.icon;
-                
+                const isHero = ['new_product', 'pricing'].includes(update.update_type);
+
                 return (
-                  <div key={update.update_id} className="timeline-card group">
-                    {/* 厂商颜色条 */}
-                    <div 
-                      className="timeline-vendor-bar" 
-                      style={{ backgroundColor: vendorColor }}
-                    />
-                    
-                    {/* 使用 flex 布局：标题顶对齐，标签底对齐 */}
-                    <div className="flex flex-col h-full pl-3">
-                      {/* 顶部固定区域：厂商 + 日期 + 标题 */}
-                      <div className="flex-shrink-0 space-y-2">
-                        {/* 头部：厂商图标 + 日期 */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {/* 恢复使用 Vendor 字/图标在这里，因为 Report 是按月聚合，厂商区分很重要 */}
-                             <div 
-                              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                              style={{ backgroundColor: vendorColor }}
-                            >
-                              {(VENDOR_NAMES[vendor] || vendor).charAt(0)}
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {VENDOR_NAMES[vendor] || vendor}
-                            </span>
-                          </div>
-                          <span className="timeline-timestamp">
-                            {update.publish_date?.slice(5, 10)}
-                          </span>
+                  <div
+                    key={update.update_id}
+                    className={cn(
+                      "timeline-card group relative overflow-hidden transition-all hover:shadow-md hover:-translate-y-1 flex flex-col",
+                      isHero && "border-primary/30 bg-primary/5"
+                    )}
+                  >
+                    <div className="h-1 w-full absolute top-0 left-0 right-0 opacity-80" style={{ backgroundColor: vendorColor }} />
+
+                    <div className="flex flex-col h-full p-4 pt-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                           <div
+                              className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border"
+                              style={{
+                                color: vendorColor,
+                                borderColor: `${vendorColor}40`,
+                                backgroundColor: `${vendorColor}10`
+                              }}
+                           >
+                              {getVendorName(vendor)}
+                           </div>
                         </div>
-                        
-                        {/* 标题：固定2行高度 */}
-                        <Link 
-                          to={`/updates/${update.update_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 block min-h-[2.5rem]"
-                        >
-                          {update.title}
-                        </Link>
+                        <span className="text-[10px] font-mono text-muted-foreground/70">
+                          {update.publish_date?.slice(5, 10)}
+                        </span>
                       </div>
-                      
-                      {/* 中间弹性区域：摘要 */}
-                      <div className="flex-1 py-2">
+
+                      <Link
+                        to={`/updates/${update.update_id}`}
+                        target="_blank"
+                        className="text-sm font-bold text-foreground group-hover:text-primary transition-colors mb-2 leading-snug block line-clamp-2"
+                        style={{ minHeight: '2.5rem' }}
+                      >
+                        {update.title}
+                      </Link>
+
+                      <div className="flex-1 mb-3">
                         {update.content_summary && (
-                          <p className="text-sm text-muted-foreground line-clamp-2 group-hover:text-muted-foreground/80">
+                          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
                             {stripMarkdown(update.content_summary)}
                           </p>
                         )}
                       </div>
-                      
-                      {/* 底部固定区域：标签 */}
-                      <div className="flex-shrink-0 flex flex-wrap items-center gap-2 pt-2 border-t border-border/30">
-                        {/* 来源渠道 */}
-                        {update.source_channel && (
-                          <span className={cn(
-                            'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                            update.source_channel === 'whatsnew' ? 'channel-whatsnew' : 'channel-blog'
-                          )}>
-                            {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
-                          </span>
-                        )}
-                        
-                        {/* 更新类型 - 增加图标 */}
-                        {update.update_type && (
-                          <span className={cn('timeline-type-tag flex items-center gap-1', getTypeTagClass(update.update_type))}>
-                            <TypeIcon className="w-3 h-3" />
-                            {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
-                          </span>
-                        )}
-                        
-                        {/* 产品子类 */}
-                        {update.product_subcategory && (
-                          <span className="text-xs text-muted-foreground/70">
-                            {update.product_subcategory}
-                          </span>
-                        )}
+
+                      <div className="mt-auto pt-2 border-t border-border/40 flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                            {update.update_type && (
+                              <span className={cn('flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border font-medium', getTypeTagClass(update.update_type))}>
+                                <TypeIcon className="w-2.5 h-2.5" />
+                                {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
+                              </span>
+                            )}
+                         </div>
+
+                         {update.source_channel && (
+                            <span className={cn(
+                              'text-[10px] px-1 py-0.5 rounded-full font-medium opacity-70',
+                              update.source_channel === 'whatsnew' ? 'text-blue-500 bg-blue-500/10' : 'text-purple-500 bg-purple-500/10'
+                            )}>
+                              {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
+                            </span>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -495,14 +532,12 @@ export function ReportsPage() {
               })}
             </div>
 
+            {filteredUpdates.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border">
+                没有找到符合条件的更新
+              </div>
+            )}
           </section>
-          
-          {/* 页脚 */}
-          <footer className="text-center py-8 border-t border-border">
-            <p className="text-xs text-muted-foreground">
-              Generated by CloudNetSpy Engine · <a href="https://cnetspy.site" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">cnetspy.site</a>
-            </p>
-          </footer>
         </>
       )}
     </div>

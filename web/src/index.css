@@ -401,39 +401,46 @@ body {
   box-shadow: 0 0 12px -2px hsl(var(--ai-accent) / 0.4);
 }
 
-/* AI 摘要内容样式 */
+/* AI 摘要内容样式 - 强制颜色适配 */
 .ai-summary-content {
   font-size: 0.875rem;
-  line-height: 1.7;
-  color: hsl(var(--foreground));
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
 }
 
 .ai-summary-content p {
-  margin: 0.75em 0;
+  margin: 0.5em 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .ai-summary-content p,
+.dark .ai-summary-content li,
+.dark .ai-summary-content strong {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .ai-summary-content strong {
   color: hsl(var(--foreground));
 }
 
 .ai-summary-content h1,
 .ai-summary-content h2,
 .ai-summary-content h3,
-.ai-summary-content h4,
-.ai-summary-content h5,
-.ai-summary-content h6 {
+.ai-summary-content h4 {
   font-weight: 600;
-  margin-top: 1.25em;
-  margin-bottom: 0.5em;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
   color: hsl(var(--foreground));
 }
 
 .ai-summary-content ul,
 .ai-summary-content ol {
-  padding-left: 1.5em;
-  margin: 0.75em 0;
+  padding-left: 1.2em;
+  margin: 0.5em 0;
 }
 
 .ai-summary-content li {
-  margin: 0.25em 0;
-  color: hsl(var(--foreground));
+  margin: 0.2em 0;
 }
 
 .ai-summary-content strong {
