@@ -14,7 +14,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
   BookOpen, 
-  Lightbulb, 
   Zap, 
   List, 
   Quote, 
@@ -23,7 +22,6 @@ import {
   Target,
   Sparkles,
   ChevronDown,
-  ChevronUp,
   BarChart
 } from 'lucide-react';
 
@@ -598,7 +596,6 @@ export function ReportsPage() {
                                          
                                          const internalLink = blog.update_id ? `/updates/${blog.update_id}` : null;
                                          const externalLink = blog.url;
-                                         const hasLink = !!(internalLink || externalLink);
 
                                          return (
                                             <div key={idx} className="group flex flex-col items-start relative pl-6 border-l-2 border-transparent hover:border-primary/30 transition-all duration-300">
