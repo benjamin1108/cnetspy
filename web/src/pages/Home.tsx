@@ -81,8 +81,8 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
             >
               {update.title_translated || update.title}
             </Link>
-            <span className="timeline-timestamp whitespace-nowrap font-mono text-xs opacity-70">
-              {format(parseISO(update.publish_date), 'HH:mm')}
+            <span className="font-mono text-[10px] font-bold text-primary/30 tracking-widest uppercase mt-1">
+              {update.source_channel === 'whatsnew' ? 'WHATSNEW' : 'TECH BLOG'}
             </span>
           </div>
           
@@ -256,7 +256,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* 页面头部 */}
       <PageHeader
         title="更新时间线"

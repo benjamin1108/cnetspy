@@ -292,7 +292,7 @@ export function UpdatesPage() {
   }, [queryParams, updateParams]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-500">
       {/* 页面标题 - 横跨全宽 */}
       <PageHeader
         title="更新列表"

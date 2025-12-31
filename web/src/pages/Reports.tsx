@@ -221,7 +221,7 @@ export function ReportsPage() {
   };
   
   return (
-    <div className="space-y-6 fade-in-up max-w-6xl mx-auto">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* 页面头部 */}
       <PageHeader
         title="月度竞争情报"

@@ -293,7 +293,7 @@ export function DashboardPage() {
   const overview = overviewData?.data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* 页面标题 */}
       <PageHeader
         title="竞争分析大盘"
