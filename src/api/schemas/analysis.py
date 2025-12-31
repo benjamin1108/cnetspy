@@ -135,6 +135,7 @@ class StatsOverview(BaseModel):
     vendors: dict  # {vendor: {total, analyzed}}
     update_types: dict  # {type: count}
     last_crawl_time: Optional[str] = None
+    last_daily_task_time: Optional[str] = Field(None, description="最近一次每日爬取任务时间")
     analysis_coverage: float = Field(0.0, ge=0.0, le=1.0)
 
 

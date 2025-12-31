@@ -16,6 +16,7 @@ from src.storage.database.analysis_repository import AnalysisRepository
 from src.storage.database.tasks_repository import TasksRepository
 from src.storage.database.stats_repository import StatsRepository
 from src.storage.database.quality_repository import QualityRepository
+from src.storage.database.task_report_repository import TaskReportRepository
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ class UpdateDataLayer:
     - AnalysisRepository: 分析相关操作
     - TasksRepository: 批量任务管理
     - StatsRepository: 统计查询
-    - QualityRepository: 质量问题追踪（新增）
+    - QualityRepository: 质量问题追踪
+    - TaskReportRepository: 任务报告管理
     """
     
     def __init__(self, db_path: Optional[str] = None):
@@ -50,6 +52,7 @@ class UpdateDataLayer:
         self._tasks = TasksRepository(self._db_manager)
         self._stats = StatsRepository(self._db_manager)
         self._quality = QualityRepository(self._db_manager)
+        self._task_reports = TaskReportRepository(self._db_manager)
     
     # ==================== 属性访问 ====================
     
@@ -333,6 +336,21 @@ class UpdateDataLayer:
             被清洗的 source_url 列表
         """
         return self._quality.get_cleaned_urls(issue_type, vendor)
+    
+    # ==================== Task Reports ====================
+    
+    def get_latest_daily_task_time(self) -> Optional[str]:
+        """
+        获取最近一次每日爬取任务的时间
+        
+        Returns:
+            任务结束时间（优先）或开始时间，ISO 格式字符串。如果没有记录返回 None。
+        """
+        report = self._task_reports.get_latest_report(task_type="daily_crawl_analyze")
+        if report:
+            # 优先返回结束时间，如果没有结束时间（可能正在运行），则返回开始时间
+            return report.get('end_time') or report.get('start_time')
+        return None
     
     # ==================== 兼容性方法 ====================
     

@@ -82,6 +82,7 @@ export interface StatsOverview {
   vendors: Record<string, VendorStats>;
   update_types: Record<string, number>;
   last_crawl_time: string | null;
+  last_daily_task_time: string | null;
   analysis_coverage: number;
 }
 

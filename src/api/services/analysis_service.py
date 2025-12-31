@@ -423,11 +423,15 @@ class AnalysisService:
         # 5. 最后爬取时间
         last_crawl = db_stats.get('latest_crawl_time')
         
+        # 6. 最近每日任务时间
+        last_daily_task = self.db.get_latest_daily_task_time()
+        
         return {
             'total_updates': db_stats.get('total_updates', 0),
             'vendors': vendors,
             'update_types': update_types,
             'last_crawl_time': last_crawl,
+            'last_daily_task_time': last_daily_task,
             'analysis_coverage': coverage
         }
     

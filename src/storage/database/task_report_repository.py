@@ -237,3 +237,38 @@ class TaskReportRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"获取报告列表失败: {e}")
             return []
+
+    def get_latest_report(self, task_type: str = "daily_crawl_analyze") -> Optional[Dict[str, Any]]:
+        """
+        获取最新的任务报告
+        
+        Args:
+            task_type: 任务类型
+            
+        Returns:
+            最新的报告字典，无记录返回 None
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT * FROM task_reports
+                    WHERE task_type = ?
+                    ORDER BY start_time DESC
+                    LIMIT 1
+                ''', (task_type,))
+                
+                row = cursor.fetchone()
+                if row:
+                    result = dict(row)
+                    if result.get('crawl_stats'):
+                        result['crawl_stats'] = json.loads(result['crawl_stats'])
+                    if result.get('issue_details'):
+                        result['issue_details'] = json.loads(result['issue_details'])
+                    return result
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"获取最新报告失败: {e}")
+            return None
