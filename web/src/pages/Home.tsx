@@ -256,7 +256,7 @@ export function HomePage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-3">
               <Radar className="h-6 w-6 text-primary" />
-              情报更新流
+              更新时间线
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Live Feed • {format(new Date(), 'yyyy-MM-dd')}

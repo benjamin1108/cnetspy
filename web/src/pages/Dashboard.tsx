@@ -317,7 +317,7 @@ export function DashboardPage() {
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">
             CloudNetSpy
             <span className="block text-xl md:text-2xl text-muted-foreground font-medium mt-1">
-              云厂商竞争态势雷达
+              竞争分析大盘
             </span>
           </h1>
         </div>

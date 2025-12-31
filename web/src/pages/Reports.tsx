@@ -221,7 +221,7 @@ export function ReportsPage() {
             月度竞争情报
           </p>
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            {year}年{month.toString().padStart(2, '0')}月 · 云厂商竞争态势报告
+            {year}年{month.toString().padStart(2, '0')}月 · 云网络竞争动态报告
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             统计周期：{report?.date_from || `${year}-${month.toString().padStart(2, '0')}-01`} 至 {report?.date_to || `${year}-${month.toString().padStart(2, '0')}-30`}
