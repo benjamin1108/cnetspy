@@ -543,13 +543,9 @@ class MonthlyReport(BaseReport):
                     } for u in data['updates']]
                 }
             
-            # AI 摘要（Markdown 格式，用于前端展示）
-            ai_summary_md = f"## {insight['insight_title']}\n\n{insight['insight_summary']}"
-            if insight.get('top_trends'):
-                ai_summary_md += "\n\n### 本月趋势\n"
-                for t in insight['top_trends']:
-                    ai_summary_md += f"\n{t.get('emoji', '')} **{t.get('title', '')}**: {t.get('desc', '')}\n"
-            
+            # AI 摘要（直接保存 JSON 字典，前端会更喜欢）
+            # 注意：ReportRepository 已经更新支持传入 dict
+
             # 保存报告
             report_id = self._report_repo.save_report(
                 report_type='monthly',
@@ -558,7 +554,7 @@ class MonthlyReport(BaseReport):
                 week=None,
                 date_from=self.start_date.strftime('%Y-%m-%d'),
                 date_to=self.end_date.strftime('%Y-%m-%d'),
-                ai_summary=ai_summary_md,
+                ai_summary=insight,
                 vendor_stats=vendor_stats_db,
                 total_count=stats['total_count'],
                 html_content=html_content,
