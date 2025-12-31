@@ -4,33 +4,17 @@
 
 import { useStatsOverview, useVendorStats, useProductHotness, useVendorTypeMatrix, useAvailableYears } from '@/hooks';
 import { Card, CardContent, CardHeader, CardTitle, Loading } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { getUpdateTypeMeta } from '@/components/icons';
 import { formatNumber, formatPercent, getVendorColor, cn, getChartThemeColors } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS } from '@/types';
 import type { TrendData } from '@/types';
 import { format } from 'date-fns';
 import { 
-  Layers, Activity, Calendar, TrendingUp, TrendingDown, Minus,
-  Sparkles, Zap, Archive, DollarSign, Globe, 
-  Shield, Wrench, Gauge, FileCheck, Package
+  Layers, Activity, Calendar, TrendingUp, TrendingDown, Minus
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-
-// 更新类型图标和颜色配置
-const UPDATE_TYPE_CONFIG: Record<string, { icon: React.ReactNode; colorClass: string }> = {
-  new_product: { icon: <Package className="h-12 w-12" />, colorClass: 'text-emerald-500' },
-  new_feature: { icon: <Sparkles className="h-12 w-12" />, colorClass: 'text-amber-500' },
-  enhancement: { icon: <TrendingUp className="h-12 w-12" />, colorClass: 'text-blue-500' },
-  deprecation: { icon: <Archive className="h-12 w-12" />, colorClass: 'text-slate-500' },
-  pricing: { icon: <DollarSign className="h-12 w-12" />, colorClass: 'text-green-500' },
-  region: { icon: <Globe className="h-12 w-12" />, colorClass: 'text-cyan-500' },
-  security: { icon: <Shield className="h-12 w-12" />, colorClass: 'text-red-500' },
-  fix: { icon: <Wrench className="h-12 w-12" />, colorClass: 'text-orange-500' },
-  performance: { icon: <Gauge className="h-12 w-12" />, colorClass: 'text-purple-500' },
-  compliance: { icon: <FileCheck className="h-12 w-12" />, colorClass: 'text-indigo-500' },
-};
-
-const DEFAULT_TYPE_CONFIG = { icon: <Zap className="h-12 w-12" />, colorClass: 'text-primary' };
 
 // 趋势标签组件
 function TrendBadge({ trend }: { trend?: TrendData }) {
@@ -163,7 +147,7 @@ function StatBlock({ title, value, subtitle, icon, progress, children }: StatBlo
 // 策略热力卡片
 interface StrategyCardProps {
   title: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   iconColor: string;
   items: Array<{
     label: string;
@@ -174,11 +158,13 @@ interface StrategyCardProps {
   description?: string;
 }
 
-function StrategyCard({ title, icon, iconColor, items, maxValue, description }: StrategyCardProps) {
+function StrategyCard({ title, icon: Icon, iconColor, items, maxValue, description }: StrategyCardProps) {
   return (
     <div className="bg-card/50 rounded-2xl p-5 border border-border relative overflow-hidden group hover:border-primary/30 transition-colors">
       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-        <div className={cn('text-6xl', iconColor)}>{icon}</div>
+        <div className={cn('text-6xl', iconColor)}>
+            <Icon className="w-12 h-12" />
+        </div>
       </div>
       <div className="relative z-10">
         <h4 className={cn('text-lg font-semibold mb-4', iconColor)}>{title}</h4>
@@ -309,25 +295,17 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 fade-in-up">
-        <div>
-          <div className="text-xs font-bold tracking-widest text-primary uppercase mb-1">
-            Competitive Intelligence
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            CloudNetSpy
-            <span className="block text-xl md:text-2xl text-muted-foreground font-medium mt-1">
-              竞争分析大盘
+      <PageHeader
+        title="竞争分析大盘"
+        eyebrow="DASHBOARD // OVERVIEW"
+        description={
+            <span className="flex items-center gap-2">
+                <span>Last updated: {overview?.last_crawl_time 
+                ? format(new Date(overview.last_crawl_time), 'MM-dd HH:mm')
+                : 'N/A'}</span>
             </span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground bg-card/50 px-4 py-2 rounded-full border border-border">
-          <span className="w-2 h-2 rounded-full bg-success pulse-dot" />
-          Last updated: {overview?.last_crawl_time 
-            ? format(new Date(overview.last_crawl_time), 'MM-dd HH:mm')
-            : 'N/A'}
-        </div>
-      </header>
+        }
+      />
 
       {/* 主统计区 */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -531,14 +509,14 @@ export function DashboardPage() {
                 .slice(0, 2);
               
               // 获取类型配置
-              const typeConfig = UPDATE_TYPE_CONFIG[type] || DEFAULT_TYPE_CONFIG;
+              const typeMeta = getUpdateTypeMeta(type);
               
               return (
                 <StrategyCard
                   key={type}
                   title={UPDATE_TYPE_LABELS[type] || type}
-                  icon={typeConfig.icon}
-                  iconColor={typeConfig.colorClass}
+                  icon={typeMeta.icon}
+                  iconColor={typeMeta.colorClass}
                   maxValue={typeStats[0]?.[1].total || 100}
                   items={topVendors.map(([vendor, count]) => ({
                     label: VENDOR_DISPLAY_NAMES[vendor] || vendor,

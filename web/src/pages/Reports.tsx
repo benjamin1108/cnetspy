@@ -9,8 +9,10 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAvailableMonths } from '@/hooks';
 import { Select, Loading } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { reportsApi } from '@/api';
 import { getVendorColor, cn } from '@/lib/utils';
+import { getUpdateTypeMeta } from '@/components/icons';
 import { UPDATE_TYPE_LABELS, SOURCE_CHANNEL_LABELS } from '@/types';
 
 // 厂商显示名
@@ -49,6 +51,12 @@ function getTypeTagClass(updateType: string | null | undefined): string {
   return typeMap[updateType] || 'timeline-type-default';
 }
 
+// 格式化日期范围
+function formatDateRange(from?: string, to?: string) {
+    if (!from || !to) return '';
+    return `${from} 至 ${to}`;
+}
+
 // 清理 markdown 标记，返回纯文本
 function stripMarkdown(text: string | null | undefined): string {
   if (!text) return '';
@@ -59,7 +67,7 @@ function stripMarkdown(text: string | null | undefined): string {
     .replace(/_([^_]+)_/g, '$1')        // _italic_
     .replace(/`([^`]+)`/g, '$1')        // `code`
     .replace(/#{1,6}\s*/g, '')          // # headers
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [link](url)
+    .replace(/!\[([^\]]+)\]\([^)]+\)/g, '$1')  // [link](url)
     .replace(/!\[([^\]]+)\]\([^)]+\)/g, '$1') // ![img](url)
     .replace(/^[\s]*[-*+]\s+/gm, '')    // list items
     .replace(/^\d+\.\s+/gm, '')         // numbered list
@@ -95,8 +103,8 @@ function parseAiSummary(markdown: string | undefined) {
     }
     
     // 趋势项 (emoji **标题**: 描述)
-    // 支持 FontAwesome HTML 标签格式：<i class="..."></i> **标题**: 描述
-    const trendMatch = line.match(/^(<i\s+class="[^"]+"><\/i>|[^\s]+)\s+\*\*([^*]+)\*\*[：:]\s*(.+)$/);
+    // 支持 FontAwesome HTML 标签格式：<i class=\"...\"></i> **标题**: 描述
+    const trendMatch = line.match(/^(<i\s+class=\"[^\"]+\"><\/i>|[^\s]+)\s+\**([^*]+)\**[：:]\s*(.+)$/);
     if (trendMatch && inTrends) {
       if (currentTrend) trends.push(currentTrend);
       currentTrend = {
@@ -215,23 +223,21 @@ export function ReportsPage() {
   return (
     <div className="space-y-6 fade-in-up max-w-6xl mx-auto">
       {/* 页面头部 */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-6 border-b border-border">
-        <div>
-          <p className="text-sm uppercase tracking-wider text-primary font-bold mb-2">
-            月度竞争情报
-          </p>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-            {year}年{month.toString().padStart(2, '0')}月 · 云网络竞争动态报告
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            统计周期：{report?.date_from || `${year}-${month.toString().padStart(2, '0')}-01`} 至 {report?.date_to || `${year}-${month.toString().padStart(2, '0')}-30`}
-          </p>
-        </div>
-        
+      <PageHeader
+        title="月度竞争情报"
+        eyebrow="INTELLIGENCE // REPORT"
+        description={
+            <span className="flex items-center gap-2">
+                <span>{year}年{month.toString().padStart(2, '0')}月</span>
+                <span className="opacity-50">|</span>
+                <span>统计周期：{report ? formatDateRange(report.date_from, report.date_to) : '...'}</span>
+            </span>
+        }
+      >
         <Select
           value={`${year}-${month}`}
           onChange={(e) => handleMonthChange(e.target.value)}
-          className="w-36"
+          className="w-40"
         >
           {availableMonths.length > 0 ? (
             availableMonths.map((m) => (
@@ -245,7 +251,7 @@ export function ReportsPage() {
             </option>
           )}
         </Select>
-      </header>
+      </PageHeader>
       
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
@@ -381,11 +387,7 @@ export function ReportsPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSelectedVendor('all')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                    selectedVendor === 'all'
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-card border-border text-muted-foreground hover:border-primary'
-                  }`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${selectedVendor === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary'}`}
                 >
                   全部
                 </button>
@@ -393,11 +395,7 @@ export function ReportsPage() {
                   <button
                     key={v.vendor}
                     onClick={() => setSelectedVendor(v.vendor)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                      selectedVendor === v.vendor
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-card border-border text-muted-foreground hover:border-primary'
-                    }`}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${selectedVendor === v.vendor ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary'}`}
                   >
                     {VENDOR_NAMES[v.vendor] || v.vendor}
                   </button>
@@ -409,6 +407,9 @@ export function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredUpdates.map(({ vendor, update }) => {
                 const vendorColor = getVendorColor(vendor);
+                // 这里也使用 getUpdateTypeMeta
+                const typeMeta = getUpdateTypeMeta(update.update_type);
+                const TypeIcon = typeMeta.icon;
                 
                 return (
                   <div key={update.update_id} className="timeline-card group">
@@ -425,7 +426,8 @@ export function ReportsPage() {
                         {/* 头部：厂商图标 + 日期 */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <div 
+                            {/* 恢复使用 Vendor 字/图标在这里，因为 Report 是按月聚合，厂商区分很重要 */}
+                             <div 
                               className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
                               style={{ backgroundColor: vendorColor }}
                             >
@@ -472,9 +474,10 @@ export function ReportsPage() {
                           </span>
                         )}
                         
-                        {/* 更新类型 */}
+                        {/* 更新类型 - 增加图标 */}
                         {update.update_type && (
-                          <span className={cn('timeline-type-tag', getTypeTagClass(update.update_type))}>
+                          <span className={cn('timeline-type-tag flex items-center gap-1', getTypeTagClass(update.update_type))}>
+                            <TypeIcon className="w-3 h-3" />
                             {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
                           </span>
                         )}

@@ -6,6 +6,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInfiniteUpdates, useStatsOverview, useVendors } from '@/hooks';
 import { Loading, EmptyState, Button } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { getUpdateTypeMeta } from '@/components/icons';
 import { getVendorColor, cn } from '@/lib/utils';
 import {
   VENDOR_DISPLAY_NAMES,
@@ -48,6 +50,8 @@ function formatDateGroup(dateStr: string): string {
 // 时间流卡片组件
 function TimelineCard({ update }: { update: UpdateBrief }) {
   const vendorColor = getVendorColor(update.vendor);
+  const typeMeta = getUpdateTypeMeta(update.update_type);
+  const TypeIcon = typeMeta.icon;
   
   return (
     <div className="timeline-card group">
@@ -58,13 +62,12 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
       />
       
       <div className="flex flex-col sm:flex-row sm:items-start gap-3 pl-3">
-        {/* 厂商图标区 */}
+        {/* 类型图标区 */}
         <div className="flex-shrink-0 mt-1">
           <div 
-            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style={{ backgroundColor: vendorColor }}
+            className={cn("w-9 h-9 rounded-xl flex items-center justify-center bg-card border border-border/50 shadow-sm transition-all group-hover:scale-110 group-hover:border-primary/30", typeMeta.colorClass)}
           >
-            {(VENDOR_DISPLAY_NAMES[update.vendor] || update.vendor).charAt(0)}
+            <TypeIcon className="w-5 h-5" />
           </div>
         </div>
         
@@ -74,24 +77,32 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
           <div className="flex justify-between items-start gap-2">
             <Link 
               to={`/updates/${update.update_id}`}
-              className="text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1"
+              className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1"
             >
               {update.title_translated || update.title}
             </Link>
-            <span className="timeline-timestamp whitespace-nowrap">
-              {format(parseISO(update.publish_date), 'MM-dd')}
+            <span className="timeline-timestamp whitespace-nowrap font-mono text-xs opacity-70">
+              {format(parseISO(update.publish_date), 'HH:mm')}
             </span>
           </div>
           
           {/* 描述 */}
           {(update.content_summary || update.description) && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2 group-hover:text-muted-foreground/80">
+            <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 group-hover:text-muted-foreground/80 leading-relaxed">
               {update.content_summary || update.description}
             </p>
           )}
           
           {/* 标签行 */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* 厂商名称 */}
+            <span 
+              className="text-[10px] px-2 py-0.5 rounded font-medium border border-border/50 bg-muted/30"
+              style={{ color: vendorColor, borderColor: `${vendorColor}20` }}
+            >
+              {VENDOR_DISPLAY_NAMES[update.vendor] || update.vendor}
+            </span>
+
             {/* 更新类型 */}
             {update.update_type && (
               <span className={cn('timeline-type-tag', getTypeTagClass(update.update_type))}>
@@ -101,21 +112,17 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
             
             {/* 来源渠道 */}
             <span className={cn(
-              'text-xs px-2 py-0.5 rounded',
+              'text-[10px] px-2 py-0.5 rounded font-medium opacity-80',
               update.source_channel === 'whatsnew' ? 'channel-whatsnew' : 'channel-blog'
             )}>
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
             </span>
             
-            {/* 厂商名称 */}
-            <span className="text-xs text-muted-foreground">
-              {VENDOR_DISPLAY_NAMES[update.vendor] || update.vendor}
-            </span>
-            
             {/* 产品子类 */}
             {update.product_subcategory && (
-              <span className="text-xs text-muted-foreground/70">
-                · {update.product_subcategory}
+              <span className="text-xs text-muted-foreground/70 flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                {update.product_subcategory}
               </span>
             )}
           </div>
@@ -251,54 +258,51 @@ export function HomePage() {
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
-      <header className="fade-in-up">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-3">
-              <Radar className="h-6 w-6 text-primary" />
-              更新时间线
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Live Feed • {format(new Date(), 'yyyy-MM-dd')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {/* 全部按钮 */}
-            <button
-              onClick={() => setSelectedVendor('')}
-              className={cn(
-                'px-3 py-1.5 text-xs border rounded transition',
-                selectedVendor === ''
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-muted text-muted-foreground border-border hover:text-foreground'
-              )}
-            >
-              全部
-            </button>
-            {/* 厂商筛选按钮 */}
-            {vendors.slice(0, 6).map((v) => (
-              <button
-                key={v.vendor}
-                onClick={() => setSelectedVendor(v.vendor === selectedVendor ? '' : v.vendor)}
-                className={cn(
-                  'px-3 py-1.5 text-xs border rounded transition',
-                  selectedVendor === v.vendor
-                    ? 'text-white border-transparent'
-                    : 'bg-muted text-muted-foreground border-border hover:text-foreground'
-                )}
-                style={selectedVendor === v.vendor ? { backgroundColor: getVendorColor(v.vendor) } : undefined}
-              >
-                {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
-              </button>
-            ))}
-          </div>
-        </div>
+      <PageHeader
+        title="更新时间线"
+        eyebrow="LIVE FEED // UPDATES"
+        description={
+          <span className="flex items-center gap-2">
+            <span>{format(new Date(), 'yyyy-MM-dd')}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-emerald-500 text-xs font-medium">Monitoring Active</span>
+          </span>
+        }
+      >
+        {/* 全部按钮 */}
+        <button
+          onClick={() => setSelectedVendor('')}
+          className={cn(
+            'px-3 py-1.5 text-xs border rounded transition font-medium',
+            selectedVendor === ''
+              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+              : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-primary/50'
+          )}
+        >
+          全部
+        </button>
+        {/* 厂商筛选按钮 */}
+        {vendors.slice(0, 6).map((v) => (
+          <button
+            key={v.vendor}
+            onClick={() => setSelectedVendor(v.vendor === selectedVendor ? '' : v.vendor)}
+            className={cn(
+              'px-3 py-1.5 text-xs border rounded transition font-medium',
+              selectedVendor === v.vendor
+                ? 'text-white border-transparent shadow-sm'
+                : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-primary/50'
+            )}
+            style={selectedVendor === v.vendor ? { backgroundColor: getVendorColor(v.vendor) } : undefined}
+          >
+            {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
+          </button>
+        ))}
+      </PageHeader>
 
-        {/* 今日摘要 */}
-        {!isLoading && todayUpdates.length > 0 && (
-          <DailyBrief updates={todayUpdates} stats={statsData?.data ?? undefined} />
-        )}
-      </header>
+      {/* 今日摘要 */}
+      {!isLoading && todayUpdates.length > 0 && (
+        <DailyBrief updates={todayUpdates} stats={statsData?.data ?? undefined} />
+      )}
 
       {/* 时间流主体 */}
       {isLoading ? (
@@ -309,16 +313,16 @@ export function HomePage() {
           description="暂时没有任何更新记录"
         />
       ) : (
-        <div className="timeline-container">
+        <div className="timeline-container pl-2">
           {groupedUpdates.map(([dateKey, dateUpdates], groupIdx) => (
             <div key={dateKey} className={cn('mb-8 relative', groupIdx > 0 && 'opacity-90 hover:opacity-100 transition-opacity')}>
               {/* 日期标签 */}
-              <div className="timeline-date-label">
+              <div className="timeline-date-label sticky top-20 z-10 backdrop-blur-sm bg-background/80 py-1 mb-4 inline-block px-3 rounded-full border border-border/50 text-xs font-mono text-primary shadow-sm">
                 {formatDateGroup(dateKey)}
               </div>
               
               {/* 该日期的更新列表 */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {dateUpdates.map((update) => (
                   <TimelineCard key={update.update_id} update={update} />
                 ))}
@@ -336,7 +340,7 @@ export function HomePage() {
             ) : hasNextPage ? (
               <button 
                 onClick={() => fetchNextPage()}
-                className="text-sm text-muted-foreground hover:text-primary transition flex items-center justify-center gap-2 w-full"
+                className="text-sm text-muted-foreground hover:text-primary transition flex items-center justify-center gap-2 w-full py-4 hover:bg-muted/30 rounded-lg"
               >
                 <ChevronRight className="h-4 w-4 rotate-90" />
                 加载更多历史更新
