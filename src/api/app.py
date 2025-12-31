@@ -96,6 +96,11 @@ def _start_scheduler(logger):
         if scheduler.start():
             logger.info("📅 调度器已启动")
             return scheduler
+        else:
+            # 调度器.start()返回False可能是因为没有获取到调度器进程锁
+            # 这是正常情况，不需要报错
+            logger.info("📅 调度器未启动（可能因为调度器进程锁已被其他进程获取）")
+            return None
         
     except Exception as e:
         logger.warning(f"调度器启动失败: {e}")

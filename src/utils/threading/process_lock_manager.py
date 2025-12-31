@@ -22,6 +22,7 @@ class ProcessType(Enum):
     CRAWLER = auto()  # 爬虫进程
     ANALYZER = auto()  # 分析进程
     WEB_SERVER = auto()  # Web服务器进程
+    SCHEDULER = auto()  # 调度器进程
 
 class ProcessLockManager:
     """
@@ -41,6 +42,7 @@ class ProcessLockManager:
         ProcessType.CRAWLER: {ProcessType.ANALYZER},  # 爬虫运行时不允许分析进程运行
         ProcessType.ANALYZER: {ProcessType.CRAWLER},  # 分析进程运行时不允许爬虫进程运行
         ProcessType.WEB_SERVER: set(),  # Web服务器运行时允许其他进程运行
+        ProcessType.SCHEDULER: set(),  # 调度器运行时允许其他进程运行
     }
     
     # 锁文件目录

@@ -37,7 +37,7 @@ class APISettings(BaseSettings):
     # 服务器配置
     host: str = "0.0.0.0"
     port: int = 8000
-    workers: int = 1
+    workers: int = 4  # 支持多worker并发，但通过锁机制确保定时任务只在一个进程中运行
 
 
 settings = APISettings()

@@ -10,12 +10,14 @@ import logging
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 import threading
+import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, JobExecutionEvent
 
 from .config import SchedulerConfig, JobConfig
+from ..utils.threading.process_lock_manager import ProcessLockManager, ProcessType
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,10 @@ class Scheduler:
         self._lock = threading.Lock()
         self._running = False
         
+        # 进程锁相关
+        self._process_lock_manager: Optional[ProcessLockManager] = None
+        self._lock_acquired = False
+        
         # 任务执行函数映射
         self._job_functions: Dict[str, Callable] = {}
         
@@ -73,6 +79,17 @@ class Scheduler:
         if not self.config.enabled:
             logger.info("调度器未启用")
             return False
+        
+        # 尝试获取调度器进程锁
+        self._process_lock_manager = ProcessLockManager.get_instance(ProcessType.SCHEDULER)
+        
+        if not self._process_lock_manager.acquire_lock():
+            logger.info("无法获取调度器进程锁，其他进程可能已在运行调度器，跳过启动")
+            self._lock_acquired = False
+            return False  # 返回False表示没有启动调度器，但这是正常情况
+        
+        logger.info(f"成功获取调度器进程锁，进程 {os.getpid()} 可以启动调度器")
+        self._lock_acquired = True
         
         with self._lock:
             if self._running:
@@ -104,6 +121,8 @@ class Scheduler:
                 
             except Exception as e:
                 logger.error(f"调度器启动失败: {e}")
+                # 如果调度器启动失败，释放锁
+                self._release_lock()
                 return False
     
     def stop(self) -> None:
@@ -113,7 +132,20 @@ class Scheduler:
                 self._scheduler.shutdown(wait=False)
                 self._running = False
                 logger.info("调度器已停止")
+        
+        # 释放分布式锁
+        self._release_lock()
     
+    def _release_lock(self) -> None:
+        """释放调度器进程锁"""
+        if self._lock_acquired and self._process_lock_manager:
+            try:
+                self._process_lock_manager.release_lock()
+                self._lock_acquired = False
+                logger.debug("已释放调度器进程锁")
+            except Exception as e:
+                logger.error(f"释放调度器进程锁失败: {e}")
+
     def is_running(self) -> bool:
         """检查调度器是否运行中"""
         return self._running
