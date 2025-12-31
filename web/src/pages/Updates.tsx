@@ -14,6 +14,8 @@ import {
   Input,
   Select,
 } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { getUpdateTypeMeta } from '@/components/icons';
 import { formatDate, getVendorColor, cn, truncate } from '@/lib/utils';
 import {
   VENDOR_DISPLAY_NAMES,
@@ -292,34 +294,34 @@ export function UpdatesPage() {
   return (
     <div className="space-y-4">
       {/* 页面标题 - 横跨全宽 */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">更新列表</h1>
-        <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-1.5">
-          {filterTagsList.length === 0 ? (
-            <span>浏览所有云厂商的产品更新</span>
-          ) : (
+      <PageHeader
+        title="更新列表"
+        eyebrow="DATABASE // UPDATES"
+        description={
+          totalCount > 0 
+            ? `共检索到 ${totalCount} 条记录`
+            : "浏览所有云厂商的产品更新"
+        }
+      >
+        <div className="flex flex-wrap items-center gap-1.5 mt-2 md:mt-0">
+          {filterTagsList.length > 0 && (
             <>
-              <span className="text-muted-foreground/70 mr-1">筛选：</span>
               {filterTagsList.map((filterTag) => (
                 <FilterTag key={filterTag.key} onRemove={filterTag.onRemove}>
                   {filterTag.label}
                 </FilterTag>
               ))}
-              {filterTagsList.length > 1 && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs text-muted-foreground/70 hover:text-destructive ml-1 transition-colors"
-                >
-                  清除全部
-                </button>
-              )}
+              <button
+                onClick={clearFilters}
+                className="text-xs text-muted-foreground/70 hover:text-destructive ml-1 transition-colors flex items-center gap-1 px-2 py-1 rounded hover:bg-muted"
+              >
+                <X className="h-3 w-3" />
+                清除全部
+              </button>
             </>
           )}
-          {totalCount > 0 && (
-            <span className="text-muted-foreground/70">· 共 {totalCount} 条记录</span>
-          )}
         </div>
-      </div>
+      </PageHeader>
 
       {/* 双栏布局 */}
       <div className="flex gap-6">
@@ -533,6 +535,10 @@ interface UpdateCardProps {
 }
 
 function UpdateCard({ update, onFilter }: UpdateCardProps) {
+  // 获取类型图标配置
+  const typeMeta = getUpdateTypeMeta(update.update_type);
+  const TypeIcon = typeMeta.icon;
+
   // 可点击的标签组件
   const ClickableBadge = ({ 
     children, 
@@ -616,8 +622,9 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {update.update_type && (
               <ClickableBadge
                 onClick={() => onFilter({ vendor: update.vendor, update_type: update.update_type ?? undefined })}
-                className="bg-primary/10 text-primary"
+                className={cn("gap-1 pl-1.5", typeMeta.colorClass.replace('text-', 'bg-').replace('500', '100'), "text-foreground dark:bg-opacity-20")}
               >
+                <TypeIcon className={cn("h-3 w-3", typeMeta.colorClass)} />
                 {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
               </ClickableBadge>
             )}

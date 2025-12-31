@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
 } from '@/components/ui';
+import { getUpdateTypeMeta } from '@/components/icons';
 import { formatDate, formatDateTime, getVendorColor, cn, copyToClipboard, getAiGradientColors } from '@/lib/utils';
 import { VENDOR_DISPLAY_NAMES, UPDATE_TYPE_LABELS, SOURCE_CHANNEL_LABELS } from '@/types';
 import ReactMarkdown from 'react-markdown';
@@ -200,11 +201,16 @@ export function UpdateDetailPage() {
             >
               {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
             </Badge>
-            {update.update_type && (
-              <Badge variant="default">
-                {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
-              </Badge>
-            )}
+            {update.update_type && (() => {
+              const typeMeta = getUpdateTypeMeta(update.update_type);
+              const TypeIcon = typeMeta.icon;
+              return (
+                <Badge variant="outline" className={cn("gap-1 pl-1.5 border-primary/20 bg-primary/5", typeMeta.colorClass)}>
+                  <TypeIcon className="h-3 w-3" />
+                  {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
+                </Badge>
+              );
+            })()}
             <span className={cn(
               'flex items-center gap-1 text-sm',
               update.has_analysis ? 'status-analyzed' : 'status-unanalyzed'
