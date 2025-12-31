@@ -116,11 +116,11 @@ class MonthlyReport(BaseReport):
         with self._db.get_connection() as conn:
             cursor = conn.cursor()
             
-            # 查询所有已分析的更新
+            # 查询所有已分析的更新 (包含 content 原文)
             cursor.execute('''
                 SELECT 
                     update_id, vendor, source_channel, update_type,
-                    title, title_translated, content_summary, 
+                    title, title_translated, content, content_summary, 
                     publish_date, product_subcategory
                 FROM updates
                 WHERE publish_date >= ? AND publish_date <= ?
@@ -179,20 +179,28 @@ class MonthlyReport(BaseReport):
     def _get_updates_for_ai(self, stats: Dict[str, Any]) -> Dict[str, str]:
         """
         将数据分为 Feature（产品动作）和 Blog（方案深度）两部分喂给 AI
+        包含原始 content 和所有元数据，确保深度洞察的准确性
         """
         updates = stats['updates']
         
         # 1. 提取所有 Blog 数据 (用于解决方案分析)
         blogs = [u for u in updates if u.get('source_channel') == 'blog']
-        blogs_simplified = [
-            {
+        blogs_simplified = []
+        for b in blogs:
+            # 彻底取消截断，保留全部原文
+            content_raw = b.get('content', '')
+                
+            blogs_simplified.append({
+                'update_id': b['update_id'],
                 'vendor': b['vendor'],
+                'publish_date': b.get('publish_date', ''),
                 'title': b.get('title_translated') or b.get('title', ''),
-                'summary': (b.get('content_summary') or b.get('description', ''))[:400]
-            } for b in blogs
-        ]
+                'category': b.get('product_subcategory', ''),
+                'summary_ai': b.get('content_summary', ''),
+                'content_raw': content_raw
+            })
         
-        # 2. 提取所有 Feature 数据并按领域聚合 (用于 Landmarks 和 Noteworthy)
+        # 2. 提取所有 Feature 数据并按领域聚合
         features = [u for u in updates if u.get('source_channel') != 'blog']
         type_weight = {'new_product': 100, 'pricing': 80, 'new_feature': 60, 'enhancement': 40}
         
@@ -208,13 +216,21 @@ class MonthlyReport(BaseReport):
             battleground_simplified[cat] = {}
             for vendor, ups in vendors.items():
                 sorted_ups = sorted(ups, key=lambda x: type_weight.get(x.get('update_type'), 0), reverse=True)
-                battleground_simplified[cat][vendor] = [
-                    {
+                
+                ups_data = []
+                for u in sorted_ups:
+                    content_raw = u.get('content', '')
+                        
+                    ups_data.append({
                         'update_id': u['update_id'],
+                        'vendor': u['vendor'],
+                        'update_type': u.get('update_type', ''),
+                        'publish_date': u.get('publish_date', ''),
                         'title': u.get('title_translated') or u.get('title', ''),
-                        'summary': (u.get('content_summary') or u.get('description', ''))[:250]
-                    } for u in sorted_ups
-                ]
+                        'summary_ai': u.get('content_summary', ''),
+                        'content_raw': content_raw
+                    })
+                battleground_simplified[cat][vendor] = ups_data
                 
         return {
             'battleground_json': json.dumps(battleground_simplified, ensure_ascii=False, indent=2),

@@ -106,7 +106,7 @@ class WeeklyReport(BaseReport):
             cursor.execute('''
                 SELECT
                     update_id, vendor, source_channel, update_type,
-                    title_translated, content_summary, publish_date,
+                    title_translated, content, content_summary, publish_date,
                     product_subcategory
                 FROM updates
                 WHERE publish_date >= ? AND publish_date <= ?
@@ -171,15 +171,22 @@ class WeeklyReport(BaseReport):
             with open(prompt_file, 'r', encoding='utf-8') as f:
                 prompt_template = f.read()
 
-            # 准备数据（包含 source_channel 以便区分 Blog 和 Feature）
+            # 准备数据：包含完整的原文和所有元数据，确保 AI 洞察的深度和准确性
             updates_for_ai = []
             for u in updates:
+                # 彻底取消原文截断，确保 AI 能看到每一个字节的技术细节
+                content_raw = u.get('content', '')
+
                 updates_for_ai.append({
                     'update_id': u['update_id'],
                     'vendor': u['vendor'],
-                    'title': u.get('title_translated', ''),
+                    'publish_date': u.get('publish_date', ''),
                     'source_channel': u.get('source_channel', ''),
-                    'summary': self._format_summary(u.get('content_summary', ''))[:100]
+                    'update_type': u.get('update_type', ''),
+                    'subcategory': u.get('product_subcategory', ''),
+                    'title': u.get('title_translated', ''),
+                    'summary_ai': u.get('content_summary', ''),  # 提供 AI 之前的摘要作为参考
+                    'content_raw': content_raw                   # 提供原始全文，不再截断
                 })
 
             updates_json = json.dumps(updates_for_ai, ensure_ascii=False, indent=2)

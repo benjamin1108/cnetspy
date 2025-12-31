@@ -7,6 +7,7 @@
 {battleground_json}
 - 技术方案分享（各厂商 Blog）:
 {blogs_json}
+  * 注：每个更新项均包含 `content_raw` (原始公告/博客全文) 和 `summary_ai` (初步摘要)。你必须**深度挖掘 `content_raw`** 以确保洞察的专业性和准确性，严禁仅依赖 `summary_ai` 进行流水账式的复述。
 
 # Output Requirements
 返回纯 JSON 格式：

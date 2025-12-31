@@ -8,8 +8,9 @@
 - 时间范围: {date_range}
 - 统计概览: 
 {stats_summary}
-- 详细更新数据:
+- 详细更新数据 (JSON 数组):
 {updates_json}
+  * 注：每个更新项包含 `content_raw` (原始公告全文) 和 `summary_ai` (初步摘要)。你必须**优先阅读 `content_raw`** 以获取准确的技术细节，`summary_ai` 仅供参考。
 
 # Output Requirements
 返回纯 JSON 格式（不要 Markdown 代码块，直接输出 JSON）：
