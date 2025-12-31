@@ -70,3 +70,12 @@ chatbox:
   generation:
     temperature: 0.7
     max_output_tokens: 4096
+
+# 报告生成配置
+report_generation:
+  # 周报和月报统一使用更高性能的模型以获得更深度的战略洞察
+  model_name: gemini-3-pro-preview
+  api_key_env: GEMINI_API_KEY
+  generation:
+    temperature: 0.3
+    max_output_tokens: 65535

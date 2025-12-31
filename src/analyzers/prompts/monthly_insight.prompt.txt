@@ -1,46 +1,58 @@
-# Role
-你是 CloudNetSpy 的首席云产品总监（Product Director）和资深架构师。你拥有10年以上云平台规划与落地经验，对企业级需求、成本治理、高可用架构有深刻理解。
-
 # Task
-基于本月的云厂商更新数据，生成一份**高价值的月度技术演进分析报告**。
+基于本月各厂商的**产品发布（Features）**和**技术方案分享（Blogs）**，生成一份具有**头条感**和**架构深度**的月度战略综述。
 
 # Input Data
 - 月份: {month_str}
-- 更新总数: {total_count}
-- 厂商分布: {vendor_stats}
-- 类别分布: {category_stats}
-- 更新列表 (全量):
-{updates_json}
+- 产品发布数据（按领域聚合）:
+{battleground_json}
+- 技术方案分享（各厂商 Blog）:
+{blogs_json}
 
 # Output Requirements
-返回纯 JSON 格式（不要 Markdown 代码块，直接输出 JSON）：
+返回纯 JSON 格式：
 
 {
-  "insight_title": "基于本月技术演进趋势的标题（8字内，如：多云治理标准化、云原生安全落地）",
-  "insight_summary": "200字左右的深度综述。核心要求：1. 站在架构师视角，分析本月云厂商在解决什么共性问题（如：降本、合规、体验优化）。2. 拒绝流水账，拒绝“竞争激烈”等空话。3. 明确指出本月是“架构演进月”还是“存量修补月”。",
-  "top_trends": [
+  "insight_title": "本月主题：15-25字，必须是一个具有独特视角的长标题（如：从单一安全组件向全链路安全治理由演进：11月 re:Invent 期间云厂商的架构共识）",
+  "insight_summary": "300字左右的技术综述。要求：1. 归纳本月所有厂商更新共同体现出的技术趋势。2. 重点分析本月是否有重大架构范式的变迁。3. 严禁使用虚夸词汇。",
+  "landmark_updates": [
     {
-      "emoji": "🌟",
-      "title": "精选更新：[厂商] 产品名",
-      "desc": "按以下结构撰写：【痛点】用户以前面临什么问题？【方案】新功能如何解决？【点评】架构师视角的一句话评价（如：企业级 FinOps 的关键补丁）。"
-    },
-    {
-      "emoji": "🛡️",
-      "title": "精选更新：[厂商] 产品名",
-      "desc": "..."
+      "update_id": "update_id",
+      "vendor": "厂商",
+      "title": "发布标题",
+      "product": "产品名",
+      "pain_point": "痛点描述",
+      "value": "核心价值",
+      "comment": "专家点评"
     }
   ],
-  "featured_blogs": [
+  "noteworthy_updates": [
     {
-      "emoji": "📚",
-      "title": "[厂商] 必读文章标题",
-      "desc": "推荐理由：一句话说明这篇文章适合谁读，能学到什么设计模式或最佳实践（source_channel='blog'）。"
+      "vendor": "厂商",
+      "items": [
+        {
+          "update_id": "update_id",
+          "content": "一句话概括其技术价值",
+          "reason": "关注理由（如：补齐了协议短板）。"
+        }
+      ]
+    }
+  ],
+  "solution_analysis": [
+    {
+      "theme": "技术方案/行业主题",
+      "summary": "基于 Blog 的深度分析。",
+      "references": [
+        {
+          "update_id": "必须原样返回 blogs_json 中的 update_id",
+          "title": "Blog 标题"
+        }
+      ]
     }
   ]
 }
 
-# Constraints
-1. **绝对禁止**：废话、套话、营销号风格（如“震撼”、“重磅”）。
-2. **Top Trends 筛选**：必须从 Input Data 中挑选 **3-5 个** 最具价值的更新，而不是简单的分类汇总。
-3. **深度优先**：不要试图覆盖所有更新，只聚焦那些改变用户使用方式、降低成本或提升安全性的核心更新。
-4. **JSON 格式**：确保输出合法的 JSON，可直接被 json.loads() 解析。
+# Strict Constraints (严禁违反)
+1. **标题质量**：禁止使用“11月云技术总结”等泛泛而谈的废话。标题必须具有战略高度和技术细节。
+2. **解决方案分析**：必须基于 `blogs_json` 挖掘出至少 2-3 个深度的行业或架构主题。禁止提及无 Blog 支持的虚假方案。
+3. **Landmark 评选**：上限 10 个，优先选择改变规则的发布。
+4. **零噪音**：严禁在任何地方提及本月无动作的厂商。禁止使用“未见动作”等废话。

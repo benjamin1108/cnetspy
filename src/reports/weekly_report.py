@@ -78,7 +78,9 @@ class WeeklyReport(BaseReport):
         # 初始化 Gemini 客户端
         try:
             config = get_config()
-            ai_config = config.get('ai_model', {})
+            ai_model_config = config.get('ai_model', {})
+            # 优先使用报告生成专属配置，否则回退到默认
+            ai_config = ai_model_config.get('report_generation', ai_model_config.get('default', {}))
             self._gemini = GeminiClient(ai_config)
         except Exception as e:
             logger.warning(f"Gemini 客户端初始化失败: {e}")

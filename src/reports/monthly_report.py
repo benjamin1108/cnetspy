@@ -85,7 +85,9 @@ class MonthlyReport(BaseReport):
         # 初始化 Gemini 客户端
         try:
             config = get_config()
-            ai_config = config.get('ai_model', {})
+            ai_model_config = config.get('ai_model', {})
+            # 优先使用报告生成专属配置，否则回退到默认
+            ai_config = ai_model_config.get('report_generation', ai_model_config.get('default', {}))
             self._gemini = GeminiClient(ai_config)
         except Exception as e:
             logger.warning(f"Gemini 客户端初始化失败: {e}")
@@ -139,11 +141,22 @@ class MonthlyReport(BaseReport):
             vendor_stats[vendor]['count'] += 1
             vendor_stats[vendor]['updates'].append(u)
         
-        # 类别统计
-        category_stats = {}
+        # 领域统计 (Battleground Data)
+        # 结构: { category: { vendor: [updates] } }
+        category_battleground = {}
         for u in updates:
             cat = u.get('product_subcategory') or '其他'
-            category_stats[cat] = category_stats.get(cat, 0) + 1
+            vendor = u['vendor']
+            if cat not in category_battleground:
+                category_battleground[cat] = {}
+            if vendor not in category_battleground[cat]:
+                category_battleground[cat][vendor] = []
+            category_battleground[cat][vendor].append(u)
+        
+        # 类别简单统计 (用于图表)
+        category_stats = {}
+        for cat, vendors in category_battleground.items():
+            category_stats[cat] = sum(len(ups) for ups in vendors.values())
         
         # 最活跃厂商
         top_vendor = None
@@ -157,114 +170,104 @@ class MonthlyReport(BaseReport):
             'total_count': len(updates),
             'vendor_stats': vendor_stats,
             'category_stats': category_stats,
+            'category_battleground': category_battleground,
             'top_vendor': top_vendor,
             'top_vendor_count': top_vendor_count,
             'updates': updates
         }
     
-    def _get_updates_for_ai(self, updates: List[Dict]) -> List[Dict]:
+    def _get_updates_for_ai(self, stats: Dict[str, Any]) -> Dict[str, str]:
         """
-        获取用于 AI 分析的更新列表（精简字段，全量）
+        将数据分为 Feature（产品动作）和 Blog（方案深度）两部分喂给 AI
         """
-        result = []
-        for u in updates:
-            result.append({
-                'vendor': u['vendor'],
-                'title': u.get('title_translated') or u.get('title') or '',
-                'type': u.get('update_type') or '',
-                'category': u.get('product_subcategory') or ''
-            })
-        return result
+        updates = stats['updates']
+        
+        # 1. 提取所有 Blog 数据 (用于解决方案分析)
+        blogs = [u for u in updates if u.get('source_channel') == 'blog']
+        blogs_simplified = [
+            {
+                'vendor': b['vendor'],
+                'title': b.get('title_translated') or b.get('title', ''),
+                'summary': (b.get('content_summary') or b.get('description', ''))[:400]
+            } for b in blogs
+        ]
+        
+        # 2. 提取所有 Feature 数据并按领域聚合 (用于 Landmarks 和 Noteworthy)
+        features = [u for u in updates if u.get('source_channel') != 'blog']
+        type_weight = {'new_product': 100, 'pricing': 80, 'new_feature': 60, 'enhancement': 40}
+        
+        battleground = {}
+        for u in features:
+            cat = u.get('product_subcategory') or '其他'
+            if cat not in battleground: battleground[cat] = {}
+            if u['vendor'] not in battleground[cat]: battleground[cat][u['vendor']] = []
+            battleground[cat][u['vendor']].append(u)
+            
+        battleground_simplified = {}
+        for cat, vendors in battleground.items():
+            battleground_simplified[cat] = {}
+            for vendor, ups in vendors.items():
+                sorted_ups = sorted(ups, key=lambda x: type_weight.get(x.get('update_type'), 0), reverse=True)
+                battleground_simplified[cat][vendor] = [
+                    {
+                        'update_id': u['update_id'],
+                        'title': u.get('title_translated') or u.get('title', ''),
+                        'summary': (u.get('content_summary') or u.get('description', ''))[:250]
+                    } for u in sorted_ups
+                ]
+                
+        return {
+            'battleground_json': json.dumps(battleground_simplified, ensure_ascii=False, indent=2),
+            'blogs_json': json.dumps(blogs_simplified, ensure_ascii=False, indent=2)
+        }
     
     # ==================== AI 认知层 ====================
     
     def _generate_ai_insight(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """
-        调用 AI 生成 JSON 格式的洞察摘要
-        
-        Returns:
-            {
-                "insight_title": "...",
-                "insight_summary": "...",
-                "top_trends": [...]
-            }
+        调用 AI 生成 JSON 格式的月度战略洞察
         """
-        # 默认返回值
         default_insight = {
-            'insight_title': '本月云产品动态',
-            'insight_summary': f"本月监测到 {stats['total_count']} 条更新，涉及 {len(stats['vendor_stats'])} 个厂商。",
-            'top_trends': []
+            'insight_title': '月度云竞争战略分析',
+            'insight_summary': f"本月监测到 {stats['total_count']} 条更新。",
+            'landmark_updates': [],
+            'noteworthy_updates': [],
+            'solution_analysis': []
         }
         
-        if not self._gemini:
-            return default_insight
-        
-        # 更新数量太少，不调用 AI
-        if stats['total_count'] < 5:
+        if not self._gemini or stats['total_count'] < 5:
             return default_insight
         
         try:
-            # 加载提示词模板
             prompt_file = os.path.join(PROMPT_DIR, 'monthly_insight.prompt.txt')
-            if not os.path.exists(prompt_file):
-                logger.warning(f"提示词文件不存在: {prompt_file}")
-                return default_insight
-            
             with open(prompt_file, 'r', encoding='utf-8') as f:
                 prompt_template = f.read()
             
-            # 构建输入数据
-            month_str = self.start_date.strftime('%Y年%m月')
-            vendor_stats_str = ', '.join([
-                f"{VENDOR_DISPLAY_NAMES.get(v, v)}({s['count']}条)"
-                for v, s in sorted(stats['vendor_stats'].items(), key=lambda x: x[1]['count'], reverse=True)
-            ])
+            # 准备结构化数据
+            ai_data = self._get_updates_for_ai(stats)
             
-            # 类别 Top 5
-            category_sorted = sorted(stats['category_stats'].items(), key=lambda x: x[1], reverse=True)[:5]
-            category_stats_str = ', '.join([f"{cat}({cnt}条)" for cat, cnt in category_sorted])
-            
-            updates_for_ai = self._get_updates_for_ai(stats['updates'])
-            updates_json = json.dumps(updates_for_ai, ensure_ascii=False, indent=2)
-            
-            # 替换模板变量
-            prompt = prompt_template.replace('{month_str}', month_str)
+            # 替换变量
+            prompt = prompt_template.replace('{month_str}', self.start_date.strftime('%Y年%m月'))
             prompt = prompt.replace('{total_count}', str(stats['total_count']))
-            prompt = prompt.replace('{vendor_stats}', vendor_stats_str)
-            prompt = prompt.replace('{category_stats}', category_stats_str)
-            prompt = prompt.replace('{updates_json}', updates_json)
+            prompt = prompt.replace('{battleground_json}', ai_data['battleground_json'])
+            prompt = prompt.replace('{blogs_json}', ai_data['blogs_json'])
             
             # 调用 AI
-            logger.info("调用 Gemini 生成月度洞察 JSON...")
+            logger.info("调用 Gemini-3-Pro 生成月度深度洞察...")
             response = self._gemini.generate_text(prompt)
             
-            # DEBUG: 打印原始响应
-            logger.debug(f"AI 原始响应 (前500字符): {response[:500]}")
-            logger.debug(f"AI 响应长度: {len(response)} 字符")
-            
             # 解析 JSON
-            # 尝试清理可能的 Markdown 代码块
             response = response.strip()
-            if response.startswith('```json'):
-                response = response[7:]
-            if response.startswith('```'):
-                response = response[3:]
-            if response.endswith('```'):
-                response = response[:-3]
-            response = response.strip()
+            if response.startswith('```json'): response = response[7:]
+            elif response.startswith('```'): response = response[3:]
+            if response.endswith('```'): response = response[:-3]
             
-            logger.debug(f"清理后的响应 (前300字符): {response[:300]}")
+            result = json.loads(response.strip())
+            return result
             
-            insight = json.loads(response)
-            logger.info(f"AI 洞察生成成功: {insight.get('insight_title', '')}")
-            logger.debug(f"解析得到的 insight: {insight}")
-            
-            # 确保字段存在
-            return {
-                'insight_title': insight.get('insight_title', default_insight['insight_title']),
-                'insight_summary': insight.get('insight_summary', default_insight['insight_summary']),
-                'top_trends': insight.get('top_trends', [])
-            }
+        except Exception as e:
+            logger.error(f"月报 AI 洞察生成失败: {e}")
+            return default_insight
             
         except json.JSONDecodeError as e:
             logger.error(f"AI 返回的 JSON 解析失败: {e}")
@@ -387,7 +390,7 @@ class MonthlyReport(BaseReport):
     
     def _render_report_html(self, stats: Dict, insight: Dict) -> str:
         """
-        组装完整的 HTML 报告
+        组装完整的 HTML 月报
         """
         # 加载模板
         template_file = os.path.join(TEMPLATE_DIR, 'monthly_report.html')
@@ -396,68 +399,57 @@ class MonthlyReport(BaseReport):
         
         # 标题：如果截止日不是月末，标注截止日期
         month_str = self.start_date.strftime('%Y年%m月')
-        if self.end_date.day < 28:  # 不是月末
+        if self.end_date.day < 28:
             month_str += f"（截止{self.end_date.strftime('%m月%d日')}）"
         
         date_range = f"{self.start_date.strftime('%Y-%m-%d')} 至 {self.end_date.strftime('%Y-%m-%d')}"
         
-        # 最活跃厂商
-        top_vendor_name = VENDOR_DISPLAY_NAMES.get(stats['top_vendor'], stats['top_vendor'] or '-')
-        top_vendor_count = stats['top_vendor_count']
-        
-        # 趋势 HTML
-        top_trends_html = ''
-        if insight.get('top_trends'):
-            for trend in insight['top_trends']:
-                top_trends_html += self._render_trend_html(trend)
-        
-        # 热点领域 Top 3
-        category_sorted = sorted(stats['category_stats'].items(), key=lambda x: x[1], reverse=True)[:3]
-        max_cat_count = category_sorted[0][1] if category_sorted else 1
-        category_bars_html = ''
-        for cat, cnt in category_sorted:
-            category_bars_html += self._render_category_bar_html(cat, cnt, max_cat_count)
-        
-        # 更新卡片 HTML
-        details_html = ''
-        all_updates = stats['updates']
-        
-        # Hero 类型：new_product, pricing, compliance
-        hero_types = {'new_product', 'pricing', 'compliance'}
-        
-        for i, u in enumerate(all_updates):
-            is_hero = u.get('update_type') in hero_types and i < 10  # 前 10 条中的重要类型用 Hero
-            details_html += self._render_card_html(u, is_hero=is_hero)
-        
-        # 厂商筛选按钮 HTML
-        vendor_filter_buttons = ''
-        vendor_order = ['aws', 'azure', 'gcp', 'huawei', 'tencentcloud', 'volcengine']
-        for vendor in vendor_order:
-            if vendor in stats['vendor_stats']:
-                vendor_display = VENDOR_DISPLAY_NAMES.get(vendor, vendor.upper())
-                vendor_filter_buttons += f'<button class="vendor-filter-btn" data-vendor="{vendor}" onclick="filterByVendor(\'{vendor}\')">{vendor_display}</button>\n'
+        # 1. Landmark Updates HTML
+        landmark_updates_html = ''
+        if insight.get('landmark_updates'):
+            for i, item in enumerate(insight['landmark_updates']):
+                vendor = item.get('vendor', 'Unknown')
+                vendor_slug = vendor.lower()
+                title = escape(item.get('title', ''))
+                impact = escape(item.get('impact', ''))
+                update_id = item.get('update_id', '')
+                link = f"{SITE_BASE_URL}/updates/{update_id}" if update_id else "#"
+                
+                landmark_updates_html += f'''
+<div class="landmark-card">
+    <div class="landmark-number">0{i+1}</div>
+    <div style="margin-bottom: 12px;">
+        <span class="badge badge-{vendor_slug}">{vendor}</span>
+    </div>
+    <h5 style="margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 700;">
+        <a href="{link}" style="color: inherit; text-decoration: none;">{title}</a>
+    </h5>
+    <div class="landmark-impact">“{impact}”</div>
+</div>
+'''
+
+        # 2. Battleground HTML
+        battleground_html = ''
+        if insight.get('battleground_analysis'):
+            for bg in insight['battleground_analysis']:
+                cat = escape(bg.get('category', ''))
+                summary = escape(bg.get('summary', ''))
+                
+                battleground_html += f'''
+<div class="battleground-row">
+    <div class="battleground-cat">{cat}</div>
+    <div class="battleground-summary">{summary}</div>
+</div>
+'''
         
         # 替换模板变量
         html = template
         html = html.replace('{{report_month}}', month_str)
         html = html.replace('{{date_range}}', date_range)
-        html = html.replace('{{total_count}}', str(stats['total_count']))
-        html = html.replace('{{top_vendor_name}}', top_vendor_name)
-        html = html.replace('{{top_vendor_count}}', str(top_vendor_count))
         html = html.replace('{{insight_title}}', escape(insight.get('insight_title', '')))
         html = html.replace('{{insight_summary}}', escape(insight.get('insight_summary', '')))
-        html = html.replace('{{top_trends_html}}', top_trends_html)
-        html = html.replace('{{category_bars_html}}', category_bars_html)
-        html = html.replace('{{vendor_filter_buttons}}', vendor_filter_buttons)
-        html = html.replace('{{details_html_content}}', details_html)
-        
-        # 处理条件渲染
-        if top_trends_html:
-            html = html.replace('{{#if top_trends}}', '').replace('{{/if}}', '')
-        else:
-            # 移除空的趋势区块
-            import re
-            html = re.sub(r'\{\{#if top_trends\}\}.*?\{\{/if\}\}', '', html, flags=re.DOTALL)
+        html = html.replace('{{landmark_updates_html}}', landmark_updates_html)
+        html = html.replace('{{battleground_html}}', battleground_html)
         
         return html
     
