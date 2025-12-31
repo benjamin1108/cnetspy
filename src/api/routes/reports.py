@@ -22,32 +22,39 @@ async def get_report(
     report_type: str,
     year: Optional[int] = Query(None, description="指定年份"),
     month: Optional[int] = Query(None, ge=1, le=12, description="指定月份（仅月报）"),
+    week: Optional[int] = Query(None, ge=1, le=53, description="指定周数（仅周报）"),
     db: UpdateDataLayer = Depends(get_db)
 ):
     """
     获取竞争分析报告
-    
+
     从数据库读取已生成的报告
     """
     if report_type not in ['weekly', 'monthly']:
         return ApiResponse(success=False, error="Invalid report type. Use 'weekly' or 'monthly'")
-    
-    # 默认上个月
-    if not year or not month:
+
+    # 默认上一个周期
+    if not year or (report_type == 'monthly' and not month) or (report_type == 'weekly' and not week):
         today = datetime.now()
-        first_of_this_month = today.replace(day=1)
-        last_month = first_of_this_month - timedelta(days=1)
-        year = last_month.year
-        month = last_month.month
-    
+        if report_type == 'monthly':
+            first_of_this_month = today.replace(day=1)
+            last_month = first_of_this_month - timedelta(days=1)
+            year = last_month.year
+            month = last_month.month
+        else:
+            # 默认上一周
+            last_week = today - timedelta(weeks=1)
+            year, week, _ = last_week.isocalendar()
+
     # 从数据库读取报告
     report_repo = ReportRepository()
-    report_data = report_repo.get_report(report_type, year, month)
-    
+    report_data = report_repo.get_report(report_type, year, month=month, week=week)
+
     if not report_data:
+        target_str = f"{year}年{month}月" if report_type == 'monthly' else f"{year}年第{week}周"
         return ApiResponse(
-            success=False, 
-            error=f"报告未生成，请先执行: ./run.sh report --{report_type}"
+            success=False,
+            error=f"{target_str}的报告未生成，请先执行: ./run.sh report --{report_type}"
         )
     
     # 构建厂商统计
@@ -118,25 +125,60 @@ async def get_available_months(
 ):
     """
     获取可用的月份列表
-    
+
     用于前端月份选择器
     """
     if report_type != 'monthly':
         return ApiResponse(success=True, data=[])
-    
-    # 获取所有有数据的年份
-    years = db.get_available_years()
-    
-    # 简化处理：返回最近12个月
-    today = datetime.now()
+
+    # 查询已生成的月报
+    report_repo = ReportRepository()
+    reports = report_repo.get_available_reports('monthly')
+
     months = []
-    
-    for i in range(12):
-        target = today.replace(day=1) - timedelta(days=i * 30)
+    for r in reports:
+        # 跳过无效数据
+        if not r.get('year') or not r.get('month'):
+            continue
+
         months.append({
-            'year': target.year,
-            'month': target.month,
-            'label': target.strftime('%Y年%m月')
+            'year': r['year'],
+            'month': r['month'],
+            'label': f"{r['year']}年{r['month']:02d}月"
         })
-    
+
     return ApiResponse(success=True, data=months)
+
+
+@router.get("/{report_type}/available-weeks", response_model=ApiResponse[List[dict]])
+async def get_available_weeks(
+    report_type: str,
+    db: UpdateDataLayer = Depends(get_db)
+):
+    """
+    获取可用的周列表
+
+    用于前端周选择器
+    """
+    if report_type != 'weekly':
+        return ApiResponse(success=True, data=[])
+
+    # 查询已生成的周报
+    report_repo = ReportRepository()
+    reports = report_repo.get_available_reports('weekly')
+
+    weeks = []
+    for r in reports:
+        # 跳过无效数据
+        if not r.get('year') or not r.get('week'):
+            continue
+
+        weeks.append({
+            'year': r['year'],
+            'week': r['week'],
+            'label': f"{r['year']}年第{r['week']:02d}周",
+            'date_from': r.get('date_from', ''),
+            'date_to': r.get('date_to', '')
+        })
+
+    return ApiResponse(success=True, data=weeks)

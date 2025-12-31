@@ -5,8 +5,8 @@
 """
 
 from datetime import date
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Union
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ReportUpdateItem(BaseModel):
@@ -47,9 +47,14 @@ class ReportTrend(BaseModel):
 
 class ReportInsight(BaseModel):
     """AI 洞察结构"""
+    model_config = ConfigDict(extra="allow")
+    
     insight_title: str
     insight_summary: str
     top_trends: List[ReportTrend] = Field(default_factory=list)
+    top_updates: List[Dict[str, Any]] = Field(default_factory=list)
+    featured_blogs: List[Dict[str, Any]] = Field(default_factory=list)
+    quick_scan: List[Dict[str, Any]] = Field(default_factory=list)
 
 class ReportData(BaseModel):
     """

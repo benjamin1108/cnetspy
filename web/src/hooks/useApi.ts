@@ -311,6 +311,7 @@ export function useTranslateContent() {
 export function useReportData(reportType: 'weekly' | 'monthly', params: {
   year?: number;
   month?: number;
+  week?: number;
 } = {}) {
   return useQuery({
     queryKey: ['reports', reportType, params],
@@ -326,6 +327,17 @@ export function useAvailableMonths() {
   return useQuery({
     queryKey: ['reports', 'available-months'],
     queryFn: () => reportsApi.getAvailableMonths('monthly'),
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+}
+
+/**
+ * 可用周列表 Hook
+ */
+export function useAvailableWeeks() {
+  return useQuery({
+    queryKey: ['reports', 'available-weeks'],
+    queryFn: () => reportsApi.getAvailableWeeks(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 }

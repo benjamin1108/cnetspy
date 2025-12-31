@@ -59,10 +59,16 @@ class ReportRepository(BaseRepository):
                 cursor = conn.cursor()
 
                 # 检查是否已存在
-                cursor.execute('''
-                    SELECT id FROM reports
-                    WHERE report_type = ? AND year = ? AND month = ?
-                ''', (report_type, year, month))
+                if report_type == 'weekly':
+                    cursor.execute('''
+                        SELECT id FROM reports
+                        WHERE report_type = ? AND year = ? AND week = ?
+                    ''', (report_type, year, week))
+                else:
+                    cursor.execute('''
+                        SELECT id FROM reports
+                        WHERE report_type = ? AND year = ? AND month = ?
+                    ''', (report_type, year, month))
 
                 existing = cursor.fetchone()
                 now = datetime.now().isoformat()
@@ -110,7 +116,8 @@ class ReportRepository(BaseRepository):
         self,
         report_type: str,
         year: int,
-        month: Optional[int] = None
+        month: Optional[int] = None,
+        week: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """
         获取报告
@@ -118,7 +125,8 @@ class ReportRepository(BaseRepository):
         Args:
             report_type: 报告类型
             year: 年份
-            month: 月份
+            month: 月份 (月报)
+            week: 周数 (周报)
 
         Returns:
             报告数据字典，不存在返回 None
@@ -127,10 +135,16 @@ class ReportRepository(BaseRepository):
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                cursor.execute('''
-                    SELECT * FROM reports
-                    WHERE report_type = ? AND year = ? AND month = ?
-                ''', (report_type, year, month))
+                if report_type == 'weekly':
+                     cursor.execute('''
+                        SELECT * FROM reports
+                        WHERE report_type = ? AND year = ? AND week = ?
+                    ''', (report_type, year, week))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM reports
+                        WHERE report_type = ? AND year = ? AND month = ?
+                    ''', (report_type, year, month))
 
                 row = cursor.fetchone()
                 if not row:

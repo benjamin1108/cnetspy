@@ -266,6 +266,12 @@ export const reportsApi = {
     const response = await apiClient.get(`/reports/${reportType}/available-months`);
     return response.data;
   },
+
+  // 获取可用周列表
+  async getAvailableWeeks(): Promise<ApiResponse<AvailableWeek[]>> {
+    const response = await apiClient.get('/reports/weekly/available-weeks');
+    return response.data;
+  },
 };
 
 export default apiClient;

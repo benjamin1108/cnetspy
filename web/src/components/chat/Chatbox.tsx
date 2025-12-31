@@ -63,7 +63,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             </div>
           ) : (
             <div className="ai-summary-content text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {typeof message.content === 'string'
+                  ? message.content
+                  : `\`\`\`json\n${JSON.stringify(message.content, null, 2)}\n\`\`\``
+                }
+              </ReactMarkdown>
             </div>
           )}
         </div>

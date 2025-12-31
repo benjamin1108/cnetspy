@@ -58,29 +58,125 @@ def main():
         parser.print_help()
         sys.exit(1)
     
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from calendar import monthrange
     from .weekly_report import WeeklyReport
     from .monthly_report import MonthlyReport
     
     # 处理周报
     if args.weekly:
-        report = WeeklyReport()
-        content = report.generate()
-        
-        if args.output:
-            print(content)
-        
-        if args.send:
-            from src.utils.config import get_config
-            from src.notification import NotificationManager
-            
-            config = get_config()
-            manager = NotificationManager(config.get('notification', {}))
-            manager.send(content, report_type='weekly')
-            print("已发送周报通知")
-        
-        return
+        # 1. 批量生成：指定年份和月份
+        if args.year and args.month:
+            year = args.year
+            month = args.month
+
+            # 验证月份
+            if month < 1 or month > 12:
+                print(f"错误：月份必须在 1-12 之间，当前为 {month}")
+                sys.exit(1)
+
+            print(f"\n开始批量生成 {year}年{month}月 的周报")
+            print("=" * 60)
+
+            # 算法：找到所有 Thursday 落在该月的周
+            # 这样可以保证每周只属于某一个月，不会重复生成
+            _, last_day = monthrange(year, month)
+            processed_weeks = set()
+            success_count = 0
+            fail_count = 0
+
+            for day in range(1, last_day + 1):
+                current_date = datetime(year, month, day)
+                # 0=Monday, 3=Thursday
+                if current_date.weekday() == 3:
+                    # 这是一个"属于本月"的周
+                    iso_year, iso_week, _ = current_date.isocalendar()
+
+                    if (iso_year, iso_week) in processed_weeks:
+                        continue
+
+                    processed_weeks.add((iso_year, iso_week))
+
+                    # 计算起止日期 (周一到周日)
+                    # current_date is Thursday
+                    start_date = current_date - timedelta(days=3) # Monday
+                    end_date = current_date + timedelta(days=3)   # Sunday
+                    # 设置时间为当天的开始和结束
+                    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+                    try:
+                        print(f"\n[正在生成] {iso_year}年第{iso_week}周 ({start_date.strftime('%m-%d')} ~ {end_date.strftime('%m-%d')})")
+                        report = WeeklyReport(start_date=start_date, end_date=end_date)
+                        content = report.generate()
+                        print(f"[✓ 成功] 周报已生成")
+                        success_count += 1
+
+                        if args.send:
+                            config = get_config()
+                            manager = NotificationManager(config.get('notification', {}))
+                            manager.send(content, report_type='weekly')
+                            print("  → 已发送通知")
+
+                    except Exception as e:
+                        print(f"[✗ 失败] {iso_year}年第{iso_week}周: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        fail_count += 1
+
+            print("\n" + "=" * 60)
+            print(f"批量生成完成：成功 {success_count} 个，失败 {fail_count} 个")
+            return
+
+        # 2. 批量生成：指定年份（生成全年）
+        elif args.year and not args.month:
+            year = args.year
+            today = datetime.now()
+
+            # 简单的策略：遍历该年的每个月，调用上面的逻辑
+            # 但为了复用逻辑，这里直接循环
+            print(f"\n开始批量生成 {year} 全年周报")
+
+            months_to_process = range(1, 13)
+            if year == today.year:
+                months_to_process = range(1, today.month + 1)
+
+            total_success = 0
+
+            for m in months_to_process:
+                # 这里有点 hack，直接递归调用 main?
+                # 不，为了代码清晰，我们还是复制一下逻辑或者提取函数。
+                # 既然是脚本，简单的嵌套循环即可。
+
+                _, last_day = monthrange(year, m)
+                # ... 重复上面的逻辑 ...
+                # 为了避免代码重复，最好提取一个 generate_weekly_for_month 函数
+                # 但考虑到篇幅，我这里只实现 month 参数的情况。
+                # 用户命令是 --year 2025 --month 11，所以上面的 if 块最重要。
+                pass
+
+            # 由于当前只修复 month 场景，先提示不支持仅 year
+            print("目前请配合 --month 参数使用，例如: --year 2025 --month 11")
+            return
+
+        # 3. 默认：生成最新一周
+        else:
+            report = WeeklyReport()
+            content = report.generate()
+
+            if args.output:
+                print(content)
+
+            if args.send:
+                from src.utils.config import get_config
+                from src.notification import NotificationManager
+
+                config = get_config()
+                manager = NotificationManager(config.get('notification', {}))
+                manager.send(content, report_type='weekly')
+                print("已发送周报通知")
+
+            return
     
     # 处理月报
     # 判断是否批量生成

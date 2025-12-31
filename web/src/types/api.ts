@@ -250,6 +250,15 @@ export interface AvailableMonth {
   label: string;
 }
 
+// 可用周
+export interface AvailableWeek {
+  year: number;
+  week: number;
+  label: string;
+  date_from: string;
+  date_to: string;
+}
+
 // 报告类型标签
 export const REPORT_TYPE_LABELS: Record<string, string> = {
   weekly: '周报',

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudNetSpy Weekly Report - {{date_range}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* 继承父页面主题变量，只定义报告特有的样式 */
+
+        /* 厂商品牌色（固定） */
+        .report-content {
+            --aws: #FF9900;
+            --gcp: #4285F4;
+            --azure: #007FFF;
+            --huawei: #C7000B;
+            --tencentcloud: #0052D9;
+            --volcengine: #1664FF;
+        }
+
+        .report-content .glass-card {
+            background-color: hsl(var(--card));
+            border: 1px solid hsl(var(--border));
+            transition: all 0.2s ease;
+        }
+        .report-content .glass-card:hover {
+            border-color: hsl(var(--muted-foreground));
+            background-color: hsl(var(--accent) / 0.05);
+        }
+
+        /* 厂商标签 */
+        .report-content .badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+            width: fit-content;
+            border-width: 1px;
+        }
+        .report-content .badge-aws { color: var(--aws); background: rgba(255, 153, 0, 0.1); border-color: rgba(255, 153, 0, 0.2); }
+        .report-content .badge-gcp { color: var(--gcp); background: rgba(66, 133, 244, 0.1); border-color: rgba(66, 133, 244, 0.2); }
+        .report-content .badge-azure { color: var(--azure); background: rgba(0, 127, 255, 0.1); border-color: rgba(0, 127, 255, 0.2); }
+        .report-content .badge-huawei { color: var(--huawei); background: rgba(199, 0, 11, 0.1); border-color: rgba(199, 0, 11, 0.2); }
+        .report-content .badge-tencentcloud { color: var(--tencentcloud); background: rgba(0, 82, 217, 0.1); border-color: rgba(0, 82, 217, 0.2); }
+        .report-content .badge-volcengine { color: var(--volcengine); background: rgba(22, 100, 255, 0.1); border-color: rgba(22, 100, 255, 0.2); }
+        .report-content .badge-default { color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); }
+
+        /* 更新类型标签 */
+        .report-content .type-tag {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border-width: 1px;
+        }
+        .report-content .type-new_product { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.1); border-color: hsl(var(--primary) / 0.2); }
+        .report-content .type-new_feature { color: #22c55e; background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); }
+        .report-content .type-enhancement { color: #3b82f6; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); }
+        .report-content .type-pricing { color: #f59e0b; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); }
+        .report-content .type-deprecation { color: #ef4444; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
+        .report-content .type-region { color: #06b6d4; background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); }
+        .report-content .type-default { color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); }
+
+        /* 链接样式 */
+        .report-content .card-link { color: inherit; text-decoration: none; }
+        .report-content .card-link:hover { color: hsl(var(--primary)); text-decoration: underline; text-decoration-color: hsl(var(--primary) / 0.5); }
+
+        /* 厂商筛选按钮 */
+        .report-content .vendor-filter-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card));
+            color: hsl(var(--muted-foreground));
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .report-content .vendor-filter-btn:hover {
+            border-color: hsl(var(--primary));
+            color: hsl(var(--foreground));
+        }
+        .report-content .vendor-filter-btn.active {
+            background: hsl(var(--primary));
+            border-color: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+        }
+
+        /* 文字颜色工具类 */
+        .report-content .text-primary { color: hsl(var(--foreground)); }
+        .report-content .text-secondary { color: hsl(var(--muted-foreground)); }
+        .report-content .text-muted { color: hsl(var(--muted-foreground) / 0.7); }
+        .report-content .text-accent { color: hsl(var(--primary)); }
+        .report-content .border-color { border-color: hsl(var(--border)); }
+
+        /* Markdown 内容样式 */
+        .report-content .markdown-body {
+            color: hsl(var(--foreground));
+            line-height: 1.6;
+        }
+        .report-content .markdown-body h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-top: 1.5em;
+            margin-bottom: 0.75em;
+            color: hsl(var(--primary));
+            border-bottom: 1px solid hsl(var(--border));
+            padding-bottom: 0.5em;
+        }
+        .report-content .markdown-body h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25em;
+            margin-bottom: 0.5em;
+            color: hsl(var(--primary));
+        }
+        .report-content .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 1em;
+        }
+        .report-content .markdown-body li {
+            margin-bottom: 0.5em;
+        }
+        .report-content .markdown-body p {
+            margin-bottom: 1em;
+        }
+        .report-content .markdown-body strong {
+            font-weight: 700;
+            color: hsl(var(--primary));
+        }
+    </style>
+</head>
+<body>
+<div class="report-content min-h-screen py-10 px-4 md:px-8 max-w-4xl mx-auto">
+
+    <header class="flex justify-between items-end mb-10 pb-6 border-b border-color">
+        <div>
+            <div class="font-bold tracking-widest text-xs uppercase mb-2 text-accent">Weekly Competitive Intelligence</div>
+            <h1 class="text-3xl md:text-4xl font-bold mb-2 text-primary">云技术周报</h1>
+            <p class="text-sm text-muted">统计周期：{{date_range}}</p>
+        </div>
+    </header>
+
+    <!-- 1. AI 洞察摘要 -->
+    <section class="mb-10">
+        <div class="glass-card rounded-2xl p-8 bg-gradient-to-br from-card to-card/50">
+            <div class="flex items-center gap-3 mb-4">
+                <i class="fa-solid fa-bolt text-yellow-500 text-xl"></i>
+                <h2 class="text-xl font-bold text-primary m-0 border-0 p-0">{{insight_title}}</h2>
+            </div>
+            <div class="text-secondary leading-relaxed">
+                {{insight_summary}}
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. 精选核心功能更新 (Top Feature Updates) -->
+    {{#if top_updates_html}}
+    <section class="mb-10">
+        <div class="flex items-center gap-2 mb-6">
+            <i class="fa-solid fa-star text-accent"></i>
+            <h3 class="text-lg font-bold text-primary uppercase tracking-wide">核心功能更新 (Top Features)</h3>
+        </div>
+        <div class="grid gap-6">
+            {{top_updates_html}}
+        </div>
+    </section>
+    {{/if}}
+
+    <!-- 3. 必读技术博客 (Must-Read Blogs) -->
+    {{#if featured_blogs_html}}
+    <section class="mb-10">
+        <div class="flex items-center gap-2 mb-6">
+            <i class="fa-solid fa-book-open text-pink-500"></i>
+            <h3 class="text-lg font-bold text-primary uppercase tracking-wide">必读技术文章 (Must-Read Blogs)</h3>
+        </div>
+        <div class="grid gap-4">
+            {{featured_blogs_html}}
+        </div>
+    </section>
+    {{/if}}
+
+    <!-- 4. 全貌扫描 (Quick Scan) -->
+    <section>
+        <div class="flex items-center gap-2 mb-6">
+            <i class="fa-solid fa-list-check text-green-500"></i>
+            <h3 class="text-lg font-bold text-primary uppercase tracking-wide">全貌扫描 (Quick Scan)</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {{quick_scan_html}}
+        </div>
+    </section>
+
+    <footer class="mt-12 py-8 border-t text-center border-color">
+        <p class="text-xs text-muted">Generated by CloudNetSpy Engine · <a href="https://cnetspy.site" class="card-link" target="_blank">cnetspy.site</a></p>
+    </footer>
+</div>
+</body>
+</html>
