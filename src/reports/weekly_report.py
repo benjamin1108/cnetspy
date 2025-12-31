@@ -181,11 +181,24 @@ class WeeklyReport(BaseReport):
                 })
 
             updates_json = json.dumps(updates_for_ai, ensure_ascii=False, indent=2)
+            # 同时保留一个 ID 到 完整信息的映射，方便后续渲染时找回原始链接
+            self._update_map = {u['update_id']: u for u in updates}
+
+            # 统计元数据，帮助 AI 感知规模
+            stats_summary = f"本周总更新数: {len(updates)}\n"
+            vendor_counts = {}
+            for u in updates_for_ai:
+                v = u['vendor']
+                vendor_counts[v] = vendor_counts.get(v, 0) + 1
+            for v, count in vendor_counts.items():
+                stats_summary += f"- {v}: {count} 条\n"
+
             date_range = f"{self.start_date.strftime('%Y-%m-%d')} 至 {self.end_date.strftime('%Y-%m-%d')}"
 
             # 替换变量
             prompt = prompt_template.replace('{date_range}', date_range)
             prompt = prompt.replace('{updates_json}', updates_json)
+            prompt = prompt.replace('{stats_summary}', stats_summary)
 
             # 调用 AI
             logger.info("调用 Gemini 生成周报洞察 (JSON)...")
@@ -248,55 +261,44 @@ class WeeklyReport(BaseReport):
             for item in insight['top_updates']:
                 vendor = item.get('vendor', 'Unknown')
                 vendor_lower = vendor.lower()
-
-                # 尝试根据名称找到对应的原始 update_id (可选，为了链接)
-                # 这里简化处理，直接展示文本
+                update_id = item.get('update_id')
+                link = self._build_update_link(update_id) if update_id else "#"
+                
+                title = item.get('title', '')
+                product = item.get('product', '')
+                
+                # 智能标题拼接：如果标题里已经包含产品名，就直接用标题；否则用 "产品: 标题"
+                if product and title and product.lower() in title.lower():
+                    display_title = title
+                elif product and title:
+                    display_title = f"{product}: {title}"
+                else:
+                    display_title = title or product
 
                 top_updates_html += f'''
 <div class="feature-card">
     <div class="feature-header">
-        <span class="vendor-badge vendor-{vendor_lower}">{vendor}</span>
-        <h3 class="feature-title">{item.get('product', '')}</h3>
+        <span class="badge badge-{vendor_lower}">{vendor}</span>
+        <h4 class="feature-title"><a href="{link}" target="_blank" class="card-link">{display_title}</a></h4>
     </div>
     <div class="feature-grid">
         <div class="feature-item">
-            <span class="feature-label">痛点</span>
+            <span class="feature-label">场景/痛点</span>
             <span class="feature-val">{item.get('pain_point', '')}</span>
         </div>
         <div class="feature-item">
-            <span class="feature-label">价值</span>
+            <span class="feature-label">核心价值</span>
             <span class="feature-val">{item.get('value', '')}</span>
         </div>
-        <div class="feature-item">
-            <span class="feature-label">点评</span>
-            <span class="feature-val">{item.get('comment', '')}</span>
+        <div class="feature-item" style="grid-column: 1 / -1;">
+            <span class="feature-label">专家点评</span>
+            <span class="feature-val" style="font-style: italic; color: hsl(var(--primary));">“{item.get('comment', '')}”</span>
         </div>
     </div>
 </div>
 '''
 
-        # 2. Featured Blogs
-        featured_blogs_html = ""
-        if insight.get('featured_blogs'):
-            for blog in insight['featured_blogs']:
-                vendor = blog.get('vendor', 'Unknown')
-                vendor_lower = vendor.lower()
-                url = blog.get('url', '#')
-
-                featured_blogs_html += f'''
-<div class="blog-card">
-    <div class="blog-icon">📚</div>
-    <div class="blog-content">
-        <h4>
-            <span class="vendor-badge vendor-{vendor_lower}" style="font-size: 0.7rem; margin-right: 6px;">{vendor}</span>
-            <a href="{url}" target="_blank">{blog.get('title', '')}</a>
-        </h4>
-        <p class="blog-reason">{blog.get('reason', '')}</p>
-    </div>
-</div>
-'''
-
-        # 3. Quick Scan
+        # 2. Quick Scan
         quick_scan_html = ""
         if insight.get('quick_scan'):
             for group in insight['quick_scan']:
@@ -304,16 +306,57 @@ class WeeklyReport(BaseReport):
                 vendor_lower = vendor.lower()
                 items_html = ""
                 for item in group.get('items', []):
-                    items_html += f"<li>{item}</li>"
+                    # 兼容新旧格式
+                    content = item.get('content', '') if isinstance(item, dict) else item
+                    update_id = item.get('update_id') if isinstance(item, dict) else None
+                    is_noteworthy = item.get('is_noteworthy', False) if isinstance(item, dict) else False
+                    
+                    link = self._build_update_link(update_id) if update_id else "#"
+                    
+                    noteworthy_style = 'background: hsl(var(--primary) / 0.05); border-left: 2px solid hsl(var(--primary)); font-weight: 600; color: hsl(var(--foreground));' if is_noteworthy else ''
+                    star = '✨ ' if is_noteworthy else ''
+                    
+                    items_html += f'''
+<div class="scan-item" style="{noteworthy_style}">
+    <a href="{link}" target="_blank" class="card-link">{star}{content}</a>
+</div>'''
 
                 quick_scan_html += f'''
-<div class="scan-column">
-    <div class="scan-vendor">
-        <span class="vendor-badge vendor-{vendor_lower}">{vendor}</span>
+<div class="scan-row">
+    <div class="scan-vendor-side">
+        <div class="scan-vendor-name">
+            <span class="scan-vendor-dot bg-{vendor_lower}"></span>
+            {vendor}
+        </div>
     </div>
-    <ul class="scan-list">
+    <div class="scan-grid">
         {items_html}
-    </ul>
+    </div>
+</div>
+'''
+
+        # 3. Featured Blogs
+        featured_blogs_html = ""
+        if insight.get('featured_blogs'):
+            for blog in insight['featured_blogs']:
+                vendor = blog.get('vendor', 'Unknown')
+                vendor_lower = vendor.lower()
+                update_id = blog.get('update_id')
+                
+                # 优先使用内部链接，如果没有则使用 AI 返回的 url
+                link = "#"
+                if update_id and update_id in self._update_map:
+                    link = self._build_update_link(update_id)
+                else:
+                    link = blog.get('url', '#')
+
+                featured_blogs_html += f'''
+<div class="blog-card">
+    <div class="blog-accent bg-{vendor_lower}"></div>
+    <div class="blog-content">
+        <h4><a href="{link}" target="_blank" class="card-link">{blog.get('title', '')}</a></h4>
+        <p class="blog-reason">{blog.get('reason', '')}</p>
+    </div>
 </div>
 '''
 
@@ -321,7 +364,12 @@ class WeeklyReport(BaseReport):
         html = template
         html = html.replace('{{date_range}}', date_range)
         html = html.replace('{{report_week}}', report_week)
-        html = html.replace('{{insight_title}}', escape(insight.get('insight_title', '本周技术周报')))
+        
+        insight_title = insight.get('insight_title', '本周技术周报')
+        if not insight_title.startswith('本周主题'):
+            insight_title = f"本周主题：{insight_title}"
+            
+        html = html.replace('{{insight_title}}', escape(insight_title))
         html = html.replace('{{insight_summary}}', escape(insight.get('insight_summary', '')))
 
         # 处理条件块
@@ -430,19 +478,34 @@ class WeeklyReport(BaseReport):
 
         if ai_insight:
             if ai_insight.get('insight_title'):
-                lines.append(f"## {ai_insight['insight_title']}")
+                lines.append(f"## 本周主题：{ai_insight['insight_title']}")
                 lines.append("")
             if ai_insight.get('insight_summary'):
                 lines.append(ai_insight['insight_summary'])
                 lines.append("")
 
+            # 1. 重点更新 (Key Updates)
             if ai_insight.get('top_updates'):
-                lines.append("### 🌟 本周亮点")
+                lines.append("### 🌟 重点更新 (Key Updates)")
                 lines.append("")
                 for item in ai_insight['top_updates']:
                     vendor = item.get('vendor', 'Unknown')
                     product = item.get('product', '')
-                    lines.append(f"- **[{vendor}] {product}**")
+                    full_title = item.get('title', '')
+                    update_id = item.get('update_id')
+                    link = self._build_update_link(update_id) if update_id else ""
+                    
+                    # 优先展示发布标题，如果标题里没包含产品名，则加上产品名
+                    display_title = full_title if full_title else product
+                    if product and full_title and product.lower() not in full_title.lower():
+                        display_title = f"{product}: {full_title}"
+                    
+                    title_text = f"**[{vendor}] {display_title}**"
+                    if link:
+                        lines.append(f"- [{title_text}]({link})")
+                    else:
+                        lines.append(f"- {title_text}")
+
                     if item.get('pain_point'):
                         lines.append(f"  - **痛点:** {item.get('pain_point', '')}")
                     if item.get('value'):
@@ -451,50 +514,49 @@ class WeeklyReport(BaseReport):
                         lines.append(f"  - **点评:** {item.get('comment', '')}")
                     lines.append("")
 
-            if ai_insight.get('featured_blogs'):
-                lines.append("### 📚 精选博客")
-                lines.append("")
-                for blog in ai_insight['featured_blogs']:
-                    vendor = blog.get('vendor', 'Unknown')
-                    title = blog.get('title', '')
-                    url = blog.get('url', '#')
-                    lines.append(f"- **[{vendor}] [{title}]({url})**")
-                    if blog.get('reason'):
-                        lines.append(f"  - **推荐理由:** {blog.get('reason', '')}")
-                    lines.append("")
-
+            # 2. 其他更新 (Other Updates)
             if ai_insight.get('quick_scan'):
-                lines.append("### ⚡️ 快速浏览")
+                lines.append("### ⚡️ 其他更新 (Other Updates)")
                 lines.append("")
                 for group in ai_insight['quick_scan']:
                     vendor = group.get('vendor', 'Unknown')
                     lines.append(f"- **{vendor}**")
                     for item in group.get('items', []):
-                        lines.append(f"  - {item}")
+                        content = item.get('content', '') if isinstance(item, dict) else item
+                        update_id = item.get('update_id') if isinstance(item, dict) else None
+                        is_noteworthy = item.get('is_noteworthy', False) if isinstance(item, dict) else False
+                        
+                        link = self._build_update_link(update_id) if update_id else None
+                        star = "✨ " if is_noteworthy else ""
+                        
+                        if link:
+                            lines.append(f"  - {star}[{content}]({link})")
+                        else:
+                            lines.append(f"  - {star}{content}")
+                    lines.append("")
+
+            # 3. 精选博客 (Featured Blogs)
+            if ai_insight.get('featured_blogs'):
+                lines.append("### 📚 精选博客 (Featured Blogs)")
+                lines.append("")
+                for blog in ai_insight['featured_blogs']:
+                    vendor = blog.get('vendor', 'Unknown')
+                    title = blog.get('title', '')
+                    update_id = blog.get('update_id')
+                    
+                    link = "#"
+                    if update_id and update_id in self._update_map:
+                        link = self._build_update_link(update_id)
+                    else:
+                        link = blog.get('url', '#')
+
+                    lines.append(f"- **[{vendor}] [{title}]({link})**")
+                    if blog.get('reason'):
+                        lines.append(f"  - **推荐理由:** {blog.get('reason', '')}")
                     lines.append("")
             
             lines.append("---")
             lines.append("")
-
-        lines.append("## 📋 本周更新详情")
-        lines.append("")
-
-        for update in updates:
-            vendor = update['vendor']
-            vendor_name = VENDOR_DISPLAY_NAMES.get(vendor, vendor.upper())
-            title = update['title_translated']
-            update_id = update['update_id']
-            summary = update['content_summary']
-            link = self._build_update_link(update_id)
-            formatted_summary = self._format_summary(summary)
-
-            lines.append(f"### [[{vendor_name}] {title}]({link})")
-            lines.append("")
-            lines.append(formatted_summary)
-            lines.append("")
-            lines.append("")
-
-        lines.append(f"由云竞争情报分析平台自动汇总。 [前往平台查看更多详情]({SITE_BASE_URL})")
 
         self._content = '\n'.join(lines)
         return self._content

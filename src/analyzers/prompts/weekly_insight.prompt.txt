@@ -6,15 +6,17 @@
 
 # Input Data
 - 时间范围: {date_range}
-- 更新数据:
+- 统计概览: 
+{stats_summary}
+- 详细更新数据:
 {updates_json}
 
 # Output Requirements
 返回纯 JSON 格式（不要 Markdown 代码块，直接输出 JSON）：
 
 {
-  "insight_title": "基于本周核心趋势的标题（8字内，如：多云成本治理升级）",
-  "insight_summary": "200字左右的深度综述。核心要求：1. 站在架构师视角，分析本周云厂商在解决什么共性问题（如：降本、合规、体验优化）。2. 拒绝流水账，拒绝“竞争激烈”等空话。3. 明确指出本周是“功能爆发周”还是“平稳修补周”。",
+  "insight_title": "本周主题：根据本周更新归纳出的核心技术/业务主题（8字内，如：网络安全与成本优化）",
+  "insight_summary": "200字左右的深度综述。核心要求：1. 必须根据“统计概览”判定本周是“功能爆发周”还是“平稳修补周”。注意：若单厂商更新 > 10条，或总更新 > 20条，通常属于重大发布季（如 re:Invent、Ignite、Next），严禁描述为“平稳”。2. 站在架构师视角，分析本周云厂商在解决什么共性问题。3. 拒绝流水账，拒绝空话。",
   "top_updates": [
     {
       "update_id": "必须原样返回 Input Data 中的 update_id",
@@ -28,33 +30,34 @@
   ],
   "featured_blogs": [
     {
-      "update_id": "必须原样返回 Input Data 中的 update_id（如果对应 Input Data 中的某条记录）",
+      "update_id": "必须原样返回 Input Data 中的 update_id",
       "vendor": "[厂商]",
-      "title": "文章标题（优先原样返回 Input Data 中的 title）",
+      "title": "文章标题",
       "url": "文章链接（如果有，否则留空）",
-      "reason": "推荐理由：一句话说明这篇文章适合谁读，能学到什么设计模式或最佳实践（source_channel='blog'）。"
+      "reason": "推荐理由：一句话说明这篇文章适合谁读。"
     }
   ],
   "quick_scan": [
     {
       "vendor": "AWS",
       "items": [
-        "产品A：一句话概括更新内容",
-        "产品B：一句话概括更新内容"
-      ]
-    },
-    {
-      "vendor": "Azure",
-      "items": [
-        "..."
+        {
+          "update_id": "必须原样返回 Input Data 中的 update_id",
+          "content": "一句话概括更新内容",
+          "is_noteworthy": true
+        },
+        {
+          "update_id": "必须原样返回 Input Data 中的 update_id",
+          "content": "普通更新内容",
+          "is_noteworthy": false
+        }
       ]
     }
   ]
 }
 
 # Constraints
-1. **绝对禁止**：废话、套话、营销号风格（如“震撼”、“重磅”）。
-2. **Blog vs Feature**：请注意区分 Feature（功能上线）放入 `top_updates`，Blog（知识分享）放入 `featured_blogs`。
-3. **Top Updates 筛选**：必须从 Input Data 中挑选 **1-3 个** 最具架构影响力的功能更新。
-4. **全貌覆盖**：`quick_scan` 必须覆盖除上述重点之外的其他**所有**值得一提的更新，按厂商分类。
-5. **JSON 格式**：确保输出合法的 JSON，可直接被 json.loads() 解析。
+1. **绝对禁止**：废话、套话、营销号风格。
+2. **Blog vs Feature**：区分 Feature 放入 `top_updates` 或 `quick_scan`，Blog 放入 `featured_blogs`。
+3. **其他更新 (Other Updates) 重点标注**：请在 `quick_scan` 中将那些虽然未进入 `top_updates` 但仍具有较高技术参考价值或行业影响的更新标记为 `is_noteworthy: true`。
+4. **全貌覆盖**：`quick_scan` 必须包含 Input Data 中所有未进入 `top_updates` 的更新，严禁遗漏。

@@ -49,6 +49,7 @@ def main():
     parser.add_argument('--monthly', action='store_true', help='生成月报')
     parser.add_argument('--year', type=int, help='指定年份，如 2025')
     parser.add_argument('--month', type=int, help='指定月份，如 11')
+    parser.add_argument('--week', type=int, help='指定周次，如 47')
     parser.add_argument('--send', action='store_true', help='发送通知')
     parser.add_argument('--output', action='store_true', help='输出HTML内容到控制台（默认不输出）')
     
@@ -65,7 +66,37 @@ def main():
     
     # 处理周报
     if args.weekly:
-        # 1. 批量生成：指定年份和月份
+        # 1. 指定年份和周次
+        if args.year and args.week:
+            year = args.year
+            week = args.week
+            
+            # 使用 ISO calendar 算法找到该周的周一
+            from .weekly_report import WeeklyReport
+            import datetime
+            
+            # 找到该年第一天
+            first_day = datetime.date(year, 1, 4)
+            start_date = first_day + datetime.timedelta(days=(week-1)*7 - first_day.weekday())
+            end_date = start_date + datetime.timedelta(days=6)
+            
+            # 转换为 datetime 对象（开始和结束时间）
+            start_dt = datetime.datetime.combine(start_date, datetime.time.min)
+            end_dt = datetime.datetime.combine(end_date, datetime.time.max)
+            
+            print(f"\n生成 {year}年第{week}周 报告：{start_dt.strftime('%Y-%m-%d')} 至 {end_dt.strftime('%Y-%m-%d')}")
+            
+            report = WeeklyReport(start_date=start_dt, end_date=end_dt)
+            content = report.generate()
+            print(f"[✓ 成功] 周报已生成: {row if 'row' in locals() else ''}")
+            
+            if args.send:
+                from src.scheduler.jobs.report_job import _send_report
+                _send_report(report, content, ["dingtalk"], "周报")
+                print("  → 已通过钉钉 ActionCard 发送通知")
+            return
+
+        # 2. 批量生成：指定年份和月份
         if args.year and args.month:
             year = args.year
             month = args.month

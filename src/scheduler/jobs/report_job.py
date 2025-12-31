@@ -7,7 +7,7 @@
 """
 
 import logging
-from typing import List
+from typing import List, Any, Dict
 from ..config import JobConfig
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def run_monthly_report(config: JobConfig) -> bool:
         
         # 推送通知
         if config.notify:
-            _send_report(content, config.notify, "月报")
+            _send_report(report, content, config.notify, "月报")
         
         logger.info("月报生成完成")
         return True
@@ -95,24 +95,39 @@ def run_monthly_report(config: JobConfig) -> bool:
         return False
 
 
-def _send_report(content: str, channels: List[str], report_type: str) -> None:
+def _send_report(report: Any, content: str, channels: List[str], report_type: str) -> None:
     """
     推送报告到指定渠道
     
     Args:
+        report: 报告对象
         content: 报告内容
         channels: 推送渠道列表
         report_type: 报告类型（周报/月报）
     """
     try:
         from src.utils.config import get_config
-        from src.notification import NotificationManager, NotificationChannel
+        from src.notification.manager import NotificationManager
+        from src.notification.base import NotificationChannel
         
         config = get_config()
         manager = NotificationManager(config.get('notification', {}))
         
         title = f"云网动态{report_type}"
         
+        # 构建在线查看链接
+        # 假设路径规则: /reports?type=weekly&year=2024&week=1
+        base_url = "https://cnetspy.site/next/reports"
+        year, week_or_month, _ = report.start_date.isocalendar() if report_type == "周报" else (report.start_date.year, report.start_date.month, 0)
+        
+        if report_type == "周报":
+            online_url = f"{base_url}?type=weekly&year={year}&week={week_or_month}"
+        else:
+            online_url = f"{base_url}?type=monthly&year={year}&month={week_or_month}"
+            
+        # 统一尾部引导
+        content += f"\n由云竞争情报分析平台自动汇总。 [查看网页版详情]({online_url})"
+
         # 转换渠道名称
         target_channels = []
         for ch in channels:
@@ -122,7 +137,12 @@ def _send_report(content: str, channels: List[str], report_type: str) -> None:
                 target_channels.append(NotificationChannel.EMAIL)
         
         if target_channels:
-            results = manager.send_all(title, content, channels=target_channels)
+            # 回归到普通 Markdown 发送
+            results = manager.send_all(
+                title, 
+                content, 
+                channels=target_channels
+            )
             for channel, result in results.items():
                 if result.success:
                     logger.info(f"{report_type}已推送到 {channel}")

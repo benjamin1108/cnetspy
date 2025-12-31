@@ -311,6 +311,7 @@ class DingTalkNotifier(BaseNotifier):
         success_count = 0
         
         for robot in target_robots:
+            # 默认只发送 Markdown
             result = robot.send_markdown(title, content, timeout=timeout)
             results[robot.name] = result
             

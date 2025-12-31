@@ -13,11 +13,10 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
-  BookOpen, 
+  Bookmark, 
   Zap, 
   List, 
   Quote, 
-  ArrowRight, 
   FileText,
   Target,
   Sparkles,
@@ -61,9 +60,15 @@ interface FeaturedBlog {
   desc?: string; // Monthly specific
 }
 
+interface QuickScanItem {
+  update_id: string;
+  content: string;
+  is_noteworthy?: boolean;
+}
+
 interface QuickScanGroup {
   vendor: string;
-  items: string[];
+  items: QuickScanItem[];
 }
 
 interface AiInsight {
@@ -197,8 +202,15 @@ export function ReportsPage() {
 
     // 再次确认解析后的对象结构
     if (typeof parsed === 'object' && parsed !== null) {
+        let title = parsed.insight_title || '';
+        const prefix = reportType === 'weekly' ? '本周主题' : '本月主题';
+        
+        if (title && !title.startsWith('本周主题') && !title.startsWith('本月主题')) {
+            title = `${prefix}：${title}`;
+        }
+
         return {
-            insight_title: parsed.insight_title || '',
+            insight_title: title,
             insight_summary: typeof parsed.insight_summary === 'string' 
                 ? parsed.insight_summary 
                 : (JSON.stringify(parsed.insight_summary) || ''), // 防止非字符串导致崩溃
@@ -369,8 +381,6 @@ export function ReportsPage() {
         eyebrow="INTELLIGENCE // REPORT"
         description={
             <span className="flex items-center gap-2">
-                <span>{year}年{reportType === 'monthly' && month ? `${month.toString().padStart(2, '0')}月` : `第${week}周`}</span>
-                <span className="opacity-50">|</span>
                 <span>统计周期：{report ? formatDateRange(report.date_from, report.date_to) : '...'}</span>
             </span>
         }
@@ -462,7 +472,7 @@ export function ReportsPage() {
                                 {aiInsight.insight_title || "AI 智能洞察"}
                             </h3>
                             <div className="flex items-center gap-2 h-4 mt-0.5">
-                                <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase opacity-70">
+                                <p className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase opacity-70">
                                     Intelligence // Analysis
                                 </p>
                             </div>
@@ -482,15 +492,29 @@ export function ReportsPage() {
 
                         {/* A. Top Updates */}
                         {aiInsight.top_updates && aiInsight.top_updates.length > 0 && (
-                            <div className="mb-10">
-                                <h4 className="flex items-center gap-2 font-bold text-foreground mb-4 text-xs uppercase tracking-widest opacity-70">
-                                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                                    核心亮点 // Key Updates
+                            <div className="mb-16">
+                                <h4 
+                                    className="font-bold text-primary/90 text-xs uppercase tracking-[0.3em] mb-10"
+                                    style={{ textShadow: '0 0 8px hsl(var(--primary) / 0.3)' }}
+                                >
+                                    重点更新 // KEY UPDATES
                                 </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {aiInsight.top_updates.map((item, idx) => {
                                          const vendorColor = getVendorColor(item.vendor);
-                                         const displayName = item.title || item.product;
+                                         
+                                         const title = item.title || '';
+                                         const product = item.product || '';
+                                         let displayName = title || product;
+                                         
+                                         if (product && title) {
+                                             if (title.toLowerCase().includes(product.toLowerCase())) {
+                                                 displayName = title;
+                                             } else {
+                                                 displayName = `${product}: ${title}`;
+                                             }
+                                         }
+
                                          return (
                                             <div key={idx} className="group flex flex-col h-full bg-card rounded-xl border border-border/50 hover:border-primary/40 hover:shadow-lg transition-all duration-300 overflow-hidden">
                                                 <div className="p-4 pb-3 space-y-2.5">
@@ -553,13 +577,88 @@ export function ReportsPage() {
                             </div>
                         )}
 
-                        {/* B. Top Trends (Fallback) */}
-                        {aiInsight.top_trends && (!aiInsight.top_updates || aiInsight.top_updates.length === 0) && aiInsight.top_trends.length > 0 && (
-                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-                              <h4 className="flex items-center gap-2 font-bold text-foreground mb-4 text-xs uppercase tracking-widest opacity-70">
-                                    <Target className="w-3.5 h-3.5 text-blue-500" />
-                                    本月趋势 // Trends
+                        {/* B. Quick Scan (Fluid Vendor Stream) */}
+                        {aiInsight.quick_scan && aiInsight.quick_scan.length > 0 && (
+                             <div className="animate-in fade-in duration-700 delay-100 py-12 border-t border-border/40">
+                                <h4 
+                                    className="font-bold text-primary/90 text-xs uppercase tracking-[0.3em] mb-10"
+                                    style={{ textShadow: '0 0 8px hsl(var(--primary) / 0.3)' }}
+                                >
+                                    其他更新 // OTHER UPDATES
                                 </h4>
+
+                                <div className="space-y-12">
+                                    {aiInsight.quick_scan.map((group, idx) => {
+                                        if (!group.items || group.items.length === 0) return null;
+                                        const vendorColor = getVendorColor(group.vendor);
+                                        return (
+                                        <div key={idx} className="flex flex-col md:flex-row gap-4 md:gap-12 group">
+                                            {/* Vendor Anchor - Fixed Width on Desktop */}
+                                            <div className="md:w-32 flex-shrink-0">
+                                                <div className="sticky top-4 flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: vendorColor }}></div>
+                                                    <span className="font-bold text-sm text-foreground/80 tracking-tight group-hover:text-primary transition-colors">
+                                                        {group.vendor}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Items - Responsive Grid */}
+                                            <div className="flex-1">
+                                                <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-4">
+                                                    {group.items.map((item, i) => {
+                                                        const content = typeof item === 'string' ? item : item.content;
+                                                        const update_id = typeof item === 'string' ? null : item.update_id;
+                                                        const isNoteworthy = typeof item === 'string' ? false : item.is_noteworthy;
+
+                                                        return (
+                                                            <li key={i} className={cn(
+                                                                "text-[13px] leading-relaxed transition-colors flex gap-3 items-start border-l pl-4 py-1 group/item",
+                                                                isNoteworthy 
+                                                                    ? "border-primary/40 bg-primary/5 text-foreground font-medium" 
+                                                                    : "border-border/30 text-muted-foreground/80 hover:text-foreground"
+                                                            )}>
+                                                                {update_id ? (
+                                                                    <Link to={`/updates/${update_id}`} target="_blank" className="hover:text-primary transition-colors">
+                                                                        {content}
+                                                                        {isNoteworthy && <Sparkles className="w-3 h-3 inline ml-1.5 text-primary/60" />}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span>{content}</span>
+                                                                )}
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                                                                        {/* C. Top Trends (Fallback) */}
+
+                                                                        {aiInsight.top_trends && (!aiInsight.top_updates || aiInsight.top_updates.length === 0) && aiInsight.top_trends.length > 0 && (
+
+                                                                          <div className="animate-in fade-in duration-700 mb-16 py-12 border-t border-border/40">
+
+                                                                              <h4 
+
+                                                                                className="font-bold text-primary/90 text-xs uppercase tracking-[0.3em] mb-10"
+
+                                                                                style={{ textShadow: '0 0 8px hsl(var(--primary) / 0.3)' }}
+
+                                                                              >
+
+                                                                                    本月趋势 // TRENDS
+
+                                                                                </h4>
+
+                                                
+
+                        
                               <div className={cn(
                                 "grid grid-cols-1 gap-4",
                                 (aiInsight.top_trends.length === 1) ? "md:grid-cols-1" :
@@ -580,14 +679,26 @@ export function ReportsPage() {
                           </div>
                         )}
 
-                        {/* C. Featured Blogs (Editorial Layout) */}
-                        {aiInsight.featured_blogs && aiInsight.featured_blogs.length > 0 && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100 py-8 border-t border-dashed border-border/50">
-                                <h4 className="flex items-center gap-2 font-bold text-foreground mb-8 text-xs uppercase tracking-widest opacity-70">
-                                    <BookOpen className="w-3.5 h-3.5 text-purple-500" />
-                                    必读好文 // Recommended
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-10">
+                                                                        {/* D. Featured Blogs (Minimalist Spotlight) */}
+
+                                                                        {aiInsight.featured_blogs && aiInsight.featured_blogs.length > 0 && (
+
+                                                                            <div className="animate-in fade-in duration-700 delay-200 py-12 border-t border-border/40">
+
+                                                                                <h4 
+
+                                                                                    className="font-bold text-primary/90 text-xs uppercase tracking-[0.3em] mb-10"
+
+                                                                                    style={{ textShadow: '0 0 8px hsl(var(--primary) / 0.3)' }}
+
+                                                                                >
+
+                                                                                    必读好文 // SPOTLIGHT
+
+                                                                                </h4>
+
+                                                
+                                                        <div className="grid grid-cols-1 gap-8">
                                     {aiInsight.featured_blogs.map((blog, idx) => {
                                          const vendor = blog.vendor || (blog.title.match(/\[(.*?)\]/)?.[1]) || 'Unknown';
                                          const title = blog.title.replace(`[${vendor}]`, '').trim();
@@ -598,72 +709,45 @@ export function ReportsPage() {
                                          const externalLink = blog.url;
 
                                          return (
-                                            <div key={idx} className="group flex flex-col items-start relative pl-6 border-l-2 border-transparent hover:border-primary/30 transition-all duration-300">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span 
-                                                        className="text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border"
-                                                        style={{ color: vendorColor, borderColor: `${vendorColor}30`, backgroundColor: `${vendorColor}08` }}
-                                                    >
-                                                        {vendor}
-                                                    </span>
+                                            <div key={idx} className="group relative flex gap-8 items-start">
+                                                {/* Left Accent */}
+                                                <div className="w-1 self-stretch rounded-full bg-border group-hover:bg-primary/40 transition-colors" style={{ backgroundColor: `${vendorColor}20` }}>
+                                                    <div className="w-full h-1/4 rounded-full" style={{ backgroundColor: vendorColor }}></div>
                                                 </div>
                                                 
-                                                {internalLink ? (
-                                                    <Link to={internalLink} target="_blank" className="block w-full">
-                                                        <h5 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors mb-3 flex items-start gap-1 line-clamp-2">
+                                                <div className="flex-1 min-w-0 py-1">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60" style={{ color: vendorColor }}>
+                                                            {vendor}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {internalLink ? (
+                                                        <Link to={internalLink} target="_blank" className="block">
+                                                            <h5 className="text-xl font-bold text-foreground leading-tight group-hover:text-primary transition-colors mb-3">
+                                                                {title}
+                                                            </h5>
+                                                        </Link>
+                                                    ) : externalLink ? (
+                                                        <a href={externalLink} target="_blank" rel="noopener noreferrer" className="block">
+                                                            <h5 className="text-xl font-bold text-foreground leading-tight group-hover:text-primary transition-colors mb-3">
+                                                                {title}
+                                                            </h5>
+                                                        </a>
+                                                    ) : (
+                                                        <h5 className="text-xl font-bold text-foreground leading-tight mb-3">
                                                             {title}
-                                                            <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -rotate-45 transition-all mt-1.5 flex-shrink-0 text-primary" />
                                                         </h5>
-                                                    </Link>
-                                                ) : externalLink ? (
-                                                    <a href={externalLink} target="_blank" rel="noopener noreferrer" className="block w-full">
-                                                        <h5 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors mb-3 flex items-start gap-1 line-clamp-2">
-                                                            {title}
-                                                            <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -rotate-45 transition-all mt-1.5 flex-shrink-0 text-primary" />
-                                                        </h5>
-                                                    </a>
-                                                ) : (
-                                                    <h5 className="text-lg font-bold text-foreground leading-snug mb-3 line-clamp-2 cursor-default">
-                                                        {title}
-                                                    </h5>
-                                                )}
-                                                
-                                                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-                                                    {desc}
-                                                </p>
+                                                    )}
+                                                    
+                                                    <div className="relative">
+                                                        <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
+                                                            {desc}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                          )
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {/* D. Quick Scan (Weekly) - Newspaper Layout */}
-                        {aiInsight.quick_scan && aiInsight.quick_scan.length > 0 && (
-                             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200 pt-8 border-t border-dashed border-border/50">
-                                <h4 className="flex items-center gap-2 font-bold text-foreground mb-6 text-xs uppercase tracking-widest opacity-70">
-                                    <List className="w-3.5 h-3.5 text-green-500" />
-                                    快速浏览 // Quick Scan
-                                </h4>
-                                <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
-                                    {aiInsight.quick_scan.map((group, idx) => {
-                                        if (!group.items || group.items.length === 0) return null;
-                                        return (
-                                        <div key={idx} className="break-inside-avoid mb-6">
-                                            <div className="flex items-baseline justify-between mb-3 pb-1 border-b border-border/40">
-                                                <span className="font-bold text-sm text-foreground tracking-tight">{group.vendor}</span>
-                                                <div className="h-1 w-8 rounded-full opacity-50" style={{ backgroundColor: getVendorColor(group.vendor) }}></div>
-                                            </div>
-                                            <ul className="space-y-2">
-                                                {group.items.map((item, i) => (
-                                                    <li key={i} className="text-xs leading-relaxed text-muted-foreground flex gap-2 items-start hover:text-foreground transition-colors">
-                                                        <span className="flex-shrink-0 w-1 h-1 rounded-full bg-border mt-1.5"></span>
-                                                        <span>{item}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                        );
                                     })}
                                 </div>
                             </div>
@@ -797,136 +881,6 @@ export function ReportsPage() {
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* SECTION 3: Detailed List */}
-            <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md">
-                <button 
-                    onClick={() => setShowDetails(!showDetails)}
-                    className="w-full flex items-center justify-between py-2.5 px-4 cursor-pointer group bg-transparent hover:bg-muted/30 transition-colors text-left"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-md bg-purple-500/10 text-purple-500 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white shadow-sm">
-                            <FileText className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-bold text-foreground leading-tight group-hover:text-purple-500 transition-colors">
-                                详细更新列表
-                            </h3>
-                            <div className="flex items-center gap-2 h-4 mt-0.5">
-                                <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase opacity-70">
-                                    Details // Full List
-                                </p>
-                                <span className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-bold text-muted-foreground">
-                                    {filteredUpdates?.length || 0}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", showDetails && "rotate-180 text-purple-500")} />
-                </button>
-
-                {showDetails && (
-                    <div className="border-t border-border/40 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="flex flex-wrap gap-2 mb-4 justify-end">
-                        <select
-                        value={selectedVendor}
-                        onChange={(e) => setSelectedVendor(e.target.value)}
-                        className="h-8 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
-                        >
-                        <option value="all">所有厂商</option>
-                        {report?.vendor_summaries?.map((v: any) => (
-                            <option key={v.vendor} value={v.vendor}>{getVendorName(v.vendor)}</option>
-                        ))}
-                        </select>
-
-                        <select
-                        value={selectedType}
-                        onChange={(e) => setSelectedType(e.target.value)}
-                        className="h-8 rounded-md border border-input bg-card px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
-                        >
-                        <option value="all">所有类型</option>
-                        {typeOptions?.map(t => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                        </select>
-                    </div>
-
-                    <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm">
-                    <div className="divide-y divide-border/40">
-                        {filteredUpdates?.map(({ vendor, update }) => {
-                            const vendorColor = getVendorColor(vendor);
-                            const typeMeta = getUpdateTypeMeta(update.update_type);
-                            const TypeIcon = typeMeta.icon;
-
-                            return (
-                            <div
-                                key={update.update_id}
-                                className="group relative flex items-start gap-4 p-4 hover:bg-muted/30 transition-colors"
-                            >
-                                {/* Left: Date & Vendor */}
-                                <div className="flex-shrink-0 w-24 flex flex-col items-start gap-2 pt-0.5">
-                                    <span className="text-xs font-mono text-muted-foreground/60 tabular-nums">
-                                    {update.publish_date?.slice(5, 10)}
-                                    </span>
-                                    <div
-                                        className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider border"
-                                        style={{
-                                        color: vendorColor,
-                                        borderColor: `${vendorColor}30`,
-                                        backgroundColor: `${vendorColor}08`
-                                        }}
-                                    >
-                                        {getVendorName(vendor)}
-                                    </div>
-                                </div>
-
-                                {/* Middle: Content */}
-                                <div className="flex-1 min-w-0 space-y-1.5">
-                                    <Link
-                                        to={`/updates/${update.update_id}`}
-                                        target="_blank"
-                                        className="text-sm font-bold text-foreground group-hover:text-primary transition-colors block leading-snug"
-                                    >
-                                        {update.title}
-                                    </Link>
-                                    {update.content_summary && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity">
-                                        {stripMarkdown(update.content_summary)}
-                                    </p>
-                                    )}
-                                </div>
-
-                                {/* Right: Metadata */}
-                                <div className="flex-shrink-0 flex flex-col items-end gap-2 pl-4">
-                                    {update.update_type && (
-                                        <span className={cn('flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap', getTypeTagClass(update.update_type))}>
-                                            <TypeIcon className="w-2.5 h-2.5" />
-                                            {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
-                                        </span>
-                                    )}
-                                    {update.source_channel && (
-                                        <span className={cn(
-                                        'text-[9px] px-1.5 py-px rounded-full font-medium opacity-60 whitespace-nowrap',
-                                        update.source_channel === 'whatsnew' ? 'text-blue-500 bg-blue-500/10' : 'text-purple-500 bg-purple-500/10'
-                                        )}>
-                                        {SOURCE_CHANNEL_LABELS[update.source_channel] || update.source_channel}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            );
-                        })}
-                    </div>
-                    </div>
-
-                    {filteredUpdates?.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border mt-4">
-                        没有找到符合条件的更新
-                    </div>
-                    )}
-                </div>
-            )}
             </div>
           </div>
         </>
