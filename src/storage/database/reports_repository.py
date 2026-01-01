@@ -193,7 +193,7 @@ class ReportRepository(BaseRepository):
                            date_from, date_to, total_count, generated_at
                     FROM reports 
                     WHERE report_type = ?
-                    ORDER BY year DESC, month DESC
+                    ORDER BY year DESC, month DESC, week DESC
                 ''', (report_type,))
                 
                 return [dict(row) for row in cursor.fetchall()]

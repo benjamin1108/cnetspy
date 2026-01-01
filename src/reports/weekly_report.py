@@ -248,7 +248,6 @@ class WeeklyReport(BaseReport):
                     'update_type': u.get('update_type', ''),
                     'subcategory': u.get('product_subcategory', ''),
                     'title': u.get('title_translated', ''),
-                    'summary_ai': u.get('content_summary', ''),  # 提供 AI 之前的摘要作为参考
                     'content_raw': content_raw                   # 提供原始全文，不再截断
                 })
 
@@ -274,11 +273,28 @@ class WeeklyReport(BaseReport):
 
             # 调用 AI (开启结构化输出模式)
             logger.info("调用 Gemini 生成周报洞察 (结构化模式)...")
+
+            # --- DEBUG START ---
+            print("\n" + "="*80)
+            print("DEBUG: GEMINI MODEL INPUT (PROMPT)")
+            print("="*80)
+            print(prompt)
+            print("="*80 + "\n")
+            # --- DEBUG END ---
+
             response = self._gemini.generate_text(
                 prompt, 
                 response_mime_type="application/json",
                 response_schema=weekly_report_schema
             )
+
+            # --- DEBUG START ---
+            print("\n" + "="*80)
+            print("DEBUG: GEMINI MODEL OUTPUT (RESPONSE)")
+            print("="*80)
+            print(response)
+            print("="*80 + "\n")
+            # --- DEBUG END ---
 
             result = json.loads(response.strip())
             return result
@@ -315,13 +331,15 @@ class WeeklyReport(BaseReport):
                 title = item.get('title', '')
                 product = item.get('product', '')
                 
-                # 智能标题拼接：如果标题里已经包含产品名，就直接用标题；否则用 "产品: 标题"
-                if product and title and product.lower() in title.lower():
-                    display_title = title
-                elif product and title:
-                    display_title = f"{product}: {title}"
-                else:
-                    display_title = title or product
+                display_title = title
+                
+                # # 智能标题拼接：如果标题里已经包含产品名，就直接用标题；否则用 "产品: 标题"
+                # if product and title and product.lower() in title.lower():
+                #     display_title = title
+                # elif product and title:
+                #     display_title = f"{product}: {title}"
+                # else:
+                #     display_title = title or product
 
                 top_updates_html += f'''
 <div class="feature-card">

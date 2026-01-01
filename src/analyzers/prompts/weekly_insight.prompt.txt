@@ -6,70 +6,81 @@
 
 # Input Data
 - 时间范围: {date_range}
-- 统计概览: 
-{stats_summary}
-- 详细更新数据 (JSON 数组):
-{updates_json}
-  * 注：每个更新项包含 `content_raw` (原始公告全文) 和 `summary_ai` (初步摘要)。你必须**优先阅读 `content_raw`** 以获取准确的技术细节，`summary_ai` 仅供参考。
+- 统计概览: {stats_summary}
+- 详细更新数据 (JSON 数组): {updates_json}
+  * **核心指令**: 必须**仔细阅读 `content_raw`** 以获取准确的技术细节。
 
-# Output Requirements
-返回纯 JSON 格式（不要 Markdown 代码块，直接输出 JSON）：
+# Logic & Constraints (核心处理逻辑)
+
+## 1. 数据完整性铁律 (Data Integrity - CRITICAL)
+**严禁发生数据错配或篡改：**
+* **原子性绑定**：`update_id` 是数据的唯一主键。必须确保 `vendor`、`title` 和 `content` 与 `update_id` 严格对应。
+* **标题净化 (Title Sanitation - STRICT)**:
+    * **绝对原样输出**：`output.title` 必须完全等于 `input.title`。
+    * **禁止拼接**：**严禁**将 `product` 或 `subcategory` 字段的值拼接到标题前面。
+    * **错误示例**：Input Title 是 "推出新功能"，Input Subcategory 是 "VPC"。
+        * ❌ 错误输出: "VPC: 推出新功能" (禁止加前缀！)
+        * ❌ 错误输出: "Amazon VPC: 推出新功能"
+        * ✅ 正确输出: "推出新功能"
+
+## 2. 通道严格分区 (Strict Channel Partitioning)
+**根据 `source_channel` 字段强制分类，不得混淆：**
+* **Featured Blogs**: 必须且仅能从 `source_channel: blog` (或 `network-blog`) 中选取。严禁放入 `top_updates`。
+* **Top Updates**: 必须且仅能从 `source_channel: whatsnew` 中选取最具价值的更新。
+* **Quick Scan**: 包含 Input Data 中剩余的所有 `whatsnew` 更新（严禁遗漏）。
+
+## 3. 价值标注原则 (Flags - Noteworthy)
+**判断标准：关注“新能力”而非“运维动作”。**
+* **is_noteworthy: true**: 新功能 (New Features)、性能/配额提升、价格调整、架构增强 (HA/AI)。
+* **is_noteworthy: false (强制黑名单)**:
+    * **安全修补**: 任何 CVE 修复、WAF 规则更新、安全公告。
+    * **运维维护**: 补丁 (Patch)、Bug 修复、代理/固件版本号更新。
+    * **常规扩展**: 合规认证、单纯的区域开服。
+
+## 4. 字段生成指南 (Writing Guidelines)
+* **insight_summary**: 300字深度综述。区分“新特性”与“技术博客”。
+* **top_updates**:
+    * `pain_point`: 用户以前面临什么困难？
+    * `value`: 新功能如何解决该问题？
+    * `comment`: PM 视角的独到见解。
+* **featured_blogs**: `reason` 说明这篇文章适合谁读。
+
+# Output Format
+请直接返回纯 JSON 格式（不要 Markdown 代码块），严格遵守以下 Schema 结构：
 
 {
-  "insight_title": "本周主题：根据本周更新归纳出的核心技术/业务主题（8字内，如：网络安全与成本优化）",
-  "insight_summary": "200字左右的深度综述。核心要求：1. 必须根据“统计概览”判定本周是“功能爆发周”还是“平稳修补周”。注意：若单厂商更新 > 10条，或总更新 > 20条，通常属于重大发布季（如 re:Invent、Ignite、Next），严禁描述为“平稳”。2. 站在架构师视角，分析本周云厂商在解决什么共性问题。3. 拒绝流水账，拒绝空话。",
+  "insight_title": "String (30字内, 完整句子, 不含'本周主题'，页面上会固定渲染本周主题，你生成的是跟在本周主题后面的短剧，要适配)",
+  "insight_summary": "String (深度综述)",
   "top_updates": [
     {
-      "update_id": "必须原样返回 Input Data 中的 update_id",
-      "vendor": "[厂商]",
-      "product": "产品名（用于分类，如 EC2）",
-      "title": "必须原样返回 Input Data 中的 title（禁止修改或概括）",
-      "pain_point": "用户以前面临什么困难？",
-      "value": "新功能如何解决该问题？（一句话核心价值）",
-      "comment": "架构师视角的犀利评价（如：企业级 FinOps 的关键补丁）。"
+      "update_id": "String (Must match Input ID exactly)",
+      "vendor": "String",
+      "product": "String",
+      "title": "String (Copy Input Title VERBATIM, do not add prefixes)",
+      "pain_point": "String",
+      "value": "String",
+      "comment": "String"
     }
   ],
   "featured_blogs": [
     {
-      "update_id": "必须原样返回 Input Data 中的 update_id",
-      "vendor": "[厂商]",
-      "title": "文章标题",
-      "url": "文章链接（如果有，否则留空）",
-      "reason": "推荐理由：一句话说明这篇文章适合谁读。"
+      "update_id": "String (Must match Input ID exactly)",
+      "vendor": "String",
+      "title": "String (Copy Input Title VERBATIM)",
+      "url": "String",
+      "reason": "String"
     }
   ],
   "quick_scan": [
     {
-      "vendor": "AWS",
+      "vendor": "String",
       "items": [
         {
-          "update_id": "必须原样返回 Input Data 中的 update_id",
-          "content": "一句话概括更新内容",
-          "is_noteworthy": true
-        },
-        {
-          "update_id": "必须原样返回 Input Data 中的 update_id",
-          "content": "普通更新内容",
-          "is_noteworthy": false
+          "update_id": "String (Must match Input ID exactly)",
+          "content": "String (One sentence summary)",
+          "is_noteworthy": Boolean
         }
       ]
     }
   ]
 }
-
-# Constraints
-
-1. **绝对禁止**：废话、套话、营销号风格。
-
-2. **Blog vs Feature (强制要求)**：
-
-   - `featured_blogs` 必须且仅能从 `source_channel: blog` 的数据中选取。
-
-   - 严禁将 `source_channel: whatsnew` 的产品动态放入 `featured_blogs`。
-
-   - `top_updates` 或 `quick_scan` 用于放置产品动态（whatsnew）。
-
-3. **其他更新 (Other Updates) 重点标注**：
-
-请在 `quick_scan` 中将那些虽然未进入 `top_updates` 但仍具有较高技术参考价值或行业影响的更新标记为 `is_noteworthy: true`。
-4. **全貌覆盖**：`quick_scan` 必须包含 Input Data 中所有未进入 `top_updates` 的更新，严禁遗漏。

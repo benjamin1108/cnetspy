@@ -159,20 +159,32 @@ export function ReportsPage() {
 
     if (typeof parsed === 'object' && parsed !== null) {
         let title = parsed.insight_title || '';
-        const prefix = reportType === 'weekly' ? '本周主题' : '本月主题';
-        if (title && !title.startsWith('本周主题') && !title.startsWith('本月主题')) {
-            title = `${prefix}：${title}`;
-        }
-
+        // Remove manual prefixing here, let UI handle the layout
+        
         return {
             insight_title: title,
             insight_summary: typeof parsed.insight_summary === 'string' ? parsed.insight_summary : (JSON.stringify(parsed.insight_summary) || ''),
-            top_updates: Array.isArray(parsed.top_updates) ? parsed.top_updates : undefined,
-            featured_blogs: Array.isArray(parsed.featured_blogs) ? parsed.featured_blogs : undefined,
-            quick_scan: Array.isArray(parsed.quick_scan) ? parsed.quick_scan : undefined,
-            landmark_updates: Array.isArray(parsed.landmark_updates) ? parsed.landmark_updates : undefined,
-            noteworthy_updates: Array.isArray(parsed.noteworthy_updates) ? parsed.noteworthy_updates : undefined,
-            solution_analysis: Array.isArray(parsed.solution_analysis) ? parsed.solution_analysis : undefined,
+            top_updates: Array.isArray(parsed.top_updates) ? parsed.top_updates.filter(u => u.product || u.title) : undefined,
+            featured_blogs: Array.isArray(parsed.featured_blogs) ? parsed.featured_blogs.filter(b => b.title) : undefined,
+            quick_scan: Array.isArray(parsed.quick_scan) ? 
+                parsed.quick_scan
+                    .map((group: any) => ({
+                        ...group,
+                        items: Array.isArray(group.items) ? group.items.filter((item: any) => {
+                            const content = typeof item === 'string' ? item : item.content;
+                            return content && content.trim() !== '';
+                        }) : []
+                    }))
+                    .filter((group: any) => group.items.length > 0) : undefined,
+            landmark_updates: Array.isArray(parsed.landmark_updates) ? parsed.landmark_updates.filter(u => u.title) : undefined,
+            noteworthy_updates: Array.isArray(parsed.noteworthy_updates) ? 
+                parsed.noteworthy_updates
+                    .map((group: any) => ({
+                        ...group,
+                        items: Array.isArray(group.items) ? group.items.filter((item: any) => item.content && item.content.trim() !== '') : []
+                    }))
+                    .filter((group: any) => group.items.length > 0) : undefined,
+            solution_analysis: Array.isArray(parsed.solution_analysis) ? parsed.solution_analysis.filter(s => s.theme) : undefined,
             top_trends: Array.isArray(parsed.top_trends) ? parsed.top_trends : undefined,
         };
     }
@@ -276,10 +288,17 @@ export function ReportsPage() {
         <div className="space-y-3">
           {/* SECTION 1: AI Insight Panel */}
           <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md">
-            <button onClick={() => setShowAi(!showAi)} className="w-full flex items-center justify-between p-8 group hover:bg-muted/5 transition-colors">
-                <div className="flex flex-col items-start gap-1">
-                    <h3 className="text-xl font-black text-foreground tracking-tight group-hover:text-primary transition-colors">{aiInsight.insight_title}</h3>
-                    <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.5em]">Intelligence Analysis</span>
+            <button onClick={() => setShowAi(!showAi)} className="w-full flex items-center justify-between p-8 group hover:bg-muted/5 transition-colors text-left">
+                <div className="flex flex-col items-start gap-3">
+                    <span 
+                        className="font-bold text-primary/90 text-xs uppercase tracking-[0.3em]"
+                        style={{ textShadow: '0 0 8px hsl(var(--primary) / 0.3)' }}
+                    >
+                        {reportType === 'weekly' ? '本周主题 // WEEKLY THEME' : '本月主题 // MONTHLY THEME'}
+                    </span>
+                    <h3 className="text-3xl font-black text-foreground tracking-tight group-hover:text-primary transition-colors leading-tight">
+                        {aiInsight.insight_title}
+                    </h3>
                 </div>
                 <ChevronDown className={cn("w-6 h-6 text-muted-foreground transition-transform duration-500", showAi && "rotate-180")} />
             </button>
@@ -298,7 +317,7 @@ export function ReportsPage() {
                             <Quote className="w-12 h-12 text-primary/10 flex-shrink-0 -mt-2" />
                             
                             <div className="flex-1">
-                                <div className="ai-summary-content prose prose-zinc dark:prose-invert max-w-4xl text-xl font-medium text-foreground/80 leading-[1.8] tracking-tight">
+                                <div className="ai-summary-content prose prose-zinc dark:prose-invert max-w-4xl text-2xl font-medium text-foreground/80 leading-[1.8] tracking-tight">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiInsight.insight_summary}</ReactMarkdown>
                                 </div>
                                 <div className="mt-10 w-24 h-1 bg-gradient-to-r from-primary/30 to-transparent rounded-full" />
@@ -332,17 +351,17 @@ export function ReportsPage() {
                                                     <div className="space-y-4">
                                                         <div className="relative pl-3 border-l-2 border-red-500/30">
                                                             <span className="text-[10px] font-bold text-muted-foreground/70 uppercase block mb-1">Pain Point</span>
-                                                            <span className="text-sm text-foreground/80 leading-relaxed block line-clamp-2 min-h-[40px]">{item.pain_point}</span>
+                                                            <span className="text-sm text-foreground/80 leading-relaxed line-clamp-3 h-[4.5rem] overflow-hidden" title={item.pain_point}>{item.pain_point}</span>
                                                         </div>
                                                         <div className="relative pl-3 border-l-2 border-green-500/30">
                                                             <span className="text-[10px] font-bold text-muted-foreground/70 uppercase block mb-1">Value</span>
-                                                            <span className="text-sm text-foreground leading-relaxed block line-clamp-2 min-h-[40px]">{item.value}</span>
+                                                            <span className="text-sm text-foreground leading-relaxed line-clamp-3 h-[4.5rem] overflow-hidden" title={item.value}>{item.value}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="h-16 bg-muted/30 border-t border-border/40 p-3 px-5 flex items-start gap-2">
+                                                <div className="h-20 bg-muted/30 border-t border-border/40 p-3 px-5 flex items-start gap-2">
                                                     <Quote className="w-3.5 h-3.5 text-primary/40 flex-shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2" title={item.comment}>{item.comment}</p>
+                                                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-3" title={item.comment}>{item.comment}</p>
                                                 </div>
                                             </div>
                                         );
@@ -434,9 +453,7 @@ export function ReportsPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {aiInsight.top_updates?.map((item, idx) => {
                                         const vendorColor = getVendorColor(item.vendor);
-                                        const title = item.title || '';
-                                        const product = item.product || '';
-                                        const displayName = (product && title) ? (title.toLowerCase().includes(product.toLowerCase()) ? title : `${product}: ${title}`) : (title || product);
+                                        const displayName = item.title || item.product || '';
                                         return (
                                             <div key={idx} className="group flex flex-col h-full bg-card rounded-xl border border-border/50 hover:border-primary/40 hover:shadow-lg transition-all duration-300 overflow-hidden">
                                                 <div className="p-4 pb-3 space-y-2.5">
@@ -451,17 +468,17 @@ export function ReportsPage() {
                                                     <div className="space-y-4">
                                                         <div className="relative pl-3 border-l-2 border-red-500/30">
                                                             <span className="text-[10px] font-bold text-muted-foreground/70 uppercase block mb-1">Pain Point</span>
-                                                            <span className="text-sm text-foreground/80 leading-relaxed block line-clamp-2 min-h-[40px]">{item.pain_point}</span>
+                                                            <span className="text-sm text-foreground/80 leading-relaxed line-clamp-3 h-[4.5rem] overflow-hidden" title={item.pain_point}>{item.pain_point}</span>
                                                         </div>
                                                         <div className="relative pl-3 border-l-2 border-green-500/30">
                                                             <span className="text-[10px] font-bold text-muted-foreground/70 uppercase block mb-1">Value</span>
-                                                            <span className="text-sm text-foreground leading-relaxed block line-clamp-2 min-h-[40px]">{item.value}</span>
+                                                            <span className="text-sm text-foreground leading-relaxed line-clamp-3 h-[4.5rem] overflow-hidden" title={item.value}>{item.value}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="h-16 bg-muted/30 border-t border-border/40 p-3 px-5 flex items-start gap-2">
+                                                <div className="h-20 bg-muted/30 border-t border-border/40 p-3 px-5 flex items-start gap-2">
                                                     <Quote className="w-3.5 h-3.5 text-primary/40 flex-shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-2" title={item.comment}>{item.comment}</p>
+                                                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-3" title={item.comment}>{item.comment}</p>
                                                 </div>
                                             </div>
                                         );
