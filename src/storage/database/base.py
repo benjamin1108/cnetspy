@@ -296,6 +296,7 @@ class DatabaseManager:
             cursor.execute('PRAGMA synchronous=NORMAL')
             cursor.execute('PRAGMA cache_size=-64000')  # 64MB缓存
             cursor.execute('PRAGMA temp_store=MEMORY')
+            cursor.execute('PRAGMA mmap_size=2147483648') # 2GB mmap
             cursor.execute('PRAGMA foreign_keys=ON')
     
     @contextmanager
@@ -310,6 +311,12 @@ class DatabaseManager:
         try:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.row_factory = sqlite3.Row  # 使结果可以通过列名访问
+            
+            # Apply performance optimizations for every connection
+            conn.execute('PRAGMA mmap_size=2147483648') # 2GB
+            conn.execute('PRAGMA temp_store=MEMORY')
+            conn.execute('PRAGMA synchronous=NORMAL')
+            
             yield conn
         except Exception as e:
             if conn:
