@@ -107,7 +107,7 @@ export function ReportsPage() {
   const [showAi, setShowAi] = useState(true);
   const [showStats, setShowStats] = useState(false);
 
-  const reportType = (searchParams.get('type') as 'weekly' | 'monthly') || 'monthly';
+  const reportType = (searchParams.get('type') as 'weekly' | 'monthly') || 'weekly';
   const urlYear = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined;
   const urlMonth = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
   const urlWeek = searchParams.get('week') ? parseInt(searchParams.get('week')!) : undefined;
@@ -267,9 +267,11 @@ export function ReportsPage() {
         <div className="flex gap-2">
           <div className="flex rounded-md bg-muted p-1 border border-border/20">
             <button onClick={() => handleTypeChange('weekly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'weekly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>周报</button>
-            <button onClick={() => handleTypeChange('monthly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'monthly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>月报</button>
+            {/* TODO: Temporarily disabled monthly report entry until further iterations 
+            <button onClick={() => handleTypeChange('monthly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'monthly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>月报</button> 
+            */}
           </div>
-          <Select value={reportType === 'monthly' ? `${currentParams.year}-${currentParams.month}` : `${currentParams.year}-${(currentParams as any).week}`} onChange={(e) => handleDateChange(e.target.value)} className="w-60">
+          <Select value={reportType === 'monthly' ? `${currentParams.year}-${currentParams.month}` : `${currentParams.year}-${(currentParams as any).week}`} onChange={(e) => handleDateChange(e.target.value)} className="w-34">
             {reportType === 'monthly' ? 
               (availableMonths?.map(m => <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>{m.label}</option>)) : 
               (availableWeeks?.map(w => <option key={`${w.year}-${w.week}`} value={`${w.year}-${w.week}`}>{w.label}</option>))
