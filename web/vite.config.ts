@@ -22,6 +22,10 @@ export default defineConfig(({ mode }) => ({
           'vendor-markdown': ['react-markdown', 'remark-gfm'],
           // 工具库
           'vendor-utils': ['axios', 'date-fns', '@tanstack/react-query'],
+          // 图表库 (体积较大)
+          'vendor-charts': ['recharts'],
+          // UI 图标
+          'vendor-ui': ['lucide-react'],
         },
       },
     },
