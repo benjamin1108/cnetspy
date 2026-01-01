@@ -221,7 +221,7 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             logger.error(f"获取页面失败: {url} - {e}")
         
         return None
-    
+
     def _parse_updates(
         self, 
         html: str, 
@@ -250,37 +250,45 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             if not content_area:
                 content_area = soup.find('body')
             
-            # 查找所有表格
-            tables = content_area.find_all('table') if content_area else soup.find_all('table')
+            if not content_area:
+                logger.warning(f"{product_name} 未找到内容区域")
+                return []
+
+            # 建立年份与表格的映射（优化：按顺序遍历元素，使年份标题作用于后续所有表格）
+            table_date_map = {}
+            current_year = datetime.date.today().strftime('%Y')
+            active_year = current_year
+            active_month = "01"
             
+            # 查找所有直接子元素中的标题和表格
+            for child in content_area.find_all(['h2', 'h3', 'table'], recursive=True):
+                if child.name in ['h2', 'h3']:
+                    header_text = child.get_text(strip=True).replace('\u200b', '').replace('\ufeff', '')
+                    # 1. 优先尝试匹配 年+月
+                    ym_match = re.search(r'(20[1-2][0-9])\s*年\s*([0-1]?[0-9])\s*月', header_text)
+                    if ym_match:
+                        active_year = ym_match.group(1)
+                        active_month = ym_match.group(2).zfill(2)
+                        logger.info(f"解析到标题日期: {active_year}-{active_month}")
+                    else:
+                        # 2. 只有年份
+                        y_match = re.search(r'(20[1-2][0-9])\s*年', header_text)
+                        if y_match:
+                            active_year = y_match.group(1)
+                            active_month = "01" # 只有年时重置月
+                            logger.info(f"解析到标题年份: {active_year}")
+                elif child.name == 'table':
+                    table_date_map[id(child)] = (active_year, active_month)
+            
+            # 获取所有表格并解析
+            tables = content_area.find_all('table')
             if not tables:
                 logger.warning(f"{product_name} 未找到表格结构")
                 return []
             
-            logger.debug(f"{product_name} 找到 {len(tables)} 个表格")
-            
-            # 查找年份标题 (h2标签: "2024年")
-            year_headers = content_area.find_all(['h2', 'h3']) if content_area else []
-            
-            # 建立年份与表格的映射
-            table_year_map = {}
-            current_year = datetime.date.today().strftime('%Y')
-            
-            for header in year_headers:
-                header_text = header.get_text(strip=True).replace('\u200b', '').replace('\ufeff', '')
-                year_match = re.search(r'(20[1-2][0-9])年', header_text)
-                if year_match:
-                    year = year_match.group(1)
-                    # 查找该年份标题后的第一个表格
-                    next_table = header.find_next('table')
-                    if next_table:
-                        table_year_map[id(next_table)] = year
-                        logger.debug(f"映射: {year}年 -> 表格")
-            
-            # 解析每个表格
             for table in tables:
-                year = table_year_map.get(id(table), current_year)
-                table_updates = self._parse_table(table, product_name, url, year)
+                year, month = table_date_map.get(id(table), (current_year, "01"))
+                table_updates = self._parse_table(table, product_name, url, year, month)
                 updates.extend(table_updates)
             
             logger.info(f"{product_name} 发现 {len(updates)} 条记录")
@@ -295,20 +303,11 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
         table,
         product_name: str,
         url: str,
-        year: str
+        year: str,
+        month: str = "01"
     ) -> List[Dict[str, Any]]:
         """
         解析腾讯云产品动态表格
-        表格结构通常为: 动态名称 | 动态描述 | 发布时间 | 相关文档
-        
-        Args:
-            table: BeautifulSoup表格元素
-            product_name: 产品名称
-            url: 页面URL
-            year: 年份
-            
-        Returns:
-            更新条目列表
         """
         updates = []
         
@@ -317,58 +316,61 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
             if not rows:
                 return updates
             
-            # 跳过表头，从第二行开始
+            # 识别列索引
+            header_row = rows[0]
+            header_cells = [c.get_text(strip=True) for c in header_row.find_all(['td', 'th'])]
+            
+            title_idx = 0
+            desc_idx = 1
+            date_idx = 2
+            
+            for i, text in enumerate(header_cells):
+                if any(k in text for k in ['动态名称', '功能', '更新类型']):
+                    title_idx = i
+                elif '描述' in text or '内容' in text:
+                    desc_idx = i
+                elif '时间' in text or '日期' in text:
+                    date_idx = i
+
+            # 从第二行开始解析
             for row in rows[1:]:
                 cells = row.find_all(['td', 'th'])
-                if len(cells) < 2:
+                if len(cells) <= max(title_idx, desc_idx):
                     continue
                 
                 try:
-                    # 提取表格数据（腾讯云表格通常是：动态名称、动态描述、发布时间、相关文档）
-                    title = cells[0].get_text(strip=True) if len(cells) > 0 else ""
-                    description = cells[1].get_text(strip=True) if len(cells) > 1 else ""
-                    date_text = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+                    title = cells[title_idx].get_text(strip=True)
+                    description = cells[desc_idx].get_text(strip=True)
+                    date_text = cells[date_idx].get_text(strip=True) if len(cells) > date_idx else ""
                     
-                    # 过滤无效行
-                    if not title or len(title) < 2 or title in ['动态名称', '功能']:
+                    if not title or title in ['动态名称', '功能', '更新类型', '功能模块']:
                         continue
                     
                     # 解析日期
-                    publish_date = self._parse_date(date_text, year)
+                    publish_date = self._parse_date(date_text, year, month)
                     
-                    # 提取相关文档链接
+                    # 提取链接
                     doc_links = []
-                    if len(cells) > 3:
-                        links = cells[3].find_all('a', href=True)
+                    for cell in cells[max(date_idx, desc_idx):]:
+                        links = cell.find_all('a', href=True)
                         for link in links:
                             href = link.get('href', '')
                             if href:
-                                if href.startswith('/'):
-                                    full_url = urljoin('https://cloud.tencent.com', href)
-                                elif href.startswith('http'):
-                                    full_url = href
-                                else:
-                                    full_url = urljoin(url, href)
-                                
-                                doc_links.append({
-                                    'text': link.get_text(strip=True),
-                                    'url': full_url
-                                })
+                                full_url = urljoin(url, href) if not href.startswith('http') else href
+                                link_text = link.get_text(strip=True)
+                                if link_text:
+                                    doc_links.append({'text': link_text, 'url': full_url})
                     
-                    # 构建更新条目
-                    update = {
+                    updates.append({
                         'title': title,
                         'description': description,
                         'publish_date': publish_date,
                         'product_name': product_name,
                         'source_url': url,
                         'doc_links': doc_links
-                    }
-                    
-                    updates.append(update)
-                    
+                    })
                 except Exception as e:
-                    logger.debug(f"解析表格行时出错: {e}")
+                    logger.debug(f"解析行失败: {e}")
                     continue
             
         except Exception as e:
@@ -376,36 +378,32 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
         
         return updates
     
-    def _parse_date(self, date_text: str, year: str) -> str:
+    def _parse_date(self, date_text: str, default_year: str, default_month: str = "01") -> str:
         """
-        解析日期文本
-        腾讯云日期格式：2024-10-17、2024年10月
-        
-        Args:
-            date_text: 日期文本
-            year: 年份
-            
-        Returns:
-            标准化的日期 (YYYY-MM格式)
+        解析日期文本：提取数字模式
         """
-        # 清理文本
-        date_text = date_text.strip().replace('\u200b', '').replace('\ufeff', '')
+        # 只保留数字和关键分隔符
+        clean_text = "".join(re.findall(r'[0-9年\-月/]+', date_text))
         
-        # 尝试匹配 YYYY-MM-DD 格式
-        match = re.search(r'(20[1-2][0-9])[年-](0?[1-9]|1[0-2])', date_text)
-        if match:
-            year_part = match.group(1)
-            month_part = match.group(2).zfill(2)
-            return f"{year_part}-{month_part}"
+        # 1. 尝试提取所有数字序列
+        numbers = re.findall(r'[0-9]+', clean_text)
         
-        # 尝试匹配 MM月 格式
-        match = re.search(r'(0?[1-9]|1[0-2])月', date_text)
-        if match:
-            month = match.group(1).zfill(2)
-            return f"{year}-{month}"
+        if len(numbers) >= 2:
+            # 可能是 [2025, 12, 01] 或 [2025, 12]
+            year = numbers[0]
+            month = numbers[1]
+            if len(year) == 4 and 1 <= int(month) <= 12:
+                return f"{year}-{month.zfill(2)}"
         
-        # 默认使用当前年月
-        return datetime.date.today().strftime('%Y-%m')
+        if len(numbers) == 1:
+            val = numbers[0]
+            if len(val) == 4: # 只有年份
+                return f"{val}-{default_month}"
+            if 1 <= int(val) <= 12: # 只有月份
+                return f"{default_year}-{val.zfill(2)}"
+
+        # 最终兜底：使用标题解析出的年-月
+        return f"{default_year}-{default_month}"
     
 
 if __name__ == '__main__':

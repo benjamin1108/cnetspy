@@ -56,8 +56,11 @@ class BaseAnalyzer(ABC):
         
         # 检查 content 长度
         content = update_data.get('content', '')
-        if len(content) < 50:
-            self.logger.warning(f"content 内容过短，无法有效分析: {len(content)} 字符")
+        validation_config = self.config.get('validation', {})
+        min_length = validation_config.get('content_min_length', 1)
+        
+        if len(content) < min_length:
+            self.logger.warning(f"content 内容过短 ({len(content)} 字符)，低于最小限制 ({min_length})，跳过分析")
             return False
         
         return True

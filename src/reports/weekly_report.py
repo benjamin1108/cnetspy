@@ -7,6 +7,7 @@
 
 import os
 import json
+import re
 import logging
 import markdown
 from datetime import datetime, timedelta
@@ -156,10 +157,72 @@ class WeeklyReport(BaseReport):
 
     def _generate_ai_insight(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        调用 AI 生成周报核心洞察 (JSON)
+        调用 AI 生成周报核心洞察 (JSON) (使用结构化输出)
         """
         if not self._gemini or not updates:
             return {}
+
+        # 定义结构化输出 Schema
+        weekly_report_schema = {
+            "type": "object",
+            "properties": {
+                "insight_title": {"type": "string"},
+                "insight_summary": {"type": "string"},
+                "top_updates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "update_id": {"type": "string"},
+                            "vendor": {"type": "string"},
+                            "product": {"type": "string"},
+                            "title": {"type": "string"},
+                            "pain_point": {"type": "string"},
+                            "value": {"type": "string"},
+                            "comment": {"type": "string"}
+                        },
+                        "required": ["update_id", "vendor", "product", "title", "pain_point", "value", "comment"]
+                    }
+                },
+                "featured_blogs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "update_id": {"type": "string"},
+                            "vendor": {"type": "string"},
+                            "title": {"type": "string"},
+                            "url": {"type": "string"},
+                            "reason": {"type": "string"}
+                        },
+                        "required": ["update_id", "vendor", "title", "reason"]
+                    }
+                },
+                "quick_scan": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "vendor": {"type": "string"},
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "update_id": {"type": "string"},
+                                        "content": {"type": "string"},
+                                        "is_noteworthy": {"type": "boolean"}
+                                    },
+                                    "required": ["update_id", "content", "is_noteworthy"]
+                                }
+                            }
+                        },
+                        "required": ["vendor", "items"]
+                    }
+                }
+            },
+            "required": ["insight_title", "insight_summary", "top_updates", "featured_blogs", "quick_scan"]
+        }
 
         try:
             # 加载提示词模板
@@ -209,39 +272,15 @@ class WeeklyReport(BaseReport):
             prompt = prompt.replace('{updates_json}', updates_json)
             prompt = prompt.replace('{stats_summary}', stats_summary)
 
-            # 调用 AI
-            logger.info("调用 Gemini 生成周报洞察 (JSON)...")
-            response = self._gemini.generate_text(prompt)
+            # 调用 AI (开启结构化输出模式)
+            logger.info("调用 Gemini 生成周报洞察 (结构化模式)...")
+            response = self._gemini.generate_text(
+                prompt, 
+                response_mime_type="application/json",
+                response_schema=weekly_report_schema
+            )
 
-            # 清理可能的 Markdown 标记
-            response = response.strip()
-            if response.startswith('```json'):
-                response = response[7:]
-            elif response.startswith('```'):
-                response = response[3:]
-            if response.endswith('```'):
-                response = response[:-3]
-            response = response.strip()
-
-            result = json.loads(response)
-
-            # 数据清洗：防止 AI 返回嵌套结构 (e.g. { "insight_summary": { ...real_data... } })
-            if isinstance(result, dict):
-                # 检查是否嵌套在 insight_summary 中
-                if 'insight_title' not in result and \
-                   'insight_summary' in result and \
-                   isinstance(result['insight_summary'], dict):
-                    logger.warning("检测到 AI 返回了嵌套的 JSON 结构，正在进行解包...")
-                    result = result['insight_summary']
-                
-                # 再次检查常见的错误根节点 (e.g. { "report": { ... } })
-                elif len(result) == 1 and isinstance(list(result.values())[0], dict):
-                    key = list(result.keys())[0]
-                    # 如果这唯一的 key 看起来不像是有意义的数据字段 (insight_title/summary)
-                    if key not in ['insight_title', 'insight_summary', 'top_updates']:
-                        logger.warning(f"检测到 AI 返回了单根节点 '{key}'，正在尝试解包...")
-                        result = list(result.values())[0]
-
+            result = json.loads(response.strip())
             return result
 
         except Exception as e:
@@ -313,10 +352,19 @@ class WeeklyReport(BaseReport):
             for group in insight['quick_scan']:
                 vendor = group.get('vendor', 'Unknown')
                 vendor_lower = vendor.lower()
-                items_html = ""
-                for item in group.get('items', []):
+                items = group.get('items', [])
+                
+                if not items:
+                    continue
+                    
+                # 预渲染 items 内容，只有当内容不为空时才添加该厂商板块
+                current_vendor_items_html = ""
+                for item in items:
                     # 兼容新旧格式
                     content = item.get('content', '') if isinstance(item, dict) else item
+                    if not content or str(content).strip() == "":
+                        continue
+
                     update_id = item.get('update_id') if isinstance(item, dict) else None
                     is_noteworthy = item.get('is_noteworthy', False) if isinstance(item, dict) else False
                     
@@ -325,12 +373,14 @@ class WeeklyReport(BaseReport):
                     noteworthy_style = 'background: hsl(var(--primary) / 0.05); border-left: 2px solid hsl(var(--primary)); font-weight: 600; color: hsl(var(--foreground));' if is_noteworthy else ''
                     star = '✨ ' if is_noteworthy else ''
                     
-                    items_html += f'''
+                    current_vendor_items_html += f'''
 <div class="scan-item" style="{noteworthy_style}">
     <a href="{link}" target="_blank" class="card-link">{star}{content}</a>
 </div>'''
 
-                quick_scan_html += f'''
+                # 只有当该厂商下确实有有效 items 时，才渲染厂商行
+                if current_vendor_items_html:
+                    quick_scan_html += f'''
 <div class="scan-row">
     <div class="scan-vendor-side">
         <div class="scan-vendor-name">
@@ -339,7 +389,7 @@ class WeeklyReport(BaseReport):
         </div>
     </div>
     <div class="scan-grid">
-        {items_html}
+        {current_vendor_items_html}
     </div>
 </div>
 '''
@@ -381,21 +431,25 @@ class WeeklyReport(BaseReport):
         html = html.replace('{{insight_title}}', escape(insight_title))
         html = html.replace('{{insight_summary}}', escape(insight.get('insight_summary', '')))
 
-        # 处理条件块
+        # 处理条件块：如果 html 为空，则移除整个板块（利用占位符）
         if top_updates_html:
             html = html.replace('{{top_updates_html}}', top_updates_html)
             html = html.replace('{{#if top_updates_html}}', '').replace('{{/if}}', '')
         else:
-            # 简单移除标签（实际应该用正则更严谨，但这里简化）
-            html = html.replace('{{#if top_updates_html}}', '<div style="display:none">').replace('{{/if}}', '</div>')
+            # 彻底移除该板块
+            html = re.sub(r'{{#if top_updates_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
+
+        if quick_scan_html:
+            html = html.replace('{{quick_scan_html}}', quick_scan_html)
+            html = html.replace('{{#if quick_scan_html}}', '').replace('{{/if}}', '')
+        else:
+            html = re.sub(r'{{#if quick_scan_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
 
         if featured_blogs_html:
             html = html.replace('{{featured_blogs_html}}', featured_blogs_html)
             html = html.replace('{{#if featured_blogs_html}}', '').replace('{{/if}}', '')
         else:
-            html = html.replace('{{#if featured_blogs_html}}', '<div style="display:none">').replace('{{/if}}', '</div>')
-
-        html = html.replace('{{quick_scan_html}}', quick_scan_html)
+            html = re.sub(r'{{#if featured_blogs_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
 
         return html
 
@@ -546,7 +600,7 @@ class WeeklyReport(BaseReport):
 
             # 3. 精选博客 (Featured Blogs)
             if ai_insight.get('featured_blogs'):
-                lines.append("### 📚 精选博客 (Featured Blogs)")
+                lines.append("### 📚 必读好文 // SPOTLIGHT")
                 lines.append("")
                 for blog in ai_insight['featured_blogs']:
                     vendor = blog.get('vendor', 'Unknown')

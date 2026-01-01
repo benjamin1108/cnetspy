@@ -12,6 +12,7 @@
 
 import os
 import json
+import re
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -241,19 +242,102 @@ class MonthlyReport(BaseReport):
     
     def _generate_ai_insight(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """
-        调用 AI 生成 JSON 格式的月度战略洞察
+        调用 AI 生成 JSON 格式的月度战略洞察 (使用结构化输出)
         """
         default_insight = {
             'insight_title': '月度云竞争战略分析',
             'insight_summary': f"本月监测到 {stats['total_count']} 条更新。",
             'landmark_updates': [],
             'noteworthy_updates': [],
+            'featured_blogs': [],
             'solution_analysis': []
         }
         
         if not self._gemini or stats['total_count'] < 5:
             return default_insight
         
+        # 定义结构化输出 Schema
+        monthly_report_schema = {
+            "type": "object",
+            "properties": {
+                "insight_title": {"type": "string"},
+                "insight_summary": {"type": "string"},
+                "landmark_updates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "update_id": {"type": "string"},
+                            "vendor": {"type": "string"},
+                            "title": {"type": "string"},
+                            "product": {"type": "string"},
+                            "pain_point": {"type": "string"},
+                            "value": {"type": "string"},
+                            "comment": {"type": "string"}
+                        },
+                        "required": ["update_id", "vendor", "title", "product", "pain_point", "value", "comment"]
+                    }
+                },
+                "noteworthy_updates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "vendor": {"type": "string"},
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "update_id": {"type": "string"},
+                                        "content": {"type": "string"},
+                                        "reason": {"type": "string"}
+                                    },
+                                    "required": ["update_id", "content", "reason"]
+                                }
+                            }
+                        },
+                        "required": ["vendor", "items"]
+                    }
+                },
+                "featured_blogs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "update_id": {"type": "string"},
+                            "vendor": {"type": "string"},
+                            "title": {"type": "string"},
+                            "reason": {"type": "string"}
+                        },
+                        "required": ["update_id", "vendor", "title", "reason"]
+                    }
+                },
+                "solution_analysis": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "theme": {"type": "string"},
+                            "summary": {"type": "string"},
+                            "references": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "update_id": {"type": "string"},
+                                        "title": {"type": "string"}
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["theme", "summary"]
+                    }
+                }
+            },
+            "required": ["insight_title", "insight_summary", "landmark_updates", "noteworthy_updates", "featured_blogs", "solution_analysis"]
+        }
+
         try:
             prompt_file = os.path.join(PROMPT_DIR, 'monthly_insight.prompt.txt')
             with open(prompt_file, 'r', encoding='utf-8') as f:
@@ -268,16 +352,15 @@ class MonthlyReport(BaseReport):
             prompt = prompt.replace('{battleground_json}', ai_data['battleground_json'])
             prompt = prompt.replace('{blogs_json}', ai_data['blogs_json'])
             
-            # 调用 AI
-            logger.info("调用 Gemini-3-Pro 生成月度深度洞察...")
-            response = self._gemini.generate_text(prompt)
+            # 调用 AI (启用 Structured Output)
+            logger.info("调用 Gemini-3-Pro 生成月度深度洞察 (结构化模式)...")
+            response = self._gemini.generate_text(
+                prompt, 
+                response_mime_type="application/json",
+                response_schema=monthly_report_schema
+            )
             
             # 解析 JSON
-            response = response.strip()
-            if response.startswith('```json'): response = response[7:]
-            elif response.startswith('```'): response = response[3:]
-            if response.endswith('```'): response = response[:-3]
-            
             result = json.loads(response.strip())
             return result
             
@@ -457,6 +540,27 @@ class MonthlyReport(BaseReport):
     <div class="battleground-summary">{summary}</div>
 </div>
 '''
+
+        # 3. Featured Blogs HTML (必读好文)
+        featured_blogs_html = ""
+        if insight.get('featured_blogs'):
+            for blog in insight['featured_blogs']:
+                vendor = blog.get('vendor', 'Unknown')
+                vendor_slug = vendor.lower()
+                update_id = blog.get('update_id')
+                link = f"{SITE_BASE_URL}/updates/{update_id}" if update_id else "#"
+                
+                featured_blogs_html += f'''
+<div class="glass-card p-6 rounded-2xl border-l-4 border-l-{vendor_slug if vendor_slug in ['aws', 'azure'] else 'primary'}">
+    <div class="flex justify-between items-start mb-2">
+        <span class="badge badge-{vendor_slug}">{vendor}</span>
+    </div>
+    <h5 class="text-lg font-bold mb-2">
+        <a href="{link}" target="_blank" class="hover:text-primary transition">{escape(blog.get('title', ''))}</a>
+    </h5>
+    <p class="text-sm text-muted italic">“{escape(blog.get('reason', ''))}”</p>
+</div>
+'''
         
         # 替换模板变量
         html = template
@@ -464,8 +568,25 @@ class MonthlyReport(BaseReport):
         html = html.replace('{{date_range}}', date_range)
         html = html.replace('{{insight_title}}', escape(insight.get('insight_title', '')))
         html = html.replace('{{insight_summary}}', escape(insight.get('insight_summary', '')))
-        html = html.replace('{{landmark_updates_html}}', landmark_updates_html)
-        html = html.replace('{{battleground_html}}', battleground_html)
+
+        # 处理条件块
+        if landmark_updates_html:
+            html = html.replace('{{landmark_updates_html}}', landmark_updates_html)
+            html = html.replace('{{#if landmark_updates_html}}', '').replace('{{/if}}', '')
+        else:
+            html = re.sub(r'{{#if landmark_updates_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
+
+        if battleground_html:
+            html = html.replace('{{battleground_html}}', battleground_html)
+            html = html.replace('{{#if battleground_html}}', '').replace('{{/if}}', '')
+        else:
+            html = re.sub(r'{{#if battleground_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
+
+        if featured_blogs_html:
+            html = html.replace('{{featured_blogs_html}}', featured_blogs_html)
+            html = html.replace('{{#if featured_blogs_html}}', '').replace('{{/if}}', '')
+        else:
+            html = re.sub(r'{{#if featured_blogs_html}}.*?{{/if}}', '', html, flags=re.DOTALL)
         
         return html
     

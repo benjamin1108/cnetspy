@@ -46,6 +46,9 @@ default:
   
   # 字段验证规则
   validation:
+    # 待分析内容最小长度（字符），设为 1 表示只要不为空即可
+    content_min_length: 1
+    
     # title_translated 最大长度（字符）
     title_max_length: 50
     

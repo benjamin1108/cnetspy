@@ -58,7 +58,18 @@
 }
 
 # Constraints
+
 1. **绝对禁止**：废话、套话、营销号风格。
-2. **Blog vs Feature**：区分 Feature 放入 `top_updates` 或 `quick_scan`，Blog 放入 `featured_blogs`。
-3. **其他更新 (Other Updates) 重点标注**：请在 `quick_scan` 中将那些虽然未进入 `top_updates` 但仍具有较高技术参考价值或行业影响的更新标记为 `is_noteworthy: true`。
+
+2. **Blog vs Feature (强制要求)**：
+
+   - `featured_blogs` 必须且仅能从 `source_channel: blog` 的数据中选取。
+
+   - 严禁将 `source_channel: whatsnew` 的产品动态放入 `featured_blogs`。
+
+   - `top_updates` 或 `quick_scan` 用于放置产品动态（whatsnew）。
+
+3. **其他更新 (Other Updates) 重点标注**：
+
+请在 `quick_scan` 中将那些虽然未进入 `top_updates` 但仍具有较高技术参考价值或行业影响的更新标记为 `is_noteworthy: true`。
 4. **全貌覆盖**：`quick_scan` 必须包含 Input Data 中所有未进入 `top_updates` 的更新，严禁遗漏。
