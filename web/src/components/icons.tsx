@@ -1,6 +1,6 @@
 import { 
   Package, Sparkles, TrendingUp, Archive, DollarSign, 
-  Globe, Shield, Wrench, Gauge, FileCheck, Zap 
+  Globe, Shield, Wrench, Gauge, FileCheck, Zap, Puzzle
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -21,6 +21,7 @@ export const UPDATE_TYPE_CONFIG: Record<string, UpdateTypeMeta> = {
   fix: { icon: Wrench, colorClass: 'text-orange-500', label: '问题修复' },
   performance: { icon: Gauge, colorClass: 'text-purple-500', label: '性能优化' },
   compliance: { icon: FileCheck, colorClass: 'text-indigo-500', label: '合规性' },
+  integration: { icon: Puzzle, colorClass: 'text-pink-500', label: '集成能力' },
 };
 
 export const DEFAULT_TYPE_CONFIG: UpdateTypeMeta = { 

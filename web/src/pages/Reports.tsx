@@ -164,8 +164,8 @@ export function ReportsPage() {
         return {
             insight_title: title,
             insight_summary: typeof parsed.insight_summary === 'string' ? parsed.insight_summary : (JSON.stringify(parsed.insight_summary) || ''),
-            top_updates: Array.isArray(parsed.top_updates) ? parsed.top_updates.filter(u => u.product || u.title) : undefined,
-            featured_blogs: Array.isArray(parsed.featured_blogs) ? parsed.featured_blogs.filter(b => b.title) : undefined,
+            top_updates: Array.isArray(parsed.top_updates) ? parsed.top_updates.filter((u: any) => u.product || u.title) : undefined,
+            featured_blogs: Array.isArray(parsed.featured_blogs) ? parsed.featured_blogs.filter((b: any) => b.title) : undefined,
             quick_scan: Array.isArray(parsed.quick_scan) ? 
                 parsed.quick_scan
                     .map((group: any) => ({
@@ -176,7 +176,7 @@ export function ReportsPage() {
                         }) : []
                     }))
                     .filter((group: any) => group.items.length > 0) : undefined,
-            landmark_updates: Array.isArray(parsed.landmark_updates) ? parsed.landmark_updates.filter(u => u.title) : undefined,
+            landmark_updates: Array.isArray(parsed.landmark_updates) ? parsed.landmark_updates.filter((u: any) => u.title) : undefined,
             noteworthy_updates: Array.isArray(parsed.noteworthy_updates) ? 
                 parsed.noteworthy_updates
                     .map((group: any) => ({
@@ -184,7 +184,7 @@ export function ReportsPage() {
                         items: Array.isArray(group.items) ? group.items.filter((item: any) => item.content && item.content.trim() !== '') : []
                     }))
                     .filter((group: any) => group.items.length > 0) : undefined,
-            solution_analysis: Array.isArray(parsed.solution_analysis) ? parsed.solution_analysis.filter(s => s.theme) : undefined,
+            solution_analysis: Array.isArray(parsed.solution_analysis) ? parsed.solution_analysis.filter((s: any) => s.theme) : undefined,
             top_trends: Array.isArray(parsed.top_trends) ? parsed.top_trends : undefined,
         };
     }
