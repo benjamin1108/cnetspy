@@ -484,11 +484,11 @@ class MonthlyReport(BaseReport):
                 lines.append(ai_insight['insight_summary'])
                 lines.append("")
 
-            # Top Updates
-            if ai_insight.get('top_updates'):
+            # 1. 月度里程碑 (Landmarks)
+            if ai_insight.get('landmark_updates'):
                 lines.append("### 🌟 月度关键发布 (Landmarks)")
                 lines.append("")
-                for item in ai_insight['top_updates']:
+                for item in ai_insight['landmark_updates']:
                     vendor = item.get('vendor', 'Unknown')
                     title = item.get('title', '')
                     update_id = item.get('update_id')
@@ -506,42 +506,51 @@ class MonthlyReport(BaseReport):
                         lines.append(f"  - **价值:** {item.get('value', '')}")
                     lines.append("")
 
-            # Quick Scan
-            if ai_insight.get('quick_scan'):
-                lines.append("### ⚡️ 竞争阵地 (Battleground)")
+            # 2. 行业洞察 (Solutions)
+            if ai_insight.get('solution_analysis'):
+                lines.append("### 📚 深度技术洞察 (Solutions)")
                 lines.append("")
-                for group in ai_insight['quick_scan']:
+                for sol in ai_insight['solution_analysis']:
+                    theme = sol.get('theme', '')
+                    summary = sol.get('summary', '')
+                    lines.append(f"- **{theme}**")
+                    lines.append(f"  - {summary}")
+                    
+                    # 引用链接
+                    if sol.get('references'):
+                        ref_links = []
+                        for ref in sol['references']:
+                            ref_id = ref.get('update_id')
+                            ref_title = ref.get('title', '查看详情')
+                            if ref_id:
+                                ref_links.append(f"[{ref_title}]({self._build_update_link(ref_id)})")
+                        if ref_links:
+                            lines.append(f"  - *相关阅读: {' | '.join(ref_links)}*")
+                    lines.append("")
+
+            # 3. 其他重要更新 (Noteworthy)
+            if ai_insight.get('noteworthy_updates'):
+                lines.append("### ⚡️ 其他重要更新 (Noteworthy)")
+                lines.append("")
+                for group in ai_insight['noteworthy_updates']:
                     vendor = group.get('vendor', 'Unknown')
                     lines.append(f"- **{vendor}**")
                     for item in group.get('items', []):
                         content = item.get('content', '')
                         update_id = item.get('update_id')
-                        is_noteworthy = item.get('is_noteworthy', False)
+                        reason = item.get('reason', '')
                         link = self._build_update_link(update_id) if update_id else None
-                        star = "✨ " if is_noteworthy else ""
                         
                         if link:
-                            lines.append(f"  - {star}[{content}]({link})")
+                            lines.append(f"  - [{content}]({link})")
                         else:
-                            lines.append(f"  - {star}{content}")
-                    lines.append("")
-            
-            # Featured Blogs
-            if ai_insight.get('featured_blogs'):
-                lines.append("### 📚 必读好文 // SPOTLIGHT")
-                lines.append("")
-                for blog in ai_insight['featured_blogs']:
-                    vendor = blog.get('vendor', 'Unknown')
-                    title = blog.get('title', '')
-                    update_id = blog.get('update_id')
-                    link = self._build_update_link(update_id) if update_id else blog.get('url', '#')
-                    
-                    lines.append(f"- **[{vendor}] [{title}]({link})**")
-                    lines.append(f"  - {blog.get('reason', '')}")
+                            lines.append(f"  - {content}")
+                        if reason:
+                            lines.append(f"    - *{reason}*")
                     lines.append("")
             
             lines.append("---")
-            lines.append(f"[查看完整报告]({SITE_BASE_URL})")
+            lines.append(f"[前往平台查看完整深度月报]({SITE_BASE_URL}/reports?type=monthly&year={self.start_date.year}&month={self.start_date.month})")
 
         self._content = '\n'.join(lines)
         return self._content
