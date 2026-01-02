@@ -4,7 +4,7 @@
  * 核心原则：全站风格高度统一（微光标题、一致的卡片语言、轴向流布局）
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -149,6 +149,41 @@ export function ReportsPage() {
   };
 
   const currentParams = getDefaultParams();
+
+  // 自动修正 URL：如果当前使用的参数与 URL 不一致（例如 URL 参数非法被回退），则更新 URL
+  useEffect(() => {
+    const newParams = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (currentParams.year && currentParams.year.toString() !== searchParams.get('year')) {
+        newParams.set('year', currentParams.year.toString());
+        changed = true;
+    }
+
+    if (reportType === 'monthly') {
+        if (currentParams.month && currentParams.month.toString() !== searchParams.get('month')) {
+            newParams.set('month', currentParams.month.toString());
+            changed = true;
+        }
+        if (newParams.has('week')) {
+            newParams.delete('week');
+            changed = true;
+        }
+    } else {
+        if ((currentParams as any).week && (currentParams as any).week.toString() !== searchParams.get('week')) {
+            newParams.set('week', (currentParams as any).week.toString());
+            changed = true;
+        }
+        if (newParams.has('month')) {
+            newParams.delete('month');
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        setSearchParams(newParams, { replace: true });
+    }
+  }, [currentParams.year, currentParams.month, (currentParams as any).week, reportType, searchParams, setSearchParams]);
 
   const { data: reportData, isLoading, error } = useQuery({
     queryKey: ['report', reportType, currentParams],
