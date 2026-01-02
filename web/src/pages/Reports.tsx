@@ -298,6 +298,21 @@ export function ReportsPage() {
           <p>{reportType === 'monthly' ? `${currentParams.year}年${currentParams.month}月的报告尚未生成` : `${currentParams.year}年第${(currentParams as any).week}周的报告尚未生成`}</p>
         </div>
       ) : (
+        report.total_count === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-700">
+                <div className="relative mb-8 group cursor-default">
+                    <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full opacity-0 group-hover:opacity-50 transition-opacity duration-1000"></div>
+                    <Sparkles className="w-24 h-24 text-muted-foreground/20 group-hover:text-primary/40 transition-colors duration-500 relative z-10" strokeWidth={1} />
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">本期暂无重大更新</h3>
+                <p className="text-muted-foreground max-w-md text-center leading-relaxed">
+                    经过全网监测，本周期内（{formatDateRange(report.date_from, report.date_to)}）主要云厂商未发布核心网络产品动态。
+                </p>
+                <div className="mt-8 px-4 py-2 bg-muted/30 rounded-full text-xs font-mono text-muted-foreground/60 border border-border/30">
+                    System Status: Active & Monitoring
+                </div>
+            </div>
+        ) : (
         <div className="space-y-3">
           {/* SECTION 1: AI Insight Panel */}
           <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md">
@@ -620,7 +635,6 @@ export function ReportsPage() {
                                                 height={36} 
                                                 iconType="circle" 
                                                 iconSize={8}
-                                                formatter={(value) => <span className="text-xs text-muted-foreground ml-1">{value}</span>}
                                             />
                                         </PieChart>
                                     </ResponsiveContainer>
@@ -665,6 +679,7 @@ export function ReportsPage() {
                 )}
           </div>
         </div>
+        )
       )}
     </div>
   );
