@@ -122,10 +122,10 @@ export function ReportsPage() {
   const urlMonth = getSafeInt(searchParams.get('month'), 1, 12);
   const urlWeek = getSafeInt(searchParams.get('week'), 1, 53);
 
-  const { data: monthsData } = useAvailableMonths();
+  const { data: monthsData, isLoading: monthsLoading } = useAvailableMonths();
   const availableMonths = monthsData?.data || [];
 
-  const { data: weeksData } = useAvailableWeeks();
+  const { data: weeksData, isLoading: weeksLoading } = useAvailableWeeks();
   const availableWeeks = weeksData?.data || [];
 
   const getDefaultParams = () => {
@@ -135,6 +135,7 @@ export function ReportsPage() {
         const latest = availableMonths[0];
         return { year: latest.year, month: latest.month };
       }
+      // 如果元数据还没加载完，暂且返回当前时间作为占位，但不要触发 URL 更新
       return { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
     } else {
       if (urlYear && urlWeek) return { year: urlYear, week: urlWeek };
@@ -142,7 +143,6 @@ export function ReportsPage() {
         const latest = availableWeeks[0];
         return { year: latest.year, week: latest.week };
       }
-      // Fallback: Default to last week to avoid showing empty future reports
       const lastWeek = subWeeks(new Date(), 1);
       return { year: getYear(lastWeek), week: getISOWeek(lastWeek) };
     }
@@ -151,7 +151,16 @@ export function ReportsPage() {
   const currentParams = getDefaultParams();
 
   // 自动修正 URL：如果当前使用的参数与 URL 不一致（例如 URL 参数非法被回退），则更新 URL
+  // 关键修复：必须等待 availableMonths/Weeks 加载完成后再执行重定向，否则会跳到不存在的“本周”
   useEffect(() => {
+    // 如果正在加载元数据，暂不执行 URL 修正，防止跳到错误的默认日期
+    if (reportType === 'monthly' && monthsLoading) return;
+    if (reportType === 'weekly' && weeksLoading) return;
+
+    // 如果列表已加载但为空（极少见），也不要瞎跳
+    if (reportType === 'monthly' && availableMonths.length === 0 && !urlMonth) return;
+    if (reportType === 'weekly' && availableWeeks.length === 0 && !urlWeek) return;
+
     const newParams = new URLSearchParams(searchParams);
     let changed = false;
 
@@ -183,7 +192,12 @@ export function ReportsPage() {
     if (changed) {
         setSearchParams(newParams, { replace: true });
     }
-  }, [currentParams.year, currentParams.month, (currentParams as any).week, reportType, searchParams, setSearchParams]);
+  }, [
+    currentParams.year, currentParams.month, (currentParams as any).week, 
+    reportType, searchParams, setSearchParams, 
+    monthsLoading, weeksLoading, availableMonths.length, availableWeeks.length,
+    urlMonth, urlWeek
+  ]);
 
   const { data: reportData, isLoading, error } = useQuery({
     queryKey: ['report', reportType, currentParams],
