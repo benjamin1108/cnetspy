@@ -79,9 +79,19 @@ class WeeklyReport(BaseReport):
         # 初始化 Gemini 客户端
         try:
             config = get_config()
-            ai_model_config = config.get('ai_model', {})
-            # 优先使用报告生成专属配置，否则回退到默认
-            ai_config = ai_model_config.get('report_generation', ai_model_config.get('default', {}))
+            
+            # 兼容扁平配置结构（config_loader 默认行为）和嵌套结构
+            if 'report_generation' in config:
+                # 情况1: 配置扁平化，report_generation 直接在根下
+                ai_config = config['report_generation']
+            elif 'ai_model' in config:
+                # 情况2: 配置嵌套在 ai_model 下
+                ai_model_config = config['ai_model']
+                ai_config = ai_model_config.get('report_generation', ai_model_config.get('default', {}))
+            else:
+                # 情况3: 回退到根目录下的 default
+                ai_config = config.get('default', {})
+                
             self._gemini = GeminiClient(ai_config)
         except Exception as e:
             logger.warning(f"Gemini 客户端初始化失败: {e}")
@@ -388,12 +398,12 @@ class WeeklyReport(BaseReport):
                     
                     link = self._build_update_link(update_id) if update_id else "#"
                     
-                    noteworthy_style = 'background: hsl(var(--primary) / 0.05); border-left: 2px solid hsl(var(--primary)); font-weight: 600; color: hsl(var(--foreground));' if is_noteworthy else ''
-                    star = '✨ ' if is_noteworthy else ''
+                    item_class = 'scan-item scan-item-noteworthy' if is_noteworthy else 'scan-item'
+                    icon_html = '<span class="scan-icon">✨</span>' if is_noteworthy else ''
                     
                     current_vendor_items_html += f'''
-<div class="scan-item" style="{noteworthy_style}">
-    <a href="{link}" target="_blank" class="card-link">{star}{content}</a>
+<div class="{item_class}">
+    <a href="{link}" target="_blank" class="card-link">{icon_html}{content}</a>
 </div>'''
 
                 # 只有当该厂商下确实有有效 items 时，才渲染厂商行

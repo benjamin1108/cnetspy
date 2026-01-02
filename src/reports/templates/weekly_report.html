@@ -241,8 +241,29 @@
             font-size: 0.85rem;
             color: hsl(var(--muted-foreground));
             line-height: 1.5;
-            padding-left: 12px;
+            padding: 8px 12px;
             border-left: 1px solid hsl(var(--border));
+            transition: all 0.2s;
+        }
+        
+        /* 次重点更新高亮样式 */
+        .report-content .scan-item-noteworthy {
+            background-color: hsl(var(--primary) / 0.05);
+            border-left: 3px solid hsl(var(--primary));
+            color: hsl(var(--foreground));
+            font-weight: 500;
+        }
+
+        /* 固定大小的图标 */
+        .report-content .scan-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            font-size: 12px;
+            line-height: 1;
         }
 
         /* 厂商特定色 */

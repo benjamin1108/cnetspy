@@ -267,11 +267,9 @@ export function ReportsPage() {
         <div className="flex gap-2">
           <div className="flex rounded-md bg-muted p-1 border border-border/20">
             <button onClick={() => handleTypeChange('weekly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'weekly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>周报</button>
-            {/* TODO: Temporarily disabled monthly report entry until further iterations 
-            <button onClick={() => handleTypeChange('monthly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'monthly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>月报</button> 
-            */}
+            <button onClick={() => handleTypeChange('monthly')} className={cn("px-3 py-1 text-sm font-medium rounded-sm transition-all", reportType === 'monthly' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>月报</button>
           </div>
-          <Select value={reportType === 'monthly' ? `${currentParams.year}-${currentParams.month}` : `${currentParams.year}-${(currentParams as any).week}`} onChange={(e) => handleDateChange(e.target.value)} className="w-34">
+          <Select value={reportType === 'monthly' ? `${currentParams.year}-${currentParams.month}` : `${currentParams.year}-${(currentParams as any).week}`} onChange={(e) => handleDateChange(e.target.value)} className="w-36">
             {reportType === 'monthly' ? 
               (availableMonths?.map(m => <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>{m.label}</option>)) : 
               (availableWeeks?.map(w => <option key={`${w.year}-${w.week}`} value={`${w.year}-${w.week}`}>{w.label}</option>))
@@ -432,10 +430,10 @@ export function ReportsPage() {
                                             <div className="flex-1">
                                                 <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-6">
                                                     {group.items.map((item, i) => (
-                                                        <li key={i} className="text-[13px] leading-relaxed transition-colors flex flex-col gap-1.5 border-l border-primary/40 bg-primary/5 pl-4 py-2 group/item rounded-r-xl hover:border-primary/60 transition-all">
+                                                        <li key={i} className="text-[13px] leading-relaxed transition-all flex flex-col gap-1.5 border-l-2 border-primary bg-primary/[0.03] pl-4 py-2 group/item rounded-r-xl hover:bg-primary/[0.06]">
                                                             <div className="flex items-start gap-2">
                                                                 <Link to={`/updates/${item.update_id}`} target="_blank" className="text-foreground font-bold hover:text-primary transition-colors line-clamp-2 flex-1">{item.content}</Link>
-                                                                <Sparkles className="w-3 h-3 text-primary/60 mt-0.5 flex-shrink-0" />
+                                                                <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
                                                             </div>
                                                             <span className="text-[11px] text-muted-foreground/70 italic leading-snug">{item.reason}</span>
                                                         </li>
@@ -506,12 +504,13 @@ export function ReportsPage() {
                                                         const uid = typeof item === 'string' ? null : item.update_id;
                                                         const isNw = typeof item === 'string' ? false : item.is_noteworthy;
                                                         return (
-                                                            <li key={i} className={cn("text-[13px] leading-relaxed transition-all flex gap-3 items-start border-l pl-4 py-1.5 group/item", isNw ? "border-primary bg-primary/[0.03] font-bold" : "border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30")}>
+                                                            <li key={i} className={cn("text-[13px] leading-relaxed transition-all flex gap-3 items-start pl-4 py-2 group/item rounded-r-xl", isNw ? "border-l-2 border-primary bg-primary/[0.03] font-bold hover:bg-primary/[0.06]" : "border-l border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30")}>
                                                                 {uid ? (
-                                                                    <Link to={`/updates/${uid}`} target="_blank" className="hover:text-primary transition-colors flex items-start gap-2">
-                                                                        <span>{content}</span>{isNw && <Sparkles className="w-3 h-3 text-primary/60 mt-0.5" />}
+                                                                    <Link to={`/updates/${uid}`} target="_blank" className="hover:text-primary transition-colors flex items-start gap-2 flex-1">
+                                                                        <span>{content}</span>
                                                                     </Link>
-                                                                ) : <span>{content}</span>}
+                                                                ) : <span className="flex-1">{content}</span>}
+                                                                {isNw && <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />}
                                                             </li>
                                                         );
                                                     })}
