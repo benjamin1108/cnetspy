@@ -791,6 +791,18 @@ class QualityIssueChecker:
             headers=['ID', '厂商', '问题类型', '标题', '检测时间'], 
             tablefmt='simple'
         ))
+        
+        # 打印建议操作
+        print("\n💡 建议操作:")
+        # 针对第一条记录给出示例
+        example_id = table_data[0][0]
+        example_type = table_data[0][2]
+        
+        if example_type == 'empty_subcategory':
+            print(f"  - 手动归类: ./run.sh check --resolve {example_id} --set-subcategory \"产品分类名称\"")
+        
+        print(f"  - 删除记录: ./run.sh check --resolve {example_id} --delete")
+        print(f"  - 忽略问题: ./run.sh check --resolve {example_id} --ignore")
         print()
     
     def resolve_issue(self, issue_id: int, action: str, subcategory: str = None, confirmed: bool = False) -> bool:
