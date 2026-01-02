@@ -109,10 +109,16 @@ export function ReportsPage() {
   const [showAi, setShowAi] = useState(true);
   const [showStats, setShowStats] = useState(false);
 
-  const reportType = (searchParams.get('type') as 'weekly' | 'monthly') || 'weekly';
-  const urlYear = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined;
-  const urlMonth = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
-  const urlWeek = searchParams.get('week') ? parseInt(searchParams.get('week')!) : undefined;
+  const getSafeInt = (val: string | null, min: number, max: number) => {
+      if (!val) return undefined;
+      const parsed = parseInt(val);
+      if (isNaN(parsed) || parsed < min || parsed > max) return undefined;
+      return parsed;
+  };
+
+  const urlYear = getSafeInt(searchParams.get('year'), 2020, 2030);
+  const urlMonth = getSafeInt(searchParams.get('month'), 1, 12);
+  const urlWeek = getSafeInt(searchParams.get('week'), 1, 53);
 
   const { data: monthsData } = useAvailableMonths();
   const availableMonths = monthsData?.data || [];
