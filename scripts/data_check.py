@@ -793,13 +793,14 @@ class QualityIssueChecker:
         ))
         print()
     
-    def resolve_issue(self, issue_id: int, action: str, confirmed: bool = False) -> bool:
+    def resolve_issue(self, issue_id: int, action: str, subcategory: str = None, confirmed: bool = False) -> bool:
         """
         解决质量问题
         
         Args:
             issue_id: 问题 ID
-            action: 动作 (delete/ignore)
+            action: 动作 (delete/ignore/manual_fix)
+            subcategory: 手动指定的子类名称 (仅 manual_fix)
             confirmed: 是否已确认
         """
         # 获取问题详情
@@ -843,6 +844,37 @@ class QualityIssueChecker:
             self.data_layer._quality.ignore_issue(issue_id)
             print(f"\n✅ 问题 ID {issue_id} 已标记为忽略")
             return True
+            
+        elif action == 'manual_fix':
+            if not subcategory:
+                print("❌ 必须指定 --set-subcategory")
+                return False
+                
+            # 更新 updates 表
+            update_id = issue['update_id']
+            try:
+                conn = self.data_layer._get_connection()
+                with conn:
+                    # 更新子类
+                    conn.execute(
+                        "UPDATE updates SET product_subcategory = ? WHERE update_id = ?",
+                        (subcategory, update_id)
+                    )
+                    # 标记问题解决
+                    now = datetime.now().isoformat()
+                    conn.execute("""
+                        UPDATE quality_issues 
+                        SET status = 'resolved',
+                            resolved_at = ?,
+                            resolution = 'manual_fix'
+                        WHERE id = ?
+                    """, (now, issue_id))
+                
+                print(f"\n✅ 已将记录 {update_id} 的子类设置为 '{subcategory}'，问题已解决")
+                return True
+            except Exception as e:
+                print(f"❌ 更新失败: {e}")
+                return False
         
         else:
             print(f"❌ 未知动作: {action}")
@@ -870,6 +902,8 @@ def main():
                         help='与 --resolve 配合使用，删除对应记录')
     parser.add_argument('--ignore', action='store_true',
                         help='与 --resolve 配合使用，忽略问题')
+    parser.add_argument('--set-subcategory', type=str, default=None,
+                        help='与 --resolve 配合使用，手动设置产品子类')
     parser.add_argument('-y', '--yes', action='store_true',
                         help='跳过确认提示，直接执行')
     
@@ -891,8 +925,10 @@ def main():
             quality_checker.resolve_issue(args.resolve, 'delete', confirmed=args.yes)
         elif args.ignore:
             quality_checker.resolve_issue(args.resolve, 'ignore', confirmed=args.yes)
+        elif args.set_subcategory:
+            quality_checker.resolve_issue(args.resolve, 'manual_fix', subcategory=args.set_subcategory, confirmed=args.yes)
         else:
-            print("请指定 --delete 或 --ignore")
+            print("请指定 --delete, --ignore 或 --set-subcategory")
         return
     
     # 原有功能

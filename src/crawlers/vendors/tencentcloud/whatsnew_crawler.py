@@ -387,9 +387,17 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
         
         # 1. 尝试提取所有数字序列
         numbers = re.findall(r'[0-9]+', clean_text)
+
+        if len(numbers) >= 3:
+            # 可能是 [2025, 12, 15]
+            year = numbers[0]
+            month = numbers[1]
+            day = numbers[2]
+            if len(year) == 4 and 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
         
         if len(numbers) >= 2:
-            # 可能是 [2025, 12, 01] 或 [2025, 12]
+            # 可能是 [2025, 12]
             year = numbers[0]
             month = numbers[1]
             if len(year) == 4 and 1 <= int(month) <= 12:
