@@ -109,6 +109,8 @@ export function ReportsPage() {
   const [showAi, setShowAi] = useState(true);
   const [showStats, setShowStats] = useState(false);
 
+  const reportType = (searchParams.get('type') as 'weekly' | 'monthly') || 'weekly';
+  
   const getSafeInt = (val: string | null, min: number, max: number) => {
       if (!val) return undefined;
       const parsed = parseInt(val);
