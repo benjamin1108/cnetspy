@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { SEO } from '@/components/SEO';
 
 // 检测内容是否主要是中文（中文字符占比超过30%）
 function isChineseContent(content: string): boolean {
@@ -144,6 +145,10 @@ export function UpdateDetailPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <SEO 
+        title={update.title_translated || update.title} 
+        description={update.content_summary || update.title}
+      />
       {/* 返回按钮 */}
       <div className="flex items-center justify-between">
         <Link

@@ -18,6 +18,7 @@ import type { UpdateBrief } from '@/types';
 import { Radar, ChevronRight, Loader2 } from 'lucide-react';
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { SEO } from '@/components/SEO';
 
 // 更新类型映射到样式
 function getTypeTagClass(updateType: string | null | undefined): string {
@@ -257,6 +258,11 @@ export function HomePage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      <SEO 
+        title="首页" 
+        description="CloudNetSpy 实时监控 AWS, Azure, GCP 等云厂商的网络产品更新，提供深度对比分析和竞争情报。" 
+        type="website"
+      />
       {/* 页面头部 */}
       <PageHeader
         title="更新时间线"

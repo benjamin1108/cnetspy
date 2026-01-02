@@ -24,6 +24,7 @@ import {
 } from '@/types';
 import type { UpdateQueryParams, UpdateBrief } from '@/types';
 import { Search, X, CheckCircle, Circle, Calendar, Loader2 } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 export function UpdatesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -293,6 +294,10 @@ export function UpdatesPage() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
+      <SEO 
+        title="更新列表" 
+        description="浏览所有云厂商的网络产品更新记录，支持多维度筛选和搜索。" 
+      />
       {/* 页面标题 - 横跨全宽 */}
       <PageHeader
         title="更新列表"

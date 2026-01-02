@@ -19,12 +19,14 @@ import {
   BarChart,
   ArrowUpRight
 } from 'lucide-react';
+import { getISOWeek, getYear, subWeeks } from 'date-fns';
 
 import { useAvailableMonths, useAvailableWeeks } from '@/hooks';
 import { Select, Loading } from '@/components/ui';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { reportsApi } from '@/api';
 import { getVendorColor, getVendorName, cn } from '@/lib/utils';
+import { SEO } from '@/components/SEO';
 
 // --- 类型定义 ---
 
@@ -132,7 +134,9 @@ export function ReportsPage() {
         const latest = availableWeeks[0];
         return { year: latest.year, week: latest.week };
       }
-      return { year: new Date().getFullYear(), week: 1 };
+      // Fallback: Default to last week to avoid showing empty future reports
+      const lastWeek = subWeeks(new Date(), 1);
+      return { year: getYear(lastWeek), week: getISOWeek(lastWeek) };
     }
   };
 
@@ -257,8 +261,17 @@ export function ReportsPage() {
     </h4>
   );
 
+  const pageTitle = reportType === 'monthly' 
+    ? `${currentParams.year}年${currentParams.month}月竞争情报月报`
+    : `${currentParams.year}年第${(currentParams as any).week}周竞争情报周报`;
+
+  const pageDesc = aiInsight.insight_summary 
+    ? aiInsight.insight_summary.slice(0, 150).replace(/[#*`]/g, '') + '...'
+    : `CloudNetSpy ${pageTitle}，汇集本期云厂商网络产品核心动态与战略洞察。`;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+      <SEO title={pageTitle} description={pageDesc} />
       <PageHeader
         title={reportType === 'monthly' ? "月度竞争情报" : "周度竞争情报"}
         eyebrow="INTELLIGENCE // REPORT"
