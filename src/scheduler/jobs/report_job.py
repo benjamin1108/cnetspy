@@ -44,7 +44,7 @@ def run_weekly_report(config: JobConfig) -> bool:
         
         # 推送通知
         if config.notify:
-            _send_report(content, config.notify, "周报")
+            _send_report(report, content, config.notify, "周报")
         
         logger.info("周报生成完成")
         return True
