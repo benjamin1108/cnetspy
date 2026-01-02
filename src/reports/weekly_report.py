@@ -66,11 +66,20 @@ class WeeklyReport(BaseReport):
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ):
-        # 默认统计过去7天
-        if end_date is None:
-            end_date = datetime.now()
-        if start_date is None:
-            start_date = end_date - timedelta(days=7)
+        # 默认统计上一个完整自然周 (周一到周日)
+        if start_date is None or end_date is None:
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            # 计算到上周一的偏移量
+            # today.weekday() 返回 0 (周一) 到 6 (周日)
+            days_since_monday = today.weekday()
+            
+            # 上周一 00:00:00
+            last_monday = today - timedelta(days=days_since_monday + 7)
+            # 上周日 23:59:59
+            last_sunday = last_monday + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            
+            start_date = start_date or last_monday
+            end_date = end_date or last_sunday
 
         super().__init__(start_date, end_date)
         self._db = DatabaseManager()
@@ -547,10 +556,18 @@ class WeeklyReport(BaseReport):
         updates = self._query_analyzed_updates()
 
         if not updates:
-            return self._generate_empty_report()
-
-        # 生成 AI 洞察
-        ai_insight = self._generate_ai_insight(updates)
+            logger.info("本周无更新，生成空报告")
+            # 构建空 AI 洞察对象
+            ai_insight = {
+                'insight_title': '本周暂无云产品动态',
+                'insight_summary': '本周主要云厂商（AWS, Azure, GCP, 华为云等）暂无重大的网络产品功能更新或发布。',
+                'top_updates': [],
+                'quick_scan': [],
+                'featured_blogs': []
+            }
+        else:
+            # 生成 AI 洞察
+            ai_insight = self._generate_ai_insight(updates)
 
         # 1. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
@@ -560,6 +577,11 @@ class WeeklyReport(BaseReport):
 
         # 3. 保存到数据库
         self._save_to_database(updates, ai_insight, html_content, html_filepath)
+        
+        # 4. 生成 Markdown 内容 (用于通知)
+        if not updates:
+             self._generate_empty_report()
+             return self._content
 
         # 4. 为了兼容通知发送，同时生成 Markdown 格式的 _content
         lines = []

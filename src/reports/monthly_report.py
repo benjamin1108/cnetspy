@@ -60,11 +60,23 @@ class MonthlyReport(BaseReport):
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ):
-        # 默认统计当月截止今天
+        # 默认日期逻辑
         if start_date is None or end_date is None:
             today = datetime.now()
-            start_date = today.replace(day=1)  # 当月第一天
-            end_date = today  # 截止今天
+            
+            # 如果是每月 1 号，则默认生成上个月的全量月报
+            if today.day == 1:
+                # 上月最后一天
+                last_month_end = today.replace(day=1) - timedelta(seconds=1)
+                # 上月第一天
+                last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                
+                start_date = start_date or last_month_start
+                end_date = end_date or last_month_end
+            else:
+                # 否则统计当月 1 号至今
+                start_date = start_date or today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                end_date = end_date or today
         
         super().__init__(start_date, end_date)
         self._db = DatabaseManager()
@@ -432,10 +444,17 @@ class MonthlyReport(BaseReport):
         # 1. 查询数据
         updates = self._query_analyzed_updates()
         if not updates:
-            return self._generate_empty_report()
-
-        # 2. 生成 AI 洞察
-        ai_insight = self._generate_ai_insight(updates)
+            logger.info("本月无更新，生成空报告")
+            ai_insight = {
+                'insight_title': '本月暂无重大动态',
+                'insight_summary': '本月主要云厂商（AWS, Azure, GCP, 华为云等）暂无重大的网络产品功能更新或发布。',
+                'landmark_updates': [],
+                'solution_analysis': [],
+                'noteworthy_updates': []
+            }
+        else:
+            # 2. 生成 AI 洞察
+            ai_insight = self._generate_ai_insight(updates)
 
         # 3. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
@@ -445,6 +464,11 @@ class MonthlyReport(BaseReport):
 
         # 5. 保存到数据库
         self._save_to_database(updates, ai_insight, html_content, html_filepath)
+        
+        # 6. 生成 Markdown 内容 (用于推送)
+        if not updates:
+            self._generate_empty_report()
+            return self._content
 
         # 6. 生成 Markdown 内容 (用于推送)
         lines = []
