@@ -13,7 +13,7 @@ scheduler:
     # 每日爬取 + 分析（串联执行）
     daily_crawl_analyze:
       enabled: true
-      cron: "0 8 * * *"  # 每天 09:42 执行
+      cron: "0 8 * * *"  # 每天 08:00 执行
       vendors: []  # 空列表表示爬取所有厂商
       auto_analyze: true  # 爬取完成后自动分析
       notify_on_complete: true  # 完成后发送通知
@@ -22,14 +22,14 @@ scheduler:
     
     # 周报生成
     weekly_report:
-      enabled: false
+      enabled: true
       cron: "0 9 * * 1"  # 每周一 09:00 执行
       notify:
         - dingtalk
     
     # 月报生成
     monthly_report:
-      enabled: false
+      enabled: true
       cron: "0 9 1 * *"  # 每月 1 号 09:00 执行
       notify:
         - dingtalk
