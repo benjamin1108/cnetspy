@@ -8,7 +8,7 @@ import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -585,38 +585,75 @@ export function ReportsPage() {
                 </button>
                 
                 {showStats && (
-                    <div className="px-6 pb-12 pt-4 animate-in slide-in-from-top-4 duration-500">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="p-6 rounded-xl bg-muted/5 border border-border/20">
-                                <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-6">厂商分布</span>
-                                <div className="h-[250px] relative">
+                    <div className="px-6 pb-10 pt-2 animate-in slide-in-from-top-4 duration-500">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                            {/* Chart 1: Vendor Distribution */}
+                            <div className="p-5 rounded-xl bg-muted/5 border border-border/20 flex flex-col h-full">
+                                <div className="flex items-center justify-between mb-6">
+                                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">厂商分布 // Share</span>
+                                    <span className="text-xs font-mono text-muted-foreground bg-background/50 px-2 py-0.5 rounded border border-border/50">{report?.total_count} Updates</span>
+                                </div>
+                                <div className="h-[280px] w-full relative -ml-2">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
-                                            <Pie data={vendorPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none" cornerRadius={4}>
+                                            <Pie 
+                                                data={vendorPieData} 
+                                                cx="50%" 
+                                                cy="50%" 
+                                                innerRadius={60} 
+                                                outerRadius={90} 
+                                                paddingAngle={4} 
+                                                dataKey="value" 
+                                                stroke="hsl(var(--card))" 
+                                                strokeWidth={2}
+                                                cornerRadius={4}
+                                            >
                                                 {vendorPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                                             </Pie>
-                                            <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '12px', border: '1px solid hsl(var(--border))' }} />
+                                            <RechartsTooltip 
+                                                contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} 
+                                                itemStyle={{ color: 'hsl(var(--foreground))' }}
+                                                cursor={false}
+                                            />
+                                            <Legend 
+                                                verticalAlign="bottom" 
+                                                height={36} 
+                                                iconType="circle" 
+                                                iconSize={8}
+                                                formatter={(value) => <span className="text-xs text-muted-foreground ml-1">{value}</span>}
+                                            />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                        <span className="text-2xl font-bold text-foreground">{report?.total_count}</span>
+                                    {/* Center Text */}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
+                                        <span className="text-3xl font-black text-foreground tracking-tighter">{report?.total_count}</span>
+                                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-6 rounded-xl bg-muted/5 border border-border/20">
-                                <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest block mb-6">活跃领域 Top 5</span>
-                                <div className="space-y-5">
-                                    {categoryBarData.map((item) => {
+                            {/* Chart 2: Top Categories */}
+                            <div className="p-5 rounded-xl bg-muted/5 border border-border/20 flex flex-col h-full">
+                                <div className="flex items-center justify-between mb-8">
+                                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">活跃领域 // Top 5 Categories</span>
+                                </div>
+                                <div className="space-y-6 flex-1">
+                                    {categoryBarData.map((item, index) => {
                                         const max = Math.max(...categoryBarData.map(d => d.count));
                                         return (
-                                            <div key={item.name} className="space-y-2">
-                                                <div className="flex justify-between text-[10px] font-medium">
-                                                    <span className="text-foreground/70">{item.name}</span>
-                                                    <span className="text-primary">{item.count}</span>
+                                            <div key={item.name} className="group">
+                                                <div className="flex justify-between text-xs font-medium mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-mono text-muted-foreground/50 w-3">0{index + 1}</span>
+                                                        <span className="text-foreground/80 group-hover:text-primary transition-colors">{item.name}</span>
+                                                    </div>
+                                                    <span className="font-mono text-foreground font-bold">{item.count}</span>
                                                 </div>
-                                                <div className="h-1 w-full bg-muted/30 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-primary/40 rounded-full transition-all duration-1000" style={{ width: `${(item.count / max) * 100}%`, backgroundColor: item.color }} />
+                                                <div className="h-2.5 w-full bg-muted/40 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full rounded-full transition-all duration-1000 ease-out group-hover:brightness-110" 
+                                                        style={{ width: `${(item.count / max) * 100}%`, backgroundColor: item.color }} 
+                                                    />
                                                 </div>
                                             </div>
                                         );
