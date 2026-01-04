@@ -265,15 +265,18 @@ class GcpWhatsnewCrawler(BaseCrawler):
             label = note.find('span', class_='devsite-label')
             update_type = label.get_text(strip=True) if label else 'Update'
             
-            # 提取描述（所有段落内容）
-            description_parts = []
-            for p in note.find_all('p'):
-                text = p.get_text(strip=True)
-                if text:
-                    description_parts.append(text)
-            description = '\n\n'.join(description_parts)
+            # 复制 note 以避免修改原始 DOM，方便后续处理
+            content_div = BeautifulSoup(str(note), 'lxml').find('div', class_='devsite-release-note')
+            
+            # 移除 label，避免其进入描述
+            if content_div.find('span', class_='devsite-label'):
+                content_div.find('span', class_='devsite-label').decompose()
+            
+            # 转换内容为 Markdown
+            description = self._html_to_markdown(content_div, url).strip()
             
             # 查找日期（向前查找最近的h2日期标题）
+            # 注意：这里需要用原始 note 查找，因为 content_div 是独立的副本
             date_header = note.find_previous('h2', attrs={'data-text': True})
             publish_date = self._parse_date(date_header.get('data-text', '')) if date_header else None
             
@@ -283,18 +286,12 @@ class GcpWhatsnewCrawler(BaseCrawler):
             # 生成格式化的 title: GCP {product_name} {date}
             title = f"GCP {product_name} {publish_date}"
             
-            # 提取文档链接
+            # 提取结构化文档链接（作为元数据保留，但在描述中已内联）
             doc_links = []
             for link in note.find_all('a', href=True):
                 href = link.get('href', '')
                 if href and not href.startswith('#'):
-                    if href.startswith('/'):
-                        full_url = urljoin('https://cloud.google.com', href)
-                    elif href.startswith('http'):
-                        full_url = href
-                    else:
-                        full_url = urljoin(url, href)
-                    
+                    full_url = self._make_absolute_url(url, href)
                     doc_links.append({
                         'text': link.get_text(strip=True),
                         'url': full_url
@@ -320,6 +317,96 @@ class GcpWhatsnewCrawler(BaseCrawler):
         except Exception as e:
             logger.debug(f"解析release note块时出错: {e}")
             return None
+
+    def _make_absolute_url(self, base_url: str, href: str) -> str:
+        """生成绝对URL"""
+        if href.startswith('/'):
+            return urljoin('https://cloud.google.com', href)
+        elif href.startswith('http'):
+            return href
+        else:
+            return urljoin(base_url, href)
+
+    def _html_to_markdown(self, element, base_url: str) -> str:
+        """
+        递归将 HTML 元素转换为 Markdown 文本
+        保留结构（列表）、链接和基本格式
+        """
+        if element is None:
+            return ""
+            
+        from bs4 import NavigableString, Tag
+        
+        # 文本节点直接返回
+        if isinstance(element, NavigableString):
+            text = str(element)
+            # 只有当文本不是纯空白或属于特定内联元素时才保留
+            # 这里的处理比较微妙，为了避免单词粘连，我们通常只压缩多余空白
+            return re.sub(r'\s+', ' ', text)
+            
+        if not isinstance(element, Tag):
+            return ""
+
+        content = ""
+        
+        # 处理特定标签
+        if element.name == 'a':
+            text = "".join([self._html_to_markdown(child, base_url) for child in element.children]).strip()
+            href = element.get('href', '')
+            if href:
+                full_url = self._make_absolute_url(base_url, href)
+                return f"[{text}]({full_url})"
+            return text
+            
+        elif element.name == 'ul':
+            for child in element.children:
+                if isinstance(child, Tag) and child.name == 'li':
+                    item_text = self._html_to_markdown(child, base_url).strip()
+                    if item_text:
+                        content += f"* {item_text}\n"
+            return content + "\n" # 列表后加空行
+            
+        elif element.name == 'ol':
+            idx = 1
+            for child in element.children:
+                if isinstance(child, Tag) and child.name == 'li':
+                    item_text = self._html_to_markdown(child, base_url).strip()
+                    if item_text:
+                        content += f"{idx}. {item_text}\n"
+                        idx += 1
+            return content + "\n"
+            
+        elif element.name in ['p', 'div']:
+            # div 和 p 视为块级元素
+            parts = []
+            for child in element.children:
+                parts.append(self._html_to_markdown(child, base_url))
+            
+            text = "".join(parts).strip()
+            if text:
+                return text + "\n\n"
+            return ""
+            
+        elif element.name == 'code':
+            text = element.get_text()
+            return f"`{text}`"
+            
+        elif element.name in ['strong', 'b']:
+            text = "".join([self._html_to_markdown(child, base_url) for child in element.children]).strip()
+            return f"**{text}**"
+            
+        elif element.name in ['em', 'i']:
+            text = "".join([self._html_to_markdown(child, base_url) for child in element.children]).strip()
+            return f"_{text}_"
+            
+        elif element.name == 'br':
+            return "\n"
+            
+        else:
+            # 默认处理：遍历子节点并拼接
+            for child in element.children:
+                content += self._html_to_markdown(child, base_url)
+            return content
     
     def _parse_date(self, date_text: str) -> Optional[str]:
         """
