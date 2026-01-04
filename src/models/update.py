@@ -36,6 +36,7 @@ class UpdateType(str, Enum):
     PERFORMANCE = 'performance'    # 性能优化
     COMPLIANCE = 'compliance'      # 合规认证
     INTEGRATION = 'integration'    # 集成能力
+    DOCUMENTATION = 'documentation' # 文档更新
     BEST_PRACTICE = 'best_practice' # 最佳实践/技术指南 (Blog专属)
     CASE_STUDY = 'case_study'      # 客户案例 (Blog专属)
     OTHER = 'other'                # 其他
@@ -48,7 +49,7 @@ class UpdateType(str, Enum):
     @classmethod
     def whatsnew_values(cls) -> List[str]:
         """返回适用于 Release Notes 的枚举值 (排除 Blog 专属类型)"""
-        exclude = {cls.CASE_STUDY.value}
+        exclude = {cls.CASE_STUDY.value, cls.BEST_PRACTICE.value}
         return [e.value for e in cls if e.value not in exclude]
         
     @classmethod
@@ -78,6 +79,7 @@ class UpdateType(str, Enum):
             cls.PERFORMANCE.value: ('性能优化', '延迟降低或吞吐量提升'),
             cls.COMPLIANCE.value: ('合规认证', '获得新的行业合规认证'),
             cls.INTEGRATION.value: ('集成能力', '第三方服务或产品间联动更新'),
+            cls.DOCUMENTATION.value: ('文档更新', '官方文档、API参考、操作指南的更新或发布'),
             cls.BEST_PRACTICE.value: ('最佳实践', '深度技术解析、架构指南及解决方案'),
             cls.CASE_STUDY.value: ('客户案例', '行业应用案例及成功故事'),
             cls.OTHER.value: ('其他', '无法归类的更新'),

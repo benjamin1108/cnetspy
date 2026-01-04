@@ -206,10 +206,11 @@ class UpdateDataLayer:
         self,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
-        vendor: Optional[str] = None
+        vendor: Optional[str] = None,
+        source_channel: Optional[str] = 'whatsnew'
     ) -> Dict[str, int]:
         """按更新类型统计"""
-        return self._stats.get_update_type_statistics(date_from, date_to, vendor)
+        return self._stats.get_update_type_statistics(date_from, date_to, vendor, source_channel)
     
     def get_timeline_statistics(
         self,

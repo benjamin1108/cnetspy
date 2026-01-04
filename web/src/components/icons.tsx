@@ -1,7 +1,7 @@
 import { 
   Package, Sparkles, TrendingUp, Archive, DollarSign, 
   Globe, Shield, Wrench, Gauge, FileCheck, Zap,
-  AlertTriangle, Bug, BookOpen, Users
+  AlertTriangle, Bug, BookOpen, Users, FileText
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -62,6 +62,13 @@ export const UPDATE_TYPE_CONFIG: Record<string, UpdateTypeMeta> = {
     bgClass: 'bg-fuchsia-500/10',
     borderClass: 'border border-fuchsia-500/20',
     label: '客户案例' 
+  },
+  documentation: { 
+    icon: FileText, 
+    colorClass: 'text-slate-600 dark:text-slate-400', 
+    bgClass: 'bg-slate-500/10',
+    borderClass: 'border border-slate-500/20',
+    label: '文档更新' 
   },
   deprecation: { 
     icon: Archive, 

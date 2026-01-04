@@ -71,6 +71,7 @@
    **典型映射：**
    - 技术解析、架构指南、最佳实践、教程、Deep Dive -> **best_practice** (推荐)
    - 客户故事、成功案例、行业应用 -> **case_study**
+   - 文档发布、白皮书、合规报告 -> **documentation**
    - 新功能介绍 -> **new_feature**
    - 如果博客明确公告了破坏性变更 -> **breaking_change**
    - 如果是已知问题/故障复盘 -> **known_issue**

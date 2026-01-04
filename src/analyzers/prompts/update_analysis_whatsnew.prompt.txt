@@ -74,7 +74,11 @@
    - GCP "Feature" -> **new_feature**
    - GCP "Breaking" -> **breaking_change** (必须选择此项)
    - GCP "Issue" -> **known_issue** (切勿选 fix)
-   - GCP "Change" -> 根据内容判断：如果是增强则选 **enhancement**，如果是破坏性变更则选 **breaking_change**
+   - GCP "Announcement" / "Change" -> 根据内容判断：
+     * 如果是新增教程/深度指南 -> **best_practice**
+     * 如果是文档库更新、页面位置调整、API参考更新 -> **documentation**
+     * 如果是功能增强 -> **enhancement**
+     * 如果是破坏性变更 -> **breaking_change**
    
    其他规则：
    - 优先选择最具体的类型

@@ -83,7 +83,8 @@ async def list_update_types(
     用于前端筛选器和表单验证
     """
     # 获取数据库中的类型统计（返回字典 {type: count}）
-    type_stats = db.get_update_type_statistics(vendor=vendor)
+    # source_channel=None 表示统计所有渠道（Whatsnew + Blog）
+    type_stats = db.get_update_type_statistics(vendor=vendor, source_channel=None)
     
     # 获取统一的标签定义
     type_labels = UpdateType.get_labels()
@@ -111,7 +112,7 @@ async def list_update_types(
         UpdateType.PERFORMANCE.value, UpdateType.COMPLIANCE.value, UpdateType.INTEGRATION.value,
         
         # 3. 常规更新
-        UpdateType.PRICING.value, UpdateType.REGION.value, UpdateType.FIX.value,
+        UpdateType.PRICING.value, UpdateType.REGION.value, UpdateType.FIX.value, UpdateType.DOCUMENTATION.value,
         
         # 4. 深度内容
         UpdateType.BEST_PRACTICE.value, UpdateType.CASE_STUDY.value,

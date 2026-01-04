@@ -233,7 +233,8 @@ class StatsRepository(BaseRepository):
         self,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
-        vendor: Optional[str] = None
+        vendor: Optional[str] = None,
+        source_channel: Optional[str] = 'whatsnew'
     ) -> Dict[str, int]:
         """
         按更新类型统计
@@ -242,6 +243,7 @@ class StatsRepository(BaseRepository):
             date_from: 开始日期（可选）
             date_to: 结束日期（可选）
             vendor: 厂商过滤（可选）
+            source_channel: 渠道过滤（默认'whatsnew'，传None表示全部）
             
         Returns:
             更新类型统计字典，key 为类型名，value 为数量
@@ -251,11 +253,14 @@ class StatsRepository(BaseRepository):
                 cursor = conn.cursor()
                 
                 where_clauses = [
-                    "source_channel = 'whatsnew'",
                     "update_type IS NOT NULL",
                     "update_type != ''"
                 ]
                 params = []
+                
+                if source_channel:
+                    where_clauses.append("source_channel = ?")
+                    params.append(source_channel)
                 
                 if date_from:
                     where_clauses.append("publish_date >= ?")

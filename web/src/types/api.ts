@@ -194,6 +194,7 @@ export const UPDATE_TYPE_LABELS: Record<string, string> = {
   region: '区域扩展',
   security: '安全更新',
   fix: '问题修复',
+  documentation: '文档更新',
   best_practice: '最佳实践',
   case_study: '客户案例',
   performance: '性能优化',
