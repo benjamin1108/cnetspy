@@ -627,10 +627,12 @@ function UpdateCard({ update, onFilter }: UpdateCardProps) {
             {update.update_type && (
               <ClickableBadge
                 onClick={() => onFilter({ vendor: update.vendor, update_type: update.update_type ?? undefined })}
-                className={cn("gap-1 pl-1.5", typeMeta.colorClass.replace('text-', 'bg-').replace('500', '100'), "text-foreground dark:bg-opacity-20")}
+                className={cn("pl-1.5", typeMeta.bgClass, typeMeta.borderClass)}
               >
-                <TypeIcon className={cn("h-3 w-3", typeMeta.colorClass)} />
-                {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
+                <TypeIcon className={cn("h-3 w-3 mr-1", typeMeta.colorClass)} />
+                <span className={typeMeta.colorClass}>
+                  {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
+                </span>
               </ClickableBadge>
             )}
 

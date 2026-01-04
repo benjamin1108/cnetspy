@@ -858,40 +858,6 @@ body {
   border-bottom: 1px solid hsl(var(--border) / 0.5);
 }
 
-/* 时间流更新类型标签 */
-.timeline-type-tag {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
-}
-
-.timeline-type-feature {
-  background: hsl(var(--success) / 0.15);
-  color: hsl(var(--success));
-  border: 1px solid hsl(var(--success) / 0.2);
-}
-
-.timeline-type-pricing {
-  background: hsl(var(--warning) / 0.15);
-  color: hsl(var(--warning));
-  border: 1px solid hsl(var(--warning) / 0.2);
-}
-
-.timeline-type-security {
-  background: hsl(var(--destructive) / 0.15);
-  color: hsl(var(--destructive));
-  border: 1px solid hsl(var(--destructive) / 0.2);
-}
-
-.timeline-type-default {
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
-  border: 1px solid hsl(var(--border));
-}
-
 /* 今日摘要面板 */
 .daily-brief-panel {
   background: hsl(var(--card) / 0.7);

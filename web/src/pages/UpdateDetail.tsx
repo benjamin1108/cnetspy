@@ -210,8 +210,11 @@ export function UpdateDetailPage() {
               const typeMeta = getUpdateTypeMeta(update.update_type);
               const TypeIcon = typeMeta.icon;
               return (
-                <Badge variant="outline" className={cn("gap-1 pl-1.5 border-primary/20 bg-primary/5", typeMeta.colorClass)}>
-                  <TypeIcon className="h-3 w-3" />
+                <Badge 
+                  variant="outline" 
+                  className={cn("gap-1 pl-1.5", typeMeta.bgClass, typeMeta.borderClass, typeMeta.colorClass)}
+                >
+                  <TypeIcon className={cn("h-3 w-3", typeMeta.colorClass)} />
                   {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
                 </Badge>
               );

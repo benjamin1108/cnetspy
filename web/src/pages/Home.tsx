@@ -20,22 +20,6 @@ import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { SEO } from '@/components/SEO';
 
-// 更新类型映射到样式
-function getTypeTagClass(updateType: string | null | undefined): string {
-  if (!updateType) return 'timeline-type-default';
-  
-  const typeMap: Record<string, string> = {
-    new_feature: 'timeline-type-feature',
-    new_product: 'timeline-type-feature',
-    enhancement: 'timeline-type-feature',
-    pricing: 'timeline-type-pricing',
-    security: 'timeline-type-security',
-    compliance: 'timeline-type-security',
-  };
-  
-  return typeMap[updateType] || 'timeline-type-default';
-}
-
 // 格式化日期分组标签
 function formatDateGroup(dateStr: string): string {
   try {
@@ -106,7 +90,7 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
 
             {/* 更新类型 */}
             {update.update_type && (
-              <span className={cn('timeline-type-tag', getTypeTagClass(update.update_type))}>
+              <span className={cn('text-[10px] px-2 py-0.5 rounded font-medium', typeMeta.bgClass, typeMeta.borderClass, typeMeta.colorClass)}>
                 {UPDATE_TYPE_LABELS[update.update_type] || update.update_type}
               </span>
             )}
