@@ -12,6 +12,7 @@
 【输入数据】
 - 厂商: {vendor}
 - 数据源类型: {source_channel}
+- 厂商原始分类: {vendor_update_type}
 - 原始标题: {title}
 - 产品名称: {product_name}
 - 产品类别: {product_category}
@@ -68,7 +69,14 @@
 
 3. update_type:
    可选值：{update_type_values}
-   - 结合更新内容判断类型
+   
+   **重要：优先参考“厂商原始分类” ({vendor_update_type}) 进行映射：**
+   - GCP "Feature" -> **new_feature**
+   - GCP "Breaking" -> **breaking_change** (必须选择此项)
+   - GCP "Issue" -> **known_issue** (切勿选 fix)
+   - GCP "Change" -> 根据内容判断：如果是增强则选 **enhancement**，如果是破坏性变更则选 **breaking_change**
+   
+   其他规则：
    - 优先选择最具体的类型
    - 不确定时选择 other
 

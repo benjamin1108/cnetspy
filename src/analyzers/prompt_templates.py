@@ -120,17 +120,22 @@ class PromptTemplates:
         # 获取验证配置
         validation = PromptTemplates._get_validation_config()
         
-        # 获取 UpdateType 枚举值列表
-        update_type_values = ", ".join(UpdateType.values())
-        
         # 提取必要字段
         vendor = update_data.get('vendor', 'unknown')
         source_channel = update_data.get('source_channel', 'unknown')
+        
+        # 根据数据源类型动态生成枚举列表（隔离策略）
+        if PromptTemplates.is_blog_source(source_channel):
+            update_type_values = ", ".join(UpdateType.blog_values())
+        else:
+            update_type_values = ", ".join(UpdateType.whatsnew_values())
+        
         title = update_data.get('title', '')
         product_name = update_data.get('product_name', '')
         product_category = update_data.get('product_category', '')
         content = update_data.get('content', '')
         doc_links = update_data.get('doc_links', [])
+        vendor_update_type = update_data.get('update_type', 'Update') # 厂商原始分类
         
         # 格式化文档链接
         if doc_links:
@@ -162,6 +167,7 @@ class PromptTemplates:
             title=title,
             product_name=product_name,
             product_category=product_category,
+            vendor_update_type=vendor_update_type, # 传递给模板
             doc_links_str=doc_links_str,
             content=content,
             title_max_length=validation['title_max_length'],

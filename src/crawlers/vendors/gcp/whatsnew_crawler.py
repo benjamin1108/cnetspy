@@ -265,6 +265,8 @@ class GcpWhatsnewCrawler(BaseCrawler):
             label = note.find('span', class_='devsite-label')
             update_type = label.get_text(strip=True) if label else 'Update'
             
+            logger.debug(f"解析到类型: {update_type} (URL: {url})")
+            
             # 复制 note 以避免修改原始 DOM，方便后续处理
             content_div = BeautifulSoup(str(note), 'lxml').find('div', class_='devsite-release-note')
             

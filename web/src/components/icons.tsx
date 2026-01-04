@@ -1,6 +1,7 @@
 import { 
   Package, Sparkles, TrendingUp, Archive, DollarSign, 
-  Globe, Shield, Wrench, Gauge, FileCheck, Zap, Puzzle
+  Globe, Shield, Wrench, Gauge, FileCheck, Zap, Puzzle,
+  AlertTriangle, Bug, Megaphone, BookOpen, Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -33,6 +34,34 @@ export const UPDATE_TYPE_CONFIG: Record<string, UpdateTypeMeta> = {
     bgClass: 'bg-blue-500/10',
     borderClass: 'border border-blue-500/20',
     label: '功能增强' 
+  },
+  breaking_change: { 
+    icon: AlertTriangle, 
+    colorClass: 'text-rose-600 dark:text-rose-400', 
+    bgClass: 'bg-rose-500/10',
+    borderClass: 'border border-rose-500/20',
+    label: '破坏性变更' 
+  },
+  known_issue: { 
+    icon: Bug, 
+    colorClass: 'text-amber-700 dark:text-amber-500', 
+    bgClass: 'bg-amber-500/10',
+    borderClass: 'border border-amber-500/20',
+    label: '已知问题' 
+  },
+  best_practice: { 
+    icon: BookOpen, 
+    colorClass: 'text-violet-600 dark:text-violet-400', 
+    bgClass: 'bg-violet-500/10',
+    borderClass: 'border border-violet-500/20',
+    label: '最佳实践' 
+  },
+  case_study: { 
+    icon: Users, 
+    colorClass: 'text-fuchsia-600 dark:text-fuchsia-400', 
+    bgClass: 'bg-fuchsia-500/10',
+    borderClass: 'border border-fuchsia-500/20',
+    label: '客户案例' 
   },
   deprecation: { 
     icon: Archive, 

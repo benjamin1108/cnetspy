@@ -184,14 +184,18 @@ export const VENDOR_DISPLAY_NAMES: Record<string, string> = {
 
 // 更新类型显示名称映射
 export const UPDATE_TYPE_LABELS: Record<string, string> = {
-  new_product: '新产品发布',
-  new_feature: '新功能发布',
+  new_product: '新产品',
+  new_feature: '新功能',
   enhancement: '功能增强',
-  deprecation: '功能弃用',
-  pricing: '定价调整',
+  breaking_change: '破坏性变更',
+  known_issue: '已知问题',
+  deprecation: '停用下线',
+  pricing: '价格调整',
   region: '区域扩展',
   security: '安全更新',
   fix: '问题修复',
+  best_practice: '最佳实践',
+  case_study: '客户案例',
   performance: '性能优化',
   compliance: '合规认证',
   integration: '集成能力',

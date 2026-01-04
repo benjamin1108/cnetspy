@@ -26,6 +26,8 @@ class UpdateType(str, Enum):
     NEW_PRODUCT = 'new_product'    # 新产品发布
     NEW_FEATURE = 'new_feature'    # 新功能发布
     ENHANCEMENT = 'enhancement'    # 功能增强/优化
+    BREAKING_CHANGE = 'breaking_change' # 破坏性变更
+    KNOWN_ISSUE = 'known_issue'    # 已知问题
     DEPRECATION = 'deprecation'    # 功能弃用/下线
     PRICING = 'pricing'            # 定价调整
     REGION = 'region'              # 区域扩展
@@ -34,12 +36,52 @@ class UpdateType(str, Enum):
     PERFORMANCE = 'performance'    # 性能优化
     COMPLIANCE = 'compliance'      # 合规认证
     INTEGRATION = 'integration'    # 集成能力
+    BEST_PRACTICE = 'best_practice' # 最佳实践/技术指南 (Blog专属)
+    CASE_STUDY = 'case_study'      # 客户案例 (Blog专属)
     OTHER = 'other'                # 其他
     
     @classmethod
     def values(cls) -> List[str]:
         """返回所有枚举值"""
         return [e.value for e in cls]
+        
+    @classmethod
+    def whatsnew_values(cls) -> List[str]:
+        """返回适用于 Release Notes 的枚举值 (排除 Blog 专属类型)"""
+        exclude = {cls.CASE_STUDY.value}
+        return [e.value for e in cls if e.value not in exclude]
+        
+    @classmethod
+    def blog_values(cls) -> List[str]:
+        """返回适用于 Blog 的枚举值 (通常为全集)"""
+        return [e.value for e in cls]
+    
+    @classmethod
+    def get_labels(cls) -> Dict[str, tuple]:
+        """
+        获取更新类型标签和描述映射
+        
+        Returns:
+            Dict[value, (label, description)]
+        """
+        return {
+            cls.NEW_PRODUCT.value: ('新产品', '全新产品/服务上线'),
+            cls.NEW_FEATURE.value: ('新功能', '现有产品新增功能'),
+            cls.ENHANCEMENT.value: ('功能增强', '现有功能优化升级'),
+            cls.BREAKING_CHANGE.value: ('破坏性变更', '不兼容的重大逻辑调整或功能变更'),
+            cls.KNOWN_ISSUE.value: ('已知问题', '官方确认的尚未修复的问题或限制'),
+            cls.DEPRECATION.value: ('停用下线', '功能弃用或停止支持通知'),
+            cls.PRICING.value: ('价格调整', '价格上调、下调或计费模式变更'),
+            cls.REGION.value: ('区域扩展', '新区域、新可用区或新边缘节点上线'),
+            cls.SECURITY.value: ('安全更新', '安全补丁、加密增强或合规性加固'),
+            cls.FIX.value: ('问题修复', 'Bug 修复及预期行为恢复'),
+            cls.PERFORMANCE.value: ('性能优化', '延迟降低或吞吐量提升'),
+            cls.COMPLIANCE.value: ('合规认证', '获得新的行业合规认证'),
+            cls.INTEGRATION.value: ('集成能力', '第三方服务或产品间联动更新'),
+            cls.BEST_PRACTICE.value: ('最佳实践', '深度技术解析、架构指南及解决方案'),
+            cls.CASE_STUDY.value: ('客户案例', '行业应用案例及成功故事'),
+            cls.OTHER.value: ('其他', '无法归类的更新'),
+        }
     
     @classmethod
     def is_valid(cls, value: str) -> bool:

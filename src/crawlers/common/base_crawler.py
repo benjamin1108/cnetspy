@@ -285,6 +285,7 @@ class BaseCrawler(ABC):
                 'content': sync_content,
                 'description': update.get('description', ''),
                 'product_name': update.get('product_name', ''),
+                'update_type': update.get('update_type', ''),  # 显式传递 update_type
                 'crawl_time': datetime.datetime.now().isoformat(),
                 'file_hash': hashlib.md5(sync_content.encode('utf-8')).hexdigest(),
                 'vendor': self.vendor,

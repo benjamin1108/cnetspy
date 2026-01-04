@@ -35,6 +35,7 @@ sources:
       type: blog
       product: Google Cloud Networking
       analyze: true
+      article_limit: 50  # 限制爬取最新50篇文章
     whatsnew:
       analyze: true
       vpc:

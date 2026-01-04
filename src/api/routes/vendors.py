@@ -21,22 +21,6 @@ SOURCE_CHANNEL_LABELS = {
     'blog': 'Blog',
 }
 
-# 更新类型描述映射
-UPDATE_TYPE_LABELS = {
-    'new_product': ('新产品发布', '全新产品/服务上线'),
-    'new_feature': ('新功能发布', '现有产品新增功能'),
-    'enhancement': ('功能增强', '现有功能优化升级'),
-    'deprecation': ('功能弃用', '功能下线/弃用通知'),
-    'pricing': ('定价调整', '价格变化相关'),
-    'region': ('区域扩展', '新区域/可用区上线'),
-    'security': ('安全更新', '安全补丁/增强'),
-    'fix': ('问题修复', 'Bug修复'),
-    'performance': ('性能优化', '性能提升相关'),
-    'compliance': ('合规认证', '合规/认证相关'),
-    'integration': ('集成能力', '第三方集成/API更新'),
-    'other': ('其他', '无法归类的更新'),
-}
-
 
 @router.get("/vendors", response_model=ApiResponse[List[VendorInfo]])
 async def list_vendors(db: UpdateDataLayer = Depends(get_db)):
@@ -101,19 +85,49 @@ async def list_update_types(
     # 获取数据库中的类型统计（返回字典 {type: count}）
     type_stats = db.get_update_type_statistics(vendor=vendor)
     
-    # 构建完整的类型列表（包含所有枚举值）
+    # 获取统一的标签定义
+    type_labels = UpdateType.get_labels()
+    
+    # 构建完整的类型列表（仅包含 count > 0 的项）
     result = []
     for type_value in UpdateType.values():
-        label, description = UPDATE_TYPE_LABELS.get(type_value, (type_value, ''))
-        result.append({
-            'value': type_value,
-            'label': label,
-            'description': description,
-            'count': type_stats.get(type_value, 0)
-        })
+        count = type_stats.get(type_value, 0)
+        if count > 0:
+            label, description = type_labels.get(type_value, (type_value, ''))
+            result.append({
+                'value': type_value,
+                'label': label,
+                'description': description,
+                'count': count
+            })
     
-    # 按使用数量倒序排列
-    result.sort(key=lambda x: x['count'], reverse=True)
+    # 自定义排序逻辑
+    # 优先级：核心发布 > 专项优化 > 常规 > 深度内容 > 风险类 > 其他
+    sort_order = [
+        # 1. 核心发布
+        UpdateType.NEW_PRODUCT.value, UpdateType.NEW_FEATURE.value, UpdateType.ENHANCEMENT.value,
+        
+        # 2. 专项优化
+        UpdateType.PERFORMANCE.value, UpdateType.COMPLIANCE.value, UpdateType.INTEGRATION.value,
+        
+        # 3. 常规更新
+        UpdateType.PRICING.value, UpdateType.REGION.value, UpdateType.FIX.value,
+        
+        # 4. 深度内容
+        UpdateType.BEST_PRACTICE.value, UpdateType.CASE_STUDY.value,
+        
+        # 5. 风险预警 (倒数第二)
+        UpdateType.BREAKING_CHANGE.value, UpdateType.KNOWN_ISSUE.value, UpdateType.SECURITY.value, UpdateType.DEPRECATION.value,
+        
+        # 6. 其他 (最后)
+        UpdateType.OTHER.value
+    ]
+    
+    # 创建排序索引映射
+    sort_index = {val: idx for idx, val in enumerate(sort_order)}
+    
+    # 执行排序：先按预定义顺序，未定义的放最后
+    result.sort(key=lambda x: sort_index.get(x['value'], 999))
     
     return ApiResponse(success=True, data=result)
 
