@@ -440,19 +440,27 @@ class GcpWhatsnewCrawler(BaseCrawler):
     
     def _get_identifier_components(self, update: Dict[str, Any]) -> List[str]:
         """
-        GCP whatsnew: hash(url + date + product + title)
+        GCP whatsnew: hash(url + date + product + type + description_hash)
+        确保同一天、同类型但内容不同的更新被视为独立条目
         
         Args:
             update: 更新数据字典
             
         Returns:
-            [url, date, product, title]
+            标识符组件列表
         """
+        import hashlib
+        
+        # 计算描述的哈希值作为指纹
+        desc = update.get('description', '')
+        desc_hash = hashlib.md5(desc.encode('utf-8')).hexdigest()
+        
         return [
             update.get('source_url', ''),
             update.get('publish_date', ''),
             update.get('product_name', ''),
-            update.get('title', '').strip()
+            update.get('update_type', ''),
+            desc_hash
         ]
     
     def _save_update(self, update: Dict[str, Any]) -> bool:
