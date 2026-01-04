@@ -1,7 +1,7 @@
 import { 
   Package, Sparkles, TrendingUp, Archive, DollarSign, 
-  Globe, Shield, Wrench, Gauge, FileCheck, Zap, Puzzle,
-  AlertTriangle, Bug, Megaphone, BookOpen, Users
+  Globe, Shield, Wrench, Gauge, FileCheck, Zap,
+  AlertTriangle, Bug, BookOpen, Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -68,7 +68,7 @@ export const UPDATE_TYPE_CONFIG: Record<string, UpdateTypeMeta> = {
     colorClass: 'text-slate-600 dark:text-slate-400', 
     bgClass: 'bg-slate-500/10',
     borderClass: 'border border-slate-500/20',
-    label: '停用/下线' 
+    label: '停用下线' 
   },
   pricing: { 
     icon: DollarSign, 
