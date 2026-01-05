@@ -466,14 +466,25 @@ class MonthlyReport(BaseReport):
         self._save_to_database(updates, ai_insight, html_content, html_filepath)
         
         # 6. 生成 Markdown 内容 (用于推送)
-        if not updates:
+        return self.render_markdown(ai_insight)
+
+    def render_markdown(self, ai_insight: Dict[str, Any]) -> str:
+        """
+        根据 AI 洞察生成 Markdown 内容
+        """
+        updates = []
+        # 确保 _update_map 存在
+        if not hasattr(self, '_update_map') or not self._update_map:
+            updates = self._query_analyzed_updates()
+            self._update_map = {u['update_id']: u for u in updates}
+
+        if not updates and not ai_insight.get('landmark_updates') and not ai_insight.get('noteworthy_updates'):
             self._generate_empty_report()
             return self._content
 
-        # 6. 生成 Markdown 内容 (用于推送)
         lines = []
         month_str = self.start_date.strftime('%Y年%m月')
-        lines.append(f"# 【云技术月报】 {month_str} 战略趋势")
+        lines.append(f"# 【云网络竞争分析月报】 {month_str} ：")
         lines.append("")
 
         if ai_insight:
@@ -508,7 +519,7 @@ class MonthlyReport(BaseReport):
 
             # 2. 行业洞察 (Solutions)
             if ai_insight.get('solution_analysis'):
-                lines.append("### 📚 深度技术洞察 (Solutions)")
+                lines.append("### 📚 解决方案洞察 (Solutions)")
                 lines.append("")
                 for sol in ai_insight['solution_analysis']:
                     theme = sol.get('theme', '')

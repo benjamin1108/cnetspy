@@ -579,11 +579,23 @@ class WeeklyReport(BaseReport):
         self._save_to_database(updates, ai_insight, html_content, html_filepath)
         
         # 4. 生成 Markdown 内容 (用于通知)
-        if not updates:
+        return self.render_markdown(ai_insight)
+
+    def render_markdown(self, ai_insight: Dict[str, Any]) -> str:
+        """
+        根据 AI 洞察生成 Markdown 内容
+        """
+        updates = []
+        # 确保 _update_map 存在，用于链接生成
+        if not hasattr(self, '_update_map') or not self._update_map:
+            updates = self._query_analyzed_updates()
+            self._update_map = {u['update_id']: u for u in updates}
+        
+        # 如果是空报告（没有 updates 且 ai_insight 显示无内容）
+        if not updates and not ai_insight.get('top_updates') and not ai_insight.get('quick_scan'):
              self._generate_empty_report()
              return self._content
 
-        # 4. 为了兼容通知发送，同时生成 Markdown 格式的 _content
         lines = []
         date_range_str = f"{self.start_date.strftime('%Y年%m月%d日')} - {self.end_date.strftime('%Y年%m月%d日')}"
         lines.append(f"# 【云技术周报】 {date_range_str} 竞争动态速览")

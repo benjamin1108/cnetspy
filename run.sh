@@ -136,8 +136,10 @@ show_help() {
         echo -e "  --weekly           生成周报"
         echo -e "  --monthly          生成月报"
         echo -e "  --send             生成后发送通知"
+        echo -e "  --force            强制重新生成（忽略缓存）"
         echo ""
-        echo -e "  $0 report --weekly                # 生成周报"
+        echo -e "  $0 report --weekly                # 生成周报（优先使用缓存）"
+        echo -e "  $0 report --weekly --force        # 强制重新生成周报"
         echo -e "  $0 report --monthly --send        # 生成月报并发送"
 }
 
