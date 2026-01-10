@@ -23,7 +23,7 @@ scheduler:
     # 周报生成
     weekly_report:
       enabled: true
-      cron: "0 9 * * 1"  # 每周一 09:00 执行
+      cron: "0 9 * * mon"  # 每周一 09:00 执行
       notify:
         - dingtalk
     
