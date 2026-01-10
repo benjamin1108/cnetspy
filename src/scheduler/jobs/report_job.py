@@ -113,7 +113,7 @@ def _send_report(report: Any, content: str, channels: List[str], report_type: st
         config = get_config()
         manager = NotificationManager(config.get('notification', {}))
         
-        title = f"云网动态{report_type}"
+        title = f"云网络竞争动态{report_type}"
         
         # 构建在线查看链接
         # 假设路径规则: /reports?type=weekly&year=2024&week=1
@@ -126,7 +126,7 @@ def _send_report(report: Any, content: str, channels: List[str], report_type: st
             online_url = f"{base_url}?type=monthly&year={year}&month={week_or_month}"
             
         # 统一尾部引导
-        content += f"\n由云竞争情报分析平台自动汇总。 [查看网页版详情]({online_url})"
+        content += f"\n由CNetSpy竞争分析平台自动汇总。 [点击访问]({online_url})"
 
         # 转换渠道名称
         target_channels = []

@@ -484,7 +484,7 @@ class MonthlyReport(BaseReport):
 
         lines = []
         month_str = self.start_date.strftime('%Y年%m月')
-        lines.append(f"# 【云网络竞争分析月报】 {month_str} ：")
+        lines.append(f"# 【云网络竞争动态月报】 {month_str}")
         lines.append("")
 
         if ai_insight:
@@ -561,7 +561,7 @@ class MonthlyReport(BaseReport):
                     lines.append("")
             
             lines.append("---")
-            lines.append(f"[前往平台查看完整深度月报]({SITE_BASE_URL}/reports?type=monthly&year={self.start_date.year}&month={self.start_date.month})")
+            lines.append("")
 
         self._content = '\n'.join(lines)
         return self._content
@@ -619,5 +619,11 @@ class MonthlyReport(BaseReport):
     def _generate_empty_report(self) -> str:
         """生成空报告"""
         month_str = self.start_date.strftime('%Y年%m月')
-        self._content = f"# {month_str} 月报\n\n本月暂无新的云产品动态更新。"
-        return self._content
+        content = f"""# 【云网络竞争动态月报】 {month_str}
+
+汇总本月主要云厂商的技术产品动态，深度剖析竞争态势。
+
+> 本月暂无新的云产品动态更新。
+"""
+        self._content = content
+        return content

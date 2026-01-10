@@ -598,7 +598,7 @@ class WeeklyReport(BaseReport):
 
         lines = []
         date_range_str = f"{self.start_date.strftime('%Y年%m月%d日')} - {self.end_date.strftime('%Y年%m月%d日')}"
-        lines.append(f"# 【云技术周报】 {date_range_str} 竞争动态速览")
+        lines.append(f"# 【云网络竞争动态周报】 {date_range_str} 竞争动态速览")
         lines.append("")
 
         if ai_insight:
@@ -689,13 +689,11 @@ class WeeklyReport(BaseReport):
     def _generate_empty_report(self) -> str:
         """生成空报告"""
         date_range = f"{self.start_date.strftime('%Y年%m月%d日')} - {self.end_date.strftime('%Y年%m月%d日')}"
-        content = f"""# 【云技术周报】 {date_range} 竞争动态速览
+        content = f"""# 【云网络竞争动态周报】 {date_range} 竞争动态速览
 
 汇集本周主要云厂商的技术产品动态，助您快速掌握核心变化。
 
 > 本周暂无新的云产品动态更新。
-
-由云竞争情报分析平台自动汇总。 [前往平台查看更多详情]({SITE_BASE_URL})
 """
         self._content = content
         return content

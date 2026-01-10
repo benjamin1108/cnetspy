@@ -40,7 +40,7 @@ def test_push():
   - **推荐理由:** 详细拆解了身份识别与网络微隔离的深度结合方案。
 
 ---
-由云竞争情报分析平台自动汇总。"""
+由CNetSpy.site竞争分析平台自动汇总。"""
 
     online_url = "https://cnetspy.site/next/reports?type=weekly&year=2025&week=47"
     
