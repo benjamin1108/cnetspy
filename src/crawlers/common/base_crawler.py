@@ -8,6 +8,7 @@ import re
 import hashlib
 import datetime
 import threading
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
@@ -685,6 +686,12 @@ class BaseCrawler(ABC):
                     retry_interval = self.interval * (i + 1)
                     logger.info(f"等待 {retry_interval} 秒后重试...")
                     time.sleep(retry_interval)
+            except asyncio.CancelledError:
+                logger.warning(f"Playwright任务被取消: {url}")
+                return None
+            except BaseException as e:
+                logger.error(f"Playwright发生严重错误: {url} - {e}")
+                return None
         
         return None
     
