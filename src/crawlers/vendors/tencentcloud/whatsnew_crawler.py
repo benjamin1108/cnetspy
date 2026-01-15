@@ -361,9 +361,22 @@ class TencentcloudWhatsnewCrawler(BaseCrawler):
                                 if link_text:
                                     doc_links.append({'text': link_text, 'url': full_url})
                     
+                    # 组装完整内容（描述 + 相关文档）
+                    content_parts = []
+                    if description:
+                        content_parts.append(description)
+                    
+                    if doc_links:
+                        content_parts.append("\n\n## 相关文档")
+                        for link in doc_links:
+                            content_parts.append(f"- [{link.get('text', '')}]({link.get('url', '')})")
+                    
+                    content = "\n".join(content_parts)
+
                     updates.append({
                         'title': title,
                         'description': description,
+                        'content': content,
                         'publish_date': publish_date,
                         'product_name': product_name,
                         'source_url': url,

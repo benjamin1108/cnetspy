@@ -527,7 +527,8 @@ AI 分析质量校验
         valid_types = [
             'new_product', 'new_feature', 'enhancement', 'deprecation', 
             'pricing', 'region', 'security', 'fix', 'performance', 
-            'compliance', 'integration', 'other'
+            'compliance', 'integration', 'best_practice', 'case_study',
+            'breaking_change', 'known_issue', 'documentation', 'other'
         ]
         placeholders = ','.join(['?' for _ in valid_types])
         cursor.execute(f"""
@@ -865,9 +866,9 @@ class QualityIssueChecker:
             # 更新 updates 表
             update_id = issue['update_id']
             try:
-                conn = self.data_layer._get_connection()
-                with conn:
-                    # 更新子类
+                # _get_connection 返回的是 context manager，必须用 with 获取真正的连接
+                with self.data_layer._get_connection() as conn:
+                    # 更新 updates 表
                     conn.execute(
                         "UPDATE updates SET product_subcategory = ? WHERE update_id = ?",
                         (subcategory, update_id)
@@ -881,6 +882,9 @@ class QualityIssueChecker:
                             resolution = 'manual_fix'
                         WHERE id = ?
                     """, (now, issue_id))
+                    
+                    # 必须显式提交事务
+                    conn.commit()
                 
                 print(f"\n✅ 已将记录 {update_id} 的子类设置为 '{subcategory}'，问题已解决")
                 return True
