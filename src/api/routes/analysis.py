@@ -6,6 +6,7 @@ AI分析接口
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import Optional
+import logging
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from ..dependencies import get_db
 from ..schemas.analysis import (
@@ -18,6 +19,7 @@ from ..schemas.common import ApiResponse, PaginatedResponse
 from ..services.analysis_service import AnalysisService
 
 router = APIRouter(prefix="/api/v1/analysis", tags=["AI分析"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/single/{update_id}", response_model=ApiResponse[AnalysisResult])
@@ -70,7 +72,9 @@ async def translate_update_content(
     result = service.translate_content(update_id)
     
     if not result['success']:
-        raise HTTPException(status_code=500, detail=result.get('error', '翻译失败'))
+        error_detail = result.get('error', '翻译失败')
+        logger.error(f"翻译失败 update_id={update_id}: {error_detail}")
+        raise HTTPException(status_code=500, detail=error_detail)
     
     return ApiResponse(success=True, data=result)
 

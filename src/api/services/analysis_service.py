@@ -530,7 +530,11 @@ class AnalysisService:
         from src.analyzers.gemini_client import GeminiClient
         
         config = get_config()
-        ai_config = config.get('ai_model', {})
+        if 'ai_model' in config:
+            ai_model = config.get('ai_model', {})
+            ai_config = ai_model.get('default', ai_model)
+        else:
+            ai_config = config.get('default', config)
         
         try:
             client = GeminiClient(ai_config)

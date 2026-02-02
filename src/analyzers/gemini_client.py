@@ -58,8 +58,10 @@ class GeminiClient:
         # 创建客户端实例 (新 SDK 方式)
         self.client = genai.Client(api_key=api_key)
         
-        # 获取模型名称
-        self.model_name = config.get('model_name', 'gemini-2.0-flash-exp')
+        # 获取模型名称（必须显式配置）
+        self.model_name = config.get('model_name')
+        if not self.model_name:
+            raise ValueError("未配置模型名称 model_name，已禁止默认回退。")
         
         # 获取生成参数
         generation_config = config.get('generation', {})

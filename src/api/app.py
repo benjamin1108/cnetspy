@@ -5,10 +5,13 @@ FastAPI 应用入口
 """
 
 import logging
+import logging.config
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
+import yaml
+from src.utils.config import get_config
 from .config import settings
 from .middleware import setup_cors, setup_error_handlers
 from .routes import health_router
@@ -21,6 +24,27 @@ from .routes.reports import router as reports_router
 
 # 调度器（可选）
 _scheduler = None
+
+
+def _setup_logging() -> None:
+    """加载统一日志配置，API 日志写入 logs/api.log。"""
+    config_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "config", "logging.yaml")
+    )
+    if not os.path.exists(config_path):
+        logging.basicConfig(level=logging.INFO)
+        return
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+        log_config = raw.get("logging", raw)
+        logging.config.dictConfig(log_config)
+    except Exception as exc:
+        logging.basicConfig(level=logging.INFO)
+        logging.getLogger(__name__).warning(
+            f"日志配置加载失败，使用默认日志配置: {exc}"
+        )
 
 
 @asynccontextmanager
@@ -43,6 +67,36 @@ async def lifespan(app: FastAPI):
         _scheduler.stop()
     logger.info(f"👋 {settings.app_name} 已关闭")
 
+
+_setup_logging()
+
+
+def _validate_ai_model_config() -> None:
+    """启动时校验 AI 模型配置，避免运行期回退或空配置。"""
+    config = get_config()
+    if "ai_model" in config:
+        ai_model = config.get("ai_model", {})
+        default_model = (ai_model.get("default") or {}).get("model_name")
+        chatbox_model = (ai_model.get("chatbox") or {}).get("model_name")
+        default_key = "ai_model.default.model_name"
+        chatbox_key = "ai_model.chatbox.model_name"
+    else:
+        default_model = (config.get("default") or {}).get("model_name")
+        chatbox_model = (config.get("chatbox") or {}).get("model_name")
+        default_key = "default.model_name"
+        chatbox_key = "chatbox.model_name"
+
+    missing = []
+    if not default_model:
+        missing.append(default_key)
+    if not chatbox_model:
+        missing.append(chatbox_key)
+
+    if missing:
+        raise RuntimeError(f"AI 模型配置缺失: {', '.join(missing)}")
+
+
+_validate_ai_model_config()
 
 # 创建 FastAPI 应用
 app = FastAPI(

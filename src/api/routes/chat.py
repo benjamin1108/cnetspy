@@ -180,7 +180,12 @@ async def chat_completions(request: ChatRequest):
     
     try:
         client, config = get_gemini_client()
-        model_name = request.model or config.get("model_name", "gemini-2.0-flash-exp")
+        model_name = request.model or config.get("model_name")
+        if not model_name:
+            raise HTTPException(
+                status_code=500,
+                detail="未配置模型名称 model_name，已禁止默认回退。"
+            )
         
         # 转换消息格式
         system_instruction, contents = convert_messages_to_contents(request.messages)

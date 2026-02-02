@@ -69,10 +69,16 @@ def run_monthly_report(config: JobConfig) -> bool:
     logger.info("=" * 50)
     
     try:
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
         from src.reports import MonthlyReport
-        
-        # 生成报告
-        report = MonthlyReport()
+
+        # 生成上个月完整月报（避免时区导致的范围偏移）
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        last_month_end = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
+        last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        report = MonthlyReport(start_date=last_month_start, end_date=last_month_end)
         content = report.generate()
         
         if not content:
