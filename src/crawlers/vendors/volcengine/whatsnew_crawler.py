@@ -8,7 +8,7 @@
 import logging
 import re
 import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -311,30 +311,28 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
                     if not title or len(title) < 2 or title in ['功能', '功能模块', '功能名称']:
                         continue
                     
-                    # 提取相关文档链接（最后一列）
-                    doc_links = []
-                    if len(cells) > 3:
-                        last_cell = cells[-1]
-                        links = last_cell.find_all('a', href=True)
-                        for link in links:
-                            href = link.get('href', '')
-                            if href:
-                                if href.startswith('/'):
-                                    full_url = urljoin('https://www.volcengine.com', href)
-                                elif href.startswith('http'):
-                                    full_url = href
-                                else:
-                                    full_url = urljoin(url, href)
-                                
-                                doc_links.append({
-                                    'text': link.get_text(strip=True),
-                                    'url': full_url
-                                })
+                    # 优先取“文档”列链接；为空时回退到整行链接，避免漏抓
+                    doc_links = self._extract_doc_links(cells, row, url)
+                    if not doc_links:
+                        # 保底：至少保留产品文档页链接
+                        doc_links = [{'text': '产品文档', 'url': url}]
+
+                    content_parts = [description] if description else []
+                    if doc_links:
+                        content_parts.append("")
+                        content_parts.append("相关文档：")
+                        for doc_link in doc_links:
+                            link_text = doc_link.get('text', '').strip() or '文档链接'
+                            link_url = doc_link.get('url', '').strip()
+                            if link_url:
+                                content_parts.append(f"- [{link_text}]({link_url})")
+                    content = "\n".join(content_parts).strip()
                     
                     # 构建更新条目
                     update = {
                         'title': title,
                         'description': description,
+                        'content': content,
                         'publish_date': publish_date,
                         'product_name': product_name,
                         'source_url': url,
@@ -352,6 +350,41 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
             logger.error(f"解析表格时出错: {e}")
         
         return updates
+
+    def _extract_doc_links(self, cells: List, row, page_url: str) -> List[Dict[str, str]]:
+        """提取文档链接，优先最后一列，兜底整行。"""
+        link_tags = []
+        if len(cells) > 3:
+            link_tags.extend(cells[-1].find_all('a', href=True))
+        if not link_tags:
+            link_tags.extend(row.find_all('a', href=True))
+
+        doc_links: List[Dict[str, str]] = []
+        seen_urls = set()
+        for link in link_tags:
+            full_url = self._normalize_doc_url(link.get('href', ''), page_url)
+            if not full_url or full_url in seen_urls:
+                continue
+            seen_urls.add(full_url)
+            text = link.get_text(strip=True) or '文档链接'
+            doc_links.append({'text': text, 'url': full_url})
+        return doc_links
+
+    def _normalize_doc_url(self, href: str, page_url: str) -> Optional[str]:
+        """规范化链接并过滤无效 href。"""
+        href = (href or '').strip()
+        if not href:
+            return None
+        lowered = href.lower()
+        if lowered.startswith(('javascript:', '#', 'mailto:')):
+            return None
+        if href.startswith('//'):
+            return f"https:{href}"
+        if href.startswith('/'):
+            return urljoin('https://www.volcengine.com', href)
+        if href.startswith('http://') or href.startswith('https://'):
+            return href
+        return urljoin(page_url, href)
     
     def _parse_date(self, date_text: str) -> str:
         """
