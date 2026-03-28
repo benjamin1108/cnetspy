@@ -166,7 +166,7 @@ class UpdateService:
             try:
                 result['publish_date'] = datetime.strptime(result['publish_date'], '%Y-%m-%d').date()
             except ValueError:
-                pass  # 保留原始字符串
+                result['publish_date'] = None
         
         # 4. 过滤掉前端不需要的内部字段
         internal_fields = ['source_identifier', 'file_hash', 'metadata_json', 'priority']

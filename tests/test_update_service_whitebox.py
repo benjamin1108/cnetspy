@@ -86,7 +86,7 @@ class TestUpdateServiceWhiteBox:
 
         assert result["tags"] == ["VPC", "网络"]
         assert result["has_analysis"] is True
-        assert result["publish_date"] == "bad-date"
+        assert result["publish_date"] is None
         assert result["content"] == "full content"
         assert result["content_summary"] == "summary"
 
@@ -136,4 +136,3 @@ class TestUpdateServiceWhiteBox:
     def test_get_update_detail_returns_none_when_record_missing(self):
         service = UpdateService(StubDB(detail=None))
         assert service.get_update_detail("missing-id") is None
-

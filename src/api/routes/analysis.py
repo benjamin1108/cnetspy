@@ -4,7 +4,7 @@
 AI分析接口
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from typing import Optional
 import logging
 from src.storage.database.sqlite_layer import UpdateDataLayer
@@ -146,8 +146,8 @@ async def get_task_status(
 
 @router.get("/tasks", response_model=ApiResponse[PaginatedResponse[AnalysisTaskDetail]])
 async def list_analysis_tasks(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = None,
     db: UpdateDataLayer = Depends(get_db)
 ):

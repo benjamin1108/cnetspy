@@ -34,7 +34,7 @@ class UpdateBrief(BaseModel):
     title_translated: Optional[str] = None
     description: Optional[str] = None
     content_summary: Optional[str] = None
-    publish_date: date
+    publish_date: Optional[date] = None
     crawl_time: Optional[str] = None
     product_name: Optional[str] = None
     product_category: Optional[str] = None
@@ -47,6 +47,8 @@ class UpdateBrief(BaseModel):
     @classmethod
     def parse_publish_date(cls, v):
         """兼容数据库TEXT类型日期"""
+        if v in (None, ""):
+            return None
         if isinstance(v, str):
             from datetime import datetime
             return datetime.strptime(v, '%Y-%m-%d').date()
