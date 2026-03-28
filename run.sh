@@ -82,6 +82,7 @@ show_help() {
     echo -e "  --quick           快速测试（默认，跳过慢速测试）"
     echo -e "  --full            完整测试（包含所有测试用例）"
     echo -e "  --coverage        覆盖率测试（生成覆盖率报告）"
+    echo -e "  --api             API 相关测试（路由 + 服务 + 应用层）"
     echo -e "  --modules         模块导入测试"
     echo -e "  --database        数据库操作测试"
     echo ""
@@ -491,6 +492,10 @@ do_test() {
                 MODE="coverage"
                 shift
                 ;;
+            --api)
+                MODE="api"
+                shift
+                ;;
             --modules)
                 MODE="modules"
                 shift
@@ -504,6 +509,7 @@ do_test() {
                 echo -e "  --quick           快速测试（默认，跳过慢速测试）"
                 echo -e "  --full            完整测试（包含所有测试用例）"
                 echo -e "  --coverage        覆盖率测试（生成覆盖率报告）"
+                echo -e "  --api             API 相关测试（路由 + 服务 + 应用层）"
                 echo -e "  --modules         模块导入测试"
                 echo -e "  --database        数据库操作测试"
                 exit 0
@@ -517,7 +523,34 @@ do_test() {
     done
     
     echo -e "${GREEN}运行测试 (${MODE})...${NC}"
-    $PYTHON tests/run_tests.py --${MODE}
+
+    case "$MODE" in
+        quick|full|modules|database)
+            "$PYTHON" tests/run_tests.py --${MODE}
+            ;;
+        coverage)
+            "$PYTHON" -m pytest tests \
+                --ignore=tests/run_tests.py \
+                --cov=src/api \
+                --cov-report=term-missing \
+                -q
+            ;;
+        api)
+            "$PYTHON" -m pytest \
+                tests/test_api_routes.py \
+                tests/test_api_routes_blackbox_extended.py \
+                tests/test_api_routes_remaining_blackbox.py \
+                tests/test_api_app_whitebox.py \
+                tests/test_update_service_whitebox.py \
+                tests/test_analysis_service_whitebox.py \
+                tests/test_time_utils.py \
+                -q
+            ;;
+        *)
+            echo -e "${RED}错误: 不支持的测试模式: ${MODE}${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # 启动 MCP Server

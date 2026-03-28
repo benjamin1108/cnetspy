@@ -71,10 +71,10 @@ vim .env
 
 ```bash
 # 全量测试
-./venv/bin/pytest tests --ignore=tests/run_tests.py -q
+./run.sh test --full
 
 # 查看 API 覆盖率
-./venv/bin/pytest tests --ignore=tests/run_tests.py --cov=src/api --cov-report=term-missing -q
+./run.sh test --coverage
 ```
 
 ---
@@ -143,18 +143,21 @@ vim .env
 
 ```bash
 # 1) 全量后端测试
-./venv/bin/pytest tests --ignore=tests/run_tests.py -q
+./run.sh test --full
 
-# 2) API 覆盖率
-./venv/bin/pytest tests --ignore=tests/run_tests.py --cov=src/api --cov-report=term-missing -q
+# 2) API 重点回归
+./run.sh test --api
 
-# 3) 使用项目内置测试运行器
-./venv/bin/python tests/run_tests.py --quick
-./venv/bin/python tests/run_tests.py --full
-./venv/bin/python tests/run_tests.py --coverage
+# 3) API 覆盖率
+./run.sh test --coverage
+
+# 4) 常用模式
+./run.sh test --quick
+./run.sh test --modules
+./run.sh test --database
 ```
 
-只运行新增的白盒 / 黑盒核心测试：
+如果你需要直接调用 pytest，也可以继续使用：
 
 ```bash
 ./venv/bin/pytest \
@@ -176,9 +179,10 @@ vim .env
 - `src/api` 覆盖率约 `89%`。
 
 推荐执行策略：
-- 日常开发：`tests/run_tests.py --quick`
-- 合并前回归：全量 `pytest`
-- 版本发布前：全量 `pytest` + `--cov=src/api`
+- 日常开发：`./run.sh test --quick`
+- 接口改动后：`./run.sh test --api`
+- 合并前回归：`./run.sh test --full`
+- 版本发布前：`./run.sh test --full` + `./run.sh test --coverage`
 
 ---
 
