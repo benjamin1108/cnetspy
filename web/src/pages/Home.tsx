@@ -15,7 +15,7 @@ import {
   SOURCE_CHANNEL_LABELS,
 } from '@/types';
 import type { UpdateBrief } from '@/types';
-import { Radar, ChevronRight, Loader2 } from 'lucide-react';
+import { Clock3, Radar, ChevronRight, Loader2 } from 'lucide-react';
 import { differenceInCalendarDays, format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { SEO } from '@/components/SEO';
@@ -204,6 +204,7 @@ function DailyBrief({ updates, stats }: { updates: UpdateBrief[]; stats?: { tota
 export function HomePage() {
   // 厂商筛选状态
   const [selectedVendor, setSelectedVendor] = useState<string>('');
+  const [showBackfill, setShowBackfill] = useState(true);
   
   // 获取厂商列表
   const { data: vendorsData } = useVendors();
@@ -232,12 +233,17 @@ export function HomePage() {
     if (!data?.pages) return [];
     return data.pages.flatMap(page => page.data?.items || []);
   }, [data]);
+
+  const visibleUpdates = useMemo(() => {
+    if (showBackfill) return updates;
+    return updates.filter((update) => !isBackfillUpdate(update));
+  }, [updates, showBackfill]);
   
   // 按日期分组
   const groupedUpdates = useMemo(() => {
     const groups: Record<string, UpdateBrief[]> = {};
     
-    updates.forEach(update => {
+    visibleUpdates.forEach(update => {
       const dateKey = getTimelineDate(update).split('T')[0];
       if (!groups[dateKey]) {
         groups[dateKey] = [];
@@ -247,13 +253,13 @@ export function HomePage() {
     
     // 按日期倒序排列
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [updates]);
+  }, [visibleUpdates]);
   
   // 今日更新
   const todayUpdates = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return updates.filter(u => getTimelineDate(u).startsWith(today));
-  }, [updates]);
+    return visibleUpdates.filter(u => getTimelineDate(u).startsWith(today));
+  }, [visibleUpdates]);
 
   if (error) {
     return (
@@ -314,6 +320,19 @@ export function HomePage() {
             {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
           </button>
         ))}
+        <button
+          onClick={() => setShowBackfill((prev) => !prev)}
+          className={cn(
+            'px-3 py-1.5 text-xs border rounded transition font-medium inline-flex items-center gap-1.5',
+            showBackfill
+              ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm hover:bg-amber-100'
+              : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-primary/50'
+          )}
+          title={showBackfill ? '点击隐藏往期补全项目' : '点击显示往期补全项目'}
+        >
+          <Clock3 className="h-3.5 w-3.5" />
+          往期补全
+        </button>
       </PageHeader>
 
       {/* 今日摘要 */}
@@ -324,10 +343,10 @@ export function HomePage() {
       {/* 时间流主体 */}
       {isLoading ? (
         <Loading message="加载更新流..." />
-      ) : updates.length === 0 ? (
+      ) : visibleUpdates.length === 0 ? (
         <EmptyState
           title="暂无更新"
-          description="暂时没有任何更新记录"
+          description={showBackfill ? '暂时没有任何更新记录' : '隐藏往期补全后暂无可见记录'}
         />
       ) : (
         <div className="timeline-container pl-2">
