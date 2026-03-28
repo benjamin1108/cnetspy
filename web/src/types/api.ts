@@ -35,6 +35,7 @@ export interface UpdateBrief {
   description: string | null;
   content_summary: string | null;
   publish_date: string;
+  crawl_time: string | null;
   product_name: string | null;
   product_category: string | null;
   product_subcategory: string | null;

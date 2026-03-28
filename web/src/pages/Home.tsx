@@ -16,9 +16,25 @@ import {
 } from '@/types';
 import type { UpdateBrief } from '@/types';
 import { Radar, ChevronRight, Loader2 } from 'lucide-react';
-import { format, isToday, isYesterday, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { SEO } from '@/components/SEO';
+
+function getTimelineDate(update: UpdateBrief): string {
+  return update.crawl_time || update.publish_date;
+}
+
+function isBackfillUpdate(update: UpdateBrief): boolean {
+  if (!update.crawl_time || !update.publish_date) return false;
+
+  try {
+    const crawlDate = parseISO(update.crawl_time);
+    const publishDate = parseISO(update.publish_date);
+    return differenceInCalendarDays(crawlDate, publishDate) >= 7;
+  } catch {
+    return false;
+  }
+}
 
 // 格式化日期分组标签
 function formatDateGroup(dateStr: string): string {
@@ -37,6 +53,7 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
   const vendorColor = getVendorColor(update.vendor);
   const typeMeta = getUpdateTypeMeta(update.update_type);
   const TypeIcon = typeMeta.icon;
+  const backfill = isBackfillUpdate(update);
   
   return (
     <div className="timeline-card group">
@@ -80,6 +97,16 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
           
           {/* 标签行 */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground/70">
+              发布于 {update.publish_date}
+            </span>
+
+            {backfill && (
+              <span className="text-[10px] px-2 py-0.5 rounded font-medium border border-amber-200 bg-amber-50 text-amber-700">
+                往期补全
+              </span>
+            )}
+
             {/* 厂商名称 */}
             <span 
               className="text-[10px] px-2 py-0.5 rounded font-medium border border-border/50 bg-muted/30"
@@ -192,7 +219,7 @@ export function HomePage() {
     isFetchingNextPage,
   } = useInfiniteUpdates({ 
     page_size: 30, 
-    sort_by: 'publish_date', 
+    sort_by: 'crawl_time', 
     order: 'desc',
     vendor: selectedVendor || undefined,
   });
@@ -211,7 +238,7 @@ export function HomePage() {
     const groups: Record<string, UpdateBrief[]> = {};
     
     updates.forEach(update => {
-      const dateKey = update.publish_date.split('T')[0];
+      const dateKey = getTimelineDate(update).split('T')[0];
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -225,7 +252,7 @@ export function HomePage() {
   // 今日更新
   const todayUpdates = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return updates.filter(u => u.publish_date.startsWith(today));
+    return updates.filter(u => getTimelineDate(u).startsWith(today));
   }, [updates]);
 
   if (error) {

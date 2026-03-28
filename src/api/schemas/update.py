@@ -35,6 +35,7 @@ class UpdateBrief(BaseModel):
     description: Optional[str] = None
     content_summary: Optional[str] = None
     publish_date: date
+    crawl_time: Optional[str] = None
     product_name: Optional[str] = None
     product_category: Optional[str] = None
     product_subcategory: Optional[str] = None
