@@ -21,6 +21,7 @@ CNetSpy 是一个全栈式竞争情报系统，旨在自动化监控全球主流
 *   **🖥️ Web 可视化**: 基于 React + Tailwind CSS 的现代化仪表盘，支持多维筛选、时间线浏览和趋势分析。
 *   **🤖 MCP Server 集成**: 提供 MCP 协议接口，可直接作为 Claude Desktop 或 Cursor 的上下文工具使用，实现对话式数据查询。
 *   **⏰ 自动化调度**: 内置调度器，支持每日自动爬取、分析及生成周报/月报。
+*   **🧪 完整测试体系**: 已覆盖白盒测试、黑盒 API 测试、数据层测试、配置测试、模块集成测试与覆盖率统计。
 
 ---
 
@@ -64,6 +65,17 @@ vim .env
 启动后访问：
 - **Web UI**: http://localhost:5173 (Dev) 或 http://localhost:3000 (Prod)
 - **API Docs**: http://localhost:8088/docs
+
+### 4. 运行测试
+建议在提交前至少执行一次完整后端回归：
+
+```bash
+# 全量测试
+./venv/bin/pytest tests --ignore=tests/run_tests.py -q
+
+# 查看 API 覆盖率
+./venv/bin/pytest tests --ignore=tests/run_tests.py --cov=src/api --cov-report=term-missing -q
+```
 
 ---
 
@@ -126,6 +138,48 @@ vim .env
 ./run.sh mcp
 ```
 
+### 🧪 测试 (Testing)
+项目当前测试重点覆盖后端核心链路，适合日常回归、发布前验证和问题复现。
+
+```bash
+# 1) 全量后端测试
+./venv/bin/pytest tests --ignore=tests/run_tests.py -q
+
+# 2) API 覆盖率
+./venv/bin/pytest tests --ignore=tests/run_tests.py --cov=src/api --cov-report=term-missing -q
+
+# 3) 使用项目内置测试运行器
+./venv/bin/python tests/run_tests.py --quick
+./venv/bin/python tests/run_tests.py --full
+./venv/bin/python tests/run_tests.py --coverage
+```
+
+只运行新增的白盒 / 黑盒核心测试：
+
+```bash
+./venv/bin/pytest \
+  tests/test_update_service_whitebox.py \
+  tests/test_api_app_whitebox.py \
+  tests/test_api_routes_blackbox_extended.py \
+  tests/test_analysis_service_whitebox.py \
+  tests/test_api_routes_remaining_blackbox.py -q
+```
+
+按测试层次理解：
+- 白盒测试：直接验证服务层、配置校验、应用启动逻辑、异常处理分支。
+- 黑盒测试：通过 FastAPI `TestClient` 验证 API 输入输出、错误码和响应结构。
+- 数据层测试：验证 SQLite 门面、Repository、CRUD、任务状态与质量跟踪。
+- 集成测试：验证模块导入、关键模块协同、时间工具、Prompt 模板和配置加载。
+
+当前后端测试规模：
+- `329` 个用例全部通过。
+- `src/api` 覆盖率约 `89%`。
+
+推荐执行策略：
+- 日常开发：`tests/run_tests.py --quick`
+- 合并前回归：全量 `pytest`
+- 版本发布前：全量 `pytest` + `--cov=src/api`
+
 ---
 
 ## 📂 项目结构
@@ -143,9 +197,68 @@ cnetspy/
 │   ├── crawlers/       # 各厂商爬虫实现
 │   ├── mcp/            # MCP Server 实现
 │   └── storage/        # 数据库与文件存储层
+├── tests/              # pytest 测试套件（白盒、黑盒、数据层、集成测试）
 ├── web/                # 前端源码 (React)
 └── run.sh              # 项目主控脚本
 ```
+
+测试目录示例：
+
+```text
+tests/
+├── test_api_routes.py                    # 基础 API 黑盒测试
+├── test_api_routes_blackbox_extended.py  # 扩展 API 黑盒测试
+├── test_api_routes_remaining_blackbox.py # analysis/chat/reports 路由测试
+├── test_api_app_whitebox.py              # 应用初始化 / 错误处理 / 依赖注入
+├── test_update_service_whitebox.py       # 更新服务白盒测试
+├── test_analysis_service_whitebox.py     # 分析服务白盒测试
+├── test_database_crud.py                 # 数据层 CRUD
+├── test_task_management.py               # 任务状态与进度
+├── test_quality_tracking.py              # 数据质量跟踪
+└── run_tests.py                          # 项目内置测试运行器
+```
+
+## 🧱 测试设计说明
+
+### 白盒测试范围
+- `src/api/app.py`
+- `src/api/dependencies.py`
+- `src/api/middleware/error_handler.py`
+- `src/api/services/update_service.py`
+- `src/api/services/analysis_service.py`
+
+覆盖内容包括：
+- 配置缺失与启动失败分支
+- 调度器启停分支
+- 时间与字段转换逻辑
+- 任务进度解析
+- 翻译流程异常处理
+- 全局异常处理器返回结构
+
+### 黑盒测试范围
+- `/`
+- `/health`
+- `/api/v1/updates`
+- `/api/v1/updates/{id}`
+- `/api/v1/updates/{id}/raw`
+- `/api/v1/stats/*`
+- `/api/v1/vendors/*`
+- `/api/v1/analysis/*`
+- `/api/v1/reports/*`
+- `/api/v1/chat/*`
+
+覆盖内容包括：
+- 正常查询
+- 参数过滤
+- 资源不存在
+- 内容为空
+- 服务层失败
+- 返回结构与字段兼容性
+
+### 当前仍需注意
+- 前端 `web/` 目前尚未建立同等完整的可执行测试框架，当前测试重点在后端。
+- `chat` 路由的部分真实第三方 SDK 初始化分支仍以 mock 为主，不建议把外部模型调用纳入单元测试。
+- 如果后续新增 API 路由，建议同步补充黑盒测试和覆盖率门槛。
 
 ## 📅 定时任务
 系统内置调度器，默认配置如下（可在 `config/scheduler.yaml` 中修改）：
