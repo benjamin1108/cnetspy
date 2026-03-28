@@ -118,7 +118,7 @@ html {
   --chat-header-bg: 214 40% 96%;
   --chat-header-icon-bg: 217 91% 60%;
   --chat-header-icon-fg: 0 0% 100%;
-  --chat-bubble-user-bg: 217 91% 60%;
+  --chat-bubble-user-bg: 217 78% 46%;
   --chat-bubble-user-fg: 0 0% 100%;
   --chat-bubble-ai-bg: 214 32% 93%;
   --chat-bubble-ai-fg: 217 33% 17%;
@@ -199,8 +199,8 @@ html {
   --chat-header-bg: 222 47% 12%;
   --chat-header-icon-bg: 192 91% 55%;
   --chat-header-icon-fg: 222 47% 6%;
-  --chat-bubble-user-bg: 192 91% 45%;
-  --chat-bubble-user-fg: 222 47% 6%;
+  --chat-bubble-user-bg: 192 92% 38%;
+  --chat-bubble-user-fg: 0 0% 100%;
   --chat-bubble-ai-bg: 217 33% 18%;
   --chat-bubble-ai-fg: 199 89% 94%;
   --chat-avatar-ai-bg: 192 50% 15%;
@@ -405,22 +405,12 @@ body {
 .ai-summary-content {
   font-size: 0.875rem;
   line-height: 1.6;
-  color: hsl(var(--muted-foreground));
+  color: inherit;
 }
 
 .ai-summary-content p {
   margin: 0.5em 0;
-  color: hsl(var(--muted-foreground));
-}
-
-.dark .ai-summary-content p,
-.dark .ai-summary-content li,
-.dark .ai-summary-content strong {
-  color: hsl(var(--muted-foreground));
-}
-
-.dark .ai-summary-content strong {
-  color: hsl(var(--foreground));
+  color: inherit;
 }
 
 .ai-summary-content h1,
@@ -430,7 +420,7 @@ body {
   font-weight: 600;
   margin-top: 1em;
   margin-bottom: 0.4em;
-  color: hsl(var(--foreground));
+  color: inherit;
 }
 
 .ai-summary-content ul,
@@ -441,20 +431,22 @@ body {
 
 .ai-summary-content li {
   margin: 0.2em 0;
+  color: inherit;
 }
 
 .ai-summary-content strong {
   font-weight: 600;
-  color: hsl(var(--foreground));
+  color: inherit;
 }
 
 .ai-summary-content a {
-  color: hsl(var(--primary));
+  color: inherit;
   text-decoration: underline;
+  text-underline-offset: 0.16em;
 }
 
 .ai-summary-content a:hover {
-  opacity: 0.8;
+  opacity: 0.88;
 }
 
 .ai-summary-content code {
@@ -469,7 +461,52 @@ body {
   border-left: 3px solid hsl(var(--ai-accent));
   padding-left: 1em;
   margin: 1em 0;
-  color: hsl(var(--muted-foreground));
+  color: inherit;
+}
+
+.chat-bubble-user .ai-summary-content,
+.chat-bubble-user .ai-summary-content p,
+.chat-bubble-user .ai-summary-content li,
+.chat-bubble-user .ai-summary-content strong,
+.chat-bubble-user .ai-summary-content h1,
+.chat-bubble-user .ai-summary-content h2,
+.chat-bubble-user .ai-summary-content h3,
+.chat-bubble-user .ai-summary-content h4,
+.chat-bubble-user .ai-summary-content blockquote {
+  color: inherit;
+}
+
+.chat-bubble-user .ai-summary-content a {
+  color: inherit;
+}
+
+.chat-bubble-user .ai-summary-content code {
+  background: hsl(0 0% 100% / 0.18);
+  color: inherit;
+}
+
+.chat-bubble-user .ai-summary-content blockquote {
+  border-left-color: hsl(0 0% 100% / 0.55);
+}
+
+.chat-bubble-assistant .ai-summary-content,
+.chat-bubble-assistant .ai-summary-content p,
+.chat-bubble-assistant .ai-summary-content li,
+.chat-bubble-assistant .ai-summary-content strong,
+.chat-bubble-assistant .ai-summary-content h1,
+.chat-bubble-assistant .ai-summary-content h2,
+.chat-bubble-assistant .ai-summary-content h3,
+.chat-bubble-assistant .ai-summary-content h4,
+.chat-bubble-assistant .ai-summary-content blockquote {
+  color: inherit;
+}
+
+.chat-bubble-assistant .ai-summary-content a {
+  color: hsl(var(--primary));
+}
+
+.chat-bubble-assistant .ai-summary-content code {
+  background: hsl(var(--foreground) / 0.08);
 }
 
 /* 科技感增强样式 */
@@ -717,9 +754,10 @@ body {
 .chat-bubble-user {
   background: linear-gradient(135deg,
     hsl(var(--chat-bubble-user-bg)),
-    hsl(var(--primary))
+    hsl(var(--chat-bubble-user-bg) / 0.92)
   );
   color: hsl(var(--chat-bubble-user-fg));
+  text-shadow: 0 1px 1px hsl(0 0% 0% / 0.12);
 }
 
 /* AI气泡 */

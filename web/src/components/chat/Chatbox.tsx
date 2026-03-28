@@ -26,6 +26,31 @@ import type { ChatMessage, ToolResult } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+const markdownComponents = {
+  p: ({ children }: any) => <p style={{ color: 'inherit', margin: '0.5em 0' }}>{children}</p>,
+  li: ({ children }: any) => <li style={{ color: 'inherit' }}>{children}</li>,
+  strong: ({ children }: any) => <strong style={{ color: 'inherit' }}>{children}</strong>,
+  h1: ({ children }: any) => <h1 style={{ color: 'inherit' }}>{children}</h1>,
+  h2: ({ children }: any) => <h2 style={{ color: 'inherit' }}>{children}</h2>,
+  h3: ({ children }: any) => <h3 style={{ color: 'inherit' }}>{children}</h3>,
+  h4: ({ children }: any) => <h4 style={{ color: 'inherit' }}>{children}</h4>,
+  a: ({ children, href }: any) => (
+    <a href={href} style={{ color: 'inherit', textDecoration: 'underline' }}>
+      {children}
+    </a>
+  ),
+  blockquote: ({ children }: any) => (
+    <blockquote style={{ color: 'inherit', borderLeft: '3px solid currentColor', paddingLeft: '1em', margin: '1em 0' }}>
+      {children}
+    </blockquote>
+  ),
+  code: ({ children }: any) => (
+    <code style={{ color: 'inherit', background: 'rgba(255,255,255,0.14)', padding: '0.2em 0.4em', borderRadius: '0.25rem' }}>
+      {children}
+    </code>
+  ),
+};
+
 // 消息气泡组件
 function MessageBubble({ message }: { message: ChatMessage }) {
   const [toolsExpanded, setToolsExpanded] = useState(false);
@@ -55,6 +80,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             'rounded-2xl px-4 py-2',
             isUser ? 'chat-bubble-user' : 'chat-bubble-assistant'
           )}
+          style={{
+            color: isUser ? 'hsl(var(--chat-bubble-user-fg))' : 'hsl(var(--chat-bubble-ai-fg))',
+          }}
         >
           {message.isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -62,8 +90,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <span className="text-sm">思考中...</span>
             </div>
           ) : (
-            <div className="ai-summary-content text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <div className={cn('ai-summary-content text-sm', isUser ? 'chat-message-user' : 'chat-message-assistant')}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {typeof message.content === 'string'
                   ? message.content
                   : `\`\`\`json\n${JSON.stringify(message.content, null, 2)}\n\`\`\``

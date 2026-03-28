@@ -239,21 +239,6 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
       dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
 
       try {
-        // 构建工具列表
-        const tools = state.availableTools;
-        const toolsList = tools.map(t => {
-          const params = t.inputSchema?.properties 
-            ? Object.entries(t.inputSchema.properties).map(([k, v]: [string, any]) => `${k}: ${v.description || v.type}`).join(', ')
-            : '';
-          return `- ${t.name}(${params}): ${t.description}`;
-        }).join('\n');
-        
-        // 使用配置的工具描述模板
-        const toolsDescTemplate = promptsRef.current?.tools_description_template || '';
-        const toolsDescription = tools.length > 0 && toolsDescTemplate
-          ? toolsDescTemplate.replace(/\$\{toolsList\}/g, toolsList)
-          : '';
-
         // 构建系统提示（从配置模板生成）
         const now = new Date();
         const currentDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -262,7 +247,7 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
         const promptTemplate = promptsRef.current?.system_prompt || '你是 CloudNetSpy 的 AI 助手。';
         const systemPrompt = promptTemplate
           .replace(/\$\{currentDate\}/g, currentDate)
-          .replace(/\$\{toolsDescription\}/g, toolsDescription);
+          .replace(/\$\{toolsDescription\}/g, '');
 
         // 调用后端 AI 接口
         const requestBody = {
@@ -295,112 +280,26 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
         if (data.choices?.[0]?.message) {
           const aiMessage = data.choices[0].message;
           const responseText = aiMessage.content || '';
-          
-          // 解析 JSON 格式的工具调用
-          const jsonMatch = responseText.match(/```json\s*\n?([\s\S]*?)\n?```/);
-          
-          if (jsonMatch && mcpClientRef.current?.isConnected()) {
-            try {
-              const toolCallData = JSON.parse(jsonMatch[1]);
-              const toolName = toolCallData.tool;
-              const toolParams = toolCallData.params || {};
-              
-              // 显示 AI 的回复（去掉 JSON 部分）
-              const displayText = responseText.replace(/```json[\s\S]*?```/g, '').trim();
-              
-              dispatch({
-                type: 'UPDATE_MESSAGE',
-                payload: {
-                  id: assistantMessageId,
-                  updates: {
-                    content: displayText || `正在调用 ${toolName}...`,
-                    isLoading: true,
-                  },
-                },
-              });
-              
-              // 通过 MCP 执行工具调用
-              const toolCall: ToolCall = {
-                id: `call_${Date.now()}`,
-                name: toolName,
-                arguments: toolParams,
-              };
-              
-              const result = await callTool(toolCall);
-              
-              dispatch({
-                type: 'ADD_TOOL_RESULT',
-                payload: { messageId: assistantMessageId, result },
-              });
-              
-              // 将结果发送给 AI 生成最终回复
-              const summaryPrompt = promptsRef.current?.summary_prompt || '请根据工具返回的数据，用中文用户友好的方式总结和展示结果。';
-              const summaryResponse = await fetch(`${API_BASE}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  messages: [
-                    {
-                      role: 'system',
-                      content: summaryPrompt,
-                    },
-                    { role: 'user', content: `用户问题: ${content}\n\n工具 ${toolName} 返回的数据:\n${typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2)}` },
-                  ],
-                }),
-              });
-              
-              if (summaryResponse.ok) {
-                const summaryData = await summaryResponse.json();
-                const summaryText = summaryData.choices?.[0]?.message?.content || '数据已获取，请查看上方工具结果。';
-                
-                dispatch({
-                  type: 'UPDATE_MESSAGE',
-                  payload: {
-                    id: assistantMessageId,
-                    updates: {
-                      content: summaryText,
-                      isLoading: false,
-                    },
-                  },
-                });
-              } else {
-                dispatch({
-                  type: 'UPDATE_MESSAGE',
-                  payload: {
-                    id: assistantMessageId,
-                    updates: {
-                      content: '数据已获取，请查看上方工具结果。',
-                      isLoading: false,
-                    },
-                  },
-                });
-              }
-            } catch (parseError) {
-              // JSON 解析失败，显示原始回复
-              dispatch({
-                type: 'UPDATE_MESSAGE',
-                payload: {
-                  id: assistantMessageId,
-                  updates: {
-                    content: responseText,
-                    isLoading: false,
-                  },
-                },
-              });
-            }
-          } else {
-            // 没有工具调用，直接显示回复
-            dispatch({
-              type: 'UPDATE_MESSAGE',
-              payload: {
-                id: assistantMessageId,
-                updates: {
-                  content: responseText || '抱歉，我无法处理您的请求。',
-                  isLoading: false,
-                },
+          const toolResults = Array.isArray(aiMessage.tool_results)
+            ? aiMessage.tool_results.map((result: Record<string, unknown>) => ({
+                callId: String(result.call_id || ''),
+                name: String(result.name || ''),
+                result: result.result,
+                isError: Boolean(result.is_error),
+              }))
+            : [];
+
+          dispatch({
+            type: 'UPDATE_MESSAGE',
+            payload: {
+              id: assistantMessageId,
+              updates: {
+                content: responseText || '抱歉，我无法处理您的请求。',
+                toolResults,
+                isLoading: false,
               },
-            });
-          }
+            },
+          });
         }
       } catch (error) {
         dispatch({
@@ -417,7 +316,7 @@ export function ChatProvider({ children, config: userConfig }: ChatProviderProps
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
-    [state.messages, state.availableTools, callTool]
+    [state.messages]
   );
 
   // 清空消息

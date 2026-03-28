@@ -8,6 +8,7 @@ import json
 import os
 import sys
 from types import SimpleNamespace
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -229,6 +230,33 @@ class TestReportsRoutesBlackBox:
 
 
 class TestChatRoutesBlackBox:
+    def test_build_heuristic_plan_generalizes_month_only_highlights_query(self, monkeypatch):
+        from src.api.routes import chat as chat_module
+
+        monkeypatch.setattr(chat_module, "_today", lambda: date(2026, 3, 28))
+        plan = chat_module._build_heuristic_plan(
+            [chat_module.ChatMessage(role="user", content="3月份有哪些重点更新")]
+        )
+
+        assert plan.tool_name == "search_updates"
+        assert plan.arguments["date_from"] == "2026-03-01"
+        assert plan.arguments["date_to"] == "2026-03-28"
+        assert "keyword" not in plan.arguments
+        assert plan.arguments["limit"] == 30
+
+    def test_build_heuristic_plan_generalizes_relative_quarter_query(self, monkeypatch):
+        from src.api.routes import chat as chat_module
+
+        monkeypatch.setattr(chat_module, "_today", lambda: date(2026, 3, 28))
+        plan = chat_module._build_heuristic_plan(
+            [chat_module.ChatMessage(role="user", content="上季度 AWS 和 Azure 谁更活跃")]
+        )
+
+        assert plan.tool_name == "compare_vendors"
+        assert plan.arguments["vendors"] == ["aws", "azure"]
+        assert plan.arguments["date_from"] == "2025-10-01"
+        assert plan.arguments["date_to"] == "2025-12-31"
+
     def test_get_prompts_returns_default_on_error(self, simple_client, monkeypatch):
         monkeypatch.setattr(
             "src.api.routes.chat.get_config",
@@ -333,3 +361,86 @@ class TestChatRoutesBlackBox:
         body = response.json()
         assert body["model"] == "gemini-test"
         assert body["choices"][0]["message"]["content"] == "你好，已收到。"
+
+    def test_chat_completions_executes_tool_plan_and_returns_tool_results(self, simple_client, monkeypatch):
+        class ConfigType:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class Client:
+            class models:
+                @staticmethod
+                def generate_content(**kwargs):
+                    return SimpleNamespace(text="这是基于工具结果的总结。")
+
+        monkeypatch.setattr("src.api.routes.chat.types", SimpleNamespace(GenerateContentConfig=ConfigType))
+        monkeypatch.setattr(
+            "src.api.routes.chat.get_gemini_client",
+            lambda: (Client(), {"model_name": "gemini-test"}),
+        )
+        monkeypatch.setattr(
+            "src.api.routes.chat._build_heuristic_plan",
+            lambda messages: SimpleNamespace(
+                should_call_tool=True,
+                tool_name="search_updates",
+                arguments={"vendor": "aws", "keyword": "vpc"},
+            ),
+        )
+        monkeypatch.setattr(
+            "src.api.routes.chat._plan_tool_with_model",
+            lambda client, model_name, messages: SimpleNamespace(
+                should_call_tool=True,
+                tool_name="search_updates",
+                arguments={"vendor": "aws", "keyword": "vpc"},
+            ),
+        )
+
+        async def fake_execute(plan):
+            return (
+                {"id": "call-1", "name": "search_updates", "arguments": {"vendor": "aws", "keyword": "vpc"}},
+                {"name": "search_updates", "result": "找到 2 条更新", "is_error": False},
+            )
+
+        monkeypatch.setattr("src.api.routes.chat._execute_tool_plan", fake_execute)
+
+        response = simple_client.post(
+            "/api/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "帮我看看 AWS 的 VPC 更新"}]},
+        )
+
+        assert response.status_code == 200
+        message = response.json()["choices"][0]["message"]
+        assert message["content"] == "这是基于工具结果的总结。"
+        assert message["tool_results"][0]["name"] == "search_updates"
+        assert message["tool_results"][0]["result"] == "找到 2 条更新"
+
+    def test_chat_completions_falls_back_to_chat_when_tool_not_needed(self, simple_client, monkeypatch):
+        class ConfigType:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class Client:
+            class models:
+                @staticmethod
+                def generate_content(**kwargs):
+                    return SimpleNamespace(text="你好，我可以帮你分析云厂商更新。")
+
+        monkeypatch.setattr("src.api.routes.chat.types", SimpleNamespace(GenerateContentConfig=ConfigType))
+        monkeypatch.setattr(
+            "src.api.routes.chat.get_gemini_client",
+            lambda: (Client(), {"model_name": "gemini-test"}),
+        )
+        monkeypatch.setattr(
+            "src.api.routes.chat._build_heuristic_plan",
+            lambda messages: SimpleNamespace(should_call_tool=False, tool_name=None, arguments={}),
+        )
+
+        response = simple_client.post(
+            "/api/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "你好"}]},
+        )
+
+        assert response.status_code == 200
+        message = response.json()["choices"][0]["message"]
+        assert message["content"] == "你好，我可以帮你分析云厂商更新。"
+        assert message["tool_results"] == []
