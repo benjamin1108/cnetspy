@@ -218,6 +218,7 @@ class AnalysisExecutor:
         """
         title = update_data.get('title', '')
         source_url = update_data.get('source_url', '')
+        source_identifier = update_data.get('source_identifier', '')
         vendor = update_data.get('vendor', '')
         raw_filepath = update_data.get('raw_filepath', '')
         
@@ -242,7 +243,8 @@ class AnalysisExecutor:
             auto_action='deleted',
             vendor=vendor,
             title=title,
-            source_url=source_url
+            source_url=source_url,
+            source_identifier=source_identifier
         )
         
         self.logger.info(f"删除[非网络内容]: {title[:50]}...")
@@ -254,7 +256,8 @@ class AnalysisExecutor:
         auto_action: str,
         vendor: str = '',
         title: str = '',
-        source_url: str = ''
+        source_url: str = '',
+        source_identifier: str = ''
     ) -> None:
         """
         记录质量问题到数据库
@@ -275,6 +278,7 @@ class AnalysisExecutor:
                 vendor=vendor,
                 title=title,
                 source_url=source_url,
+                source_identifier=source_identifier,
                 batch_id=AnalysisExecutor._current_batch_id
             )
         except Exception as e:

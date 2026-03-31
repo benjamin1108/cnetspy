@@ -168,6 +168,7 @@ class DatabaseManager:
                     vendor TEXT,
                     title TEXT,
                     source_url TEXT,
+                    source_identifier TEXT,
                     issue_type TEXT NOT NULL,
                     auto_action TEXT NOT NULL,
                     batch_id TEXT,
@@ -199,6 +200,19 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_quality_issues_auto_action 
                 ON quality_issues(auto_action, status)
             ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_quality_issues_source_identifier
+                ON quality_issues(source_identifier)
+            ''')
+
+            cursor.execute("PRAGMA table_info(quality_issues)")
+            quality_columns = {row[1] for row in cursor.fetchall()}
+            if 'source_identifier' not in quality_columns:
+                cursor.execute('ALTER TABLE quality_issues ADD COLUMN source_identifier TEXT')
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_quality_issues_source_identifier
+                    ON quality_issues(source_identifier)
+                ''')
             
             # ==================== migration_history 表 ====================
             cursor.execute('''

@@ -184,7 +184,8 @@ class AzureWhatsnewCrawler(BaseCrawler):
             # 提取产品名称（多个产品用逗号连接）
             product_name = ', '.join(products[:3]) if products else 'Azure Networking'
             
-            # Azure Updates没有独立URL，使用统一的列表页
+            # Azure Updates 没有独立详情页，保留统一列表页 URL。
+            # AI 清洗判重改由 source_identifier 控制，避免共用 URL 误伤整批数据。
             source_url = "https://azure.microsoft.com/en-us/updates/"
             
             # 生成 source_identifier（API base URL + ID hash）
