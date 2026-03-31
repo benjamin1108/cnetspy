@@ -218,6 +218,146 @@ class TestCrawlerManagerImport:
         assert hasattr(BaseCrawler, 'save_update')
 
 
+class TestCrawlerIdentifierStability:
+    """测试 source_identifier 的稳定性"""
+
+    def test_gcp_whatsnew_identifier_matches_same_description(self):
+        """同一条 GCP release note 描述不变时，应命中同一 identifier。"""
+        from src.crawlers.vendors.gcp.whatsnew_crawler import GcpWhatsnewCrawler
+
+        crawler = GcpWhatsnewCrawler(
+            config={"sources": {"gcp": {"whatsnew": {}}}},
+            vendor="gcp",
+            source_type="whatsnew",
+        )
+
+        base_update = {
+            "source_url": "https://cloud.google.com/vpc/docs/release-notes",
+            "publish_date": "2022-12-20",
+            "product_name": "VPC",
+            "update_type": "new_feature",
+            "description": "Plain text version with [doc](https://example.com/doc)",
+        }
+
+        assert (
+            crawler.generate_source_identifier(base_update)
+            == crawler.generate_source_identifier(dict(base_update))
+        )
+
+    def test_gcp_whatsnew_identifier_distinguishes_same_day_notes(self):
+        """同一天同产品的不同 GCP release note 必须保留为不同记录。"""
+        from src.crawlers.vendors.gcp.whatsnew_crawler import GcpWhatsnewCrawler
+
+        crawler = GcpWhatsnewCrawler(
+            config={"sources": {"gcp": {"whatsnew": {}}}},
+            vendor="gcp",
+            source_type="whatsnew",
+        )
+
+        base_update = {
+            "source_url": "https://cloud.google.com/service-mesh/docs/release-notes",
+            "publish_date": "2020-06-30",
+            "product_name": "Cloud Service Mesh",
+            "update_type": "fixed",
+            "description": "Security fix A for component X",
+        }
+        another_note = {
+            **base_update,
+            "description": "Security fix B for component Y",
+        }
+
+        assert (
+            crawler.generate_source_identifier(base_update)
+            != crawler.generate_source_identifier(another_note)
+        )
+
+    def test_volcengine_whatsnew_identifier_distinguishes_same_title_by_content(self):
+        """火山引擎同名同月更新若正文不同，不应再被误合并。"""
+        from src.crawlers.vendors.volcengine.whatsnew_crawler import VolcengineWhatsnewCrawler
+
+        crawler = VolcengineWhatsnewCrawler(
+            config={"sources": {"volcengine": {"whatsnew": {}}}},
+            vendor="volcengine",
+            source_type="whatsnew",
+        )
+
+        base_update = {
+            "publish_date": "2026-03-01",
+            "product_name": "中转路由器(TR)",
+            "title": "前缀列表",
+            "content": "中转路由器创建静态路由、转发策略、路由策略时，支持前缀列表，能够提高路由配置效率。",
+        }
+        another_update = {
+            **base_update,
+            "content": "中转路由器的路由条目和路由策略支持使用前缀列表进行配置。 相关文档：https://www.volcengine.com/docs/6401/1124303",
+        }
+
+        assert (
+            crawler.generate_source_identifier(base_update)
+            != crawler.generate_source_identifier(another_update)
+        )
+
+    def test_volcengine_whatsnew_merges_high_similarity_candidate(self):
+        """火山引擎同业务键且正文高度相似时，应覆盖旧记录而不是新增。"""
+        from src.crawlers.vendors.volcengine.whatsnew_crawler import VolcengineWhatsnewCrawler
+
+        crawler = VolcengineWhatsnewCrawler(
+            config={"sources": {"volcengine": {"whatsnew": {}}}},
+            vendor="volcengine",
+            source_type="whatsnew",
+        )
+        crawler._data_layer = MagicMock()
+        crawler._data_layer.find_updates_by_business_key.return_value = [
+            {
+                "update_id": "old-1",
+                "content": "中转路由器支持前缀列表配置，提升路由策略编排效率。",
+                "description": "",
+            }
+        ]
+        crawler._data_layer.update_raw_fields.return_value = True
+        crawler._export_to_file = MagicMock(return_value="/tmp/volc.md")
+        crawler.save_update = MagicMock()
+
+        update = {
+            "title": "前缀列表",
+            "description": "中转路由器支持前缀列表配置，提升路由策略编排效率。",
+            "content": "中转路由器支持前缀列表配置，提升路由策略编排效率。",
+            "publish_date": "2026-03-01",
+            "product_name": "中转路由器(TR)",
+            "source_url": "https://www.volcengine.com/docs/6979/123456",
+            "update_type": "feature",
+        }
+
+        file_path = crawler._save_update(update)
+
+        assert file_path == "/tmp/volc.md"
+        crawler._data_layer.find_updates_by_business_key.assert_called_once()
+        crawler._data_layer.update_raw_fields.assert_called_once()
+        crawler.save_update.assert_not_called()
+
+    def test_aws_whatsnew_identifier_normalizes_moved_urls(self):
+        """AWS What's New 迁移链接应归一化到同一个 identifier。"""
+        from src.crawlers.vendors.aws.whatsnew_crawler import AwsWhatsnewCrawler
+
+        crawler = AwsWhatsnewCrawler(
+            config={"sources": {"aws": {"whatsnew": {}}}},
+            vendor="aws",
+            source_type="whatsnew",
+        )
+
+        base_update = {
+            "source_url": "https://aws.amazon.com/about-aws/whats-new/2021/03/aws-global-accelerator-launches-a-new-edge-location-in-indonesia/",
+        }
+        moved_update = {
+            "source_url": "https://aws.amazon.com/about-aws/whats-new/2021/03/aws-global-accelerator-launches-a-new-edge-location-in-indonesia_msm_moved_msm_moved/",
+        }
+
+        assert (
+            crawler.generate_source_identifier(base_update)
+            == crawler.generate_source_identifier(moved_update)
+        )
+
+
 class TestVendorCrawlersImport:
     """测试厂商爬虫导入"""
     

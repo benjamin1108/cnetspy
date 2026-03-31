@@ -38,6 +38,7 @@ class QualityRepository(BaseRepository):
         vendor: Optional[str] = None,
         title: Optional[str] = None,
         source_url: Optional[str] = None,
+        source_identifier: Optional[str] = None,
         batch_id: Optional[str] = None
     ) -> bool:
         """
@@ -67,15 +68,16 @@ class QualityRepository(BaseRepository):
                     
                     cursor.execute('''
                         INSERT INTO quality_issues (
-                            update_id, vendor, title, source_url,
+                            update_id, vendor, title, source_url, source_identifier,
                             issue_type, auto_action, batch_id,
                             detected_at, status, resolved_at, resolution
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         update_id,
                         vendor,
                         title,
                         source_url,
+                        source_identifier,
                         issue_type,
                         auto_action,
                         batch_id,
@@ -432,7 +434,8 @@ class QualityRepository(BaseRepository):
     
     def check_cleaned_by_ai(
         self,
-        source_url: str
+        source_url: str,
+        source_identifier: Optional[str] = None
     ) -> bool:
         """
         检查某条记录是否已被 AI 清洗过（通过 source_url 查询）
@@ -447,22 +450,36 @@ class QualityRepository(BaseRepository):
         Returns:
             如果已被清洗返回 True，否则返回 False
         """
-        if not source_url:
+        if not source_url and not source_identifier:
             return False
         
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 检查 quality_issues 表中是否存在该 source_url 且为自动删除
-                # 不限制 issue_type，所有被删除的记录都应跳过
+                if source_identifier:
+                    cursor.execute('''
+                        SELECT 1 FROM quality_issues
+                        WHERE source_identifier = ?
+                        AND auto_action = 'deleted'
+                        LIMIT 1
+                    ''', (source_identifier,))
+                    result = cursor.fetchone()
+                    if result is not None:
+                        return True
+
+                if not source_url:
+                    return False
+
+                # 兼容旧数据以及 identifier 规则变更：source_identifier
+                # 命不中时回退到 source_url，避免已确认过滤的内容被重新抓回。
                 cursor.execute('''
                     SELECT 1 FROM quality_issues
                     WHERE source_url = ?
                     AND auto_action = 'deleted'
                     LIMIT 1
                 ''', (source_url,))
-                
+
                 result = cursor.fetchone()
                 return result is not None
                 

@@ -202,8 +202,15 @@ export const vendorsApi = {
  */
 export const analysisApi = {
   // 单条分析
-  async analyzeSingle(updateId: string): Promise<ApiResponse<AnalysisResult>> {
-    const response = await apiClient.post(`/analysis/single/${updateId}`);
+  async analyzeSingle(updateId: string, force = false): Promise<ApiResponse<AnalysisResult>> {
+    const response = await apiClient.post(
+      `/analysis/single/${updateId}`,
+      null,
+      {
+        params: { force },
+        timeout: 120000,
+      }
+    );
     return response.data;
   },
 

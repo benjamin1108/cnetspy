@@ -96,6 +96,23 @@ class UpdateDataLayer:
     def get_update_by_id(self, update_id: str) -> Optional[Dict[str, Any]]:
         """根据 update_id 获取 Update 记录"""
         return self._updates.get_update_by_id(update_id)
+
+    def find_updates_by_business_key(
+        self,
+        vendor: str,
+        source_channel: str,
+        publish_date: str,
+        product_name: str,
+        title: str,
+    ) -> List[Dict[str, Any]]:
+        """按业务键查找候选记录。"""
+        return self._updates.find_updates_by_business_key(
+            vendor, source_channel, publish_date, product_name, title
+        )
+
+    def update_raw_fields(self, update_id: str, fields: Dict[str, Any]) -> bool:
+        """仅更新原始抓取相关字段，保留分析和分类结果。"""
+        return self._updates.update_raw_fields(update_id, fields)
     
     def count_updates(self, **filters) -> int:
         """统计符合条件的 Update 数量"""
@@ -273,12 +290,13 @@ class UpdateDataLayer:
         vendor: Optional[str] = None,
         title: Optional[str] = None,
         source_url: Optional[str] = None,
+        source_identifier: Optional[str] = None,
         batch_id: Optional[str] = None
     ) -> bool:
         """插入质量问题记录"""
         return self._quality.insert_quality_issue(
             update_id, issue_type, auto_action,
-            vendor, title, source_url, batch_id
+            vendor, title, source_url, source_identifier, batch_id
         )
     
     def get_open_issues(
@@ -304,7 +322,11 @@ class UpdateDataLayer:
         """获取质量问题统计"""
         return self._quality.get_issue_statistics()
         
-    def check_cleaned_by_ai(self, source_url: str) -> bool:
+    def check_cleaned_by_ai(
+        self,
+        source_url: str,
+        source_identifier: Optional[str] = None
+    ) -> bool:
         """
         检查某条记录是否已被 AI 清洗过
         
@@ -317,7 +339,7 @@ class UpdateDataLayer:
         Returns:
             如果已被清洗返回 True，否则返回 False
         """
-        return self._quality.check_cleaned_by_ai(source_url)
+        return self._quality.check_cleaned_by_ai(source_url, source_identifier)
         
     def get_cleaned_urls(
         self,

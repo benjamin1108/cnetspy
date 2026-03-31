@@ -27,6 +27,7 @@ async def list_updates(
     date_from: Optional[str] = Query(None, description="开始日期（YYYY-MM-DD）"),
     date_to: Optional[str] = Query(None, description="结束日期（YYYY-MM-DD）"),
     has_analysis: Optional[bool] = Query(None, description="是否已AI分析"),
+    exclude_backfill: Optional[bool] = Query(None, description="是否排除当日往期补全记录"),
     keyword: Optional[str] = Query(None, description="关键词搜索（标题+内容）"),
     tags: Optional[str] = Query(None, description="标签过滤（逗号分隔）"),
     sort_by: str = Query("publish_date", description="排序字段"),
@@ -65,6 +66,8 @@ async def list_updates(
         filters['date_to'] = date_to
     if has_analysis is not None:
         filters['has_analysis'] = has_analysis
+    if exclude_backfill is not None:
+        filters['exclude_backfill'] = exclude_backfill
     if keyword:
         filters['keyword'] = keyword
     if tags:

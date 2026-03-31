@@ -185,6 +185,19 @@ class BaseCrawler(ABC):
         components = self._get_identifier_components(update)
         content = '|'.join(str(c) for c in components)
         return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
+
+    @staticmethod
+    def normalize_identifier_text(text: str) -> str:
+        """
+        对内容做稳定化处理，降低 Markdown/空白差异对 identifier 的影响。
+        """
+        if not text:
+            return ''
+
+        normalized = str(text)
+        normalized = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'\1 \2', normalized)
+        normalized = re.sub(r'\s+', ' ', normalized)
+        return normalized.strip()
     
     def should_skip_update(
         self,
@@ -231,7 +244,7 @@ class BaseCrawler(ABC):
             return True, 'exists'
         
         # 2. 检查是否被AI清洗过
-        if self.data_layer.check_cleaned_by_ai(source_url):
+        if self.data_layer.check_cleaned_by_ai(source_url, source_identifier):
             self._crawl_report.add_skipped_ai_cleaned(source_url, title)
             return True, 'ai_cleaned'
         

@@ -69,6 +69,7 @@ export interface UpdateQueryParams {
   date_from?: string;
   date_to?: string;
   has_analysis?: boolean;
+  exclude_backfill?: boolean;
   keyword?: string;
   tag?: string;  // 单个标签筛选
   sort_by?: string;

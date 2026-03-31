@@ -317,6 +317,26 @@ class TestAICleanedCheck:
         
         result = data_layer.check_cleaned_by_ai(source_url)
         assert result is False
+
+    def test_check_cleaned_by_ai_falls_back_to_url_when_identifier_misses(self, data_layer):
+        """测试传入新 identifier 时，仍能命中历史仅按 URL 记录的 deleted 数据。"""
+        source_url = "https://aws.amazon.com/test-legacy-cleaned"
+
+        data_layer.insert_quality_issue(
+            update_id="test-legacy-001",
+            issue_type="not_network_related",
+            auto_action="deleted",
+            vendor="aws",
+            title="Legacy cleaned by url only",
+            source_url=source_url,
+            source_identifier=""
+        )
+
+        result = data_layer.check_cleaned_by_ai(
+            source_url,
+            source_identifier="new-identifier-from-updated-dedup-logic"
+        )
+        assert result is True
     
     def test_get_cleaned_urls_returns_list(self, data_layer):
         """测试获取已清洗URL列表"""

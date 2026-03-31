@@ -748,6 +748,7 @@ body {
 /* 消息区域 */
 .chat-messages {
   background: hsl(var(--chat-window-bg));
+  scroll-behavior: auto;
 }
 
 /* 用户气泡 */

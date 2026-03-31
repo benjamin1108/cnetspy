@@ -303,6 +303,7 @@ class GcpWhatsnewCrawler(BaseCrawler):
             update = {
                 'title': title,
                 'description': description,
+                'content': description,
                 'publish_date': publish_date,
                 'product_name': product_name,
                 'source_url': url,
@@ -443,7 +444,9 @@ class GcpWhatsnewCrawler(BaseCrawler):
     def _get_identifier_components(self, update: Dict[str, Any]) -> List[str]:
         """
         GCP whatsnew: hash(url + date + product + type + description_hash)
-        确保同一天、同类型但内容不同的更新被视为独立条目
+
+        回到历史兼容口径：使用 description 的哈希区分同一天同产品下的多条
+        release note，避免与库中已有 GCP 记录的 source_identifier 脱节。
         
         Args:
             update: 更新数据字典
@@ -452,17 +455,16 @@ class GcpWhatsnewCrawler(BaseCrawler):
             标识符组件列表
         """
         import hashlib
-        
-        # 计算描述的哈希值作为指纹
+
         desc = update.get('description', '')
         desc_hash = hashlib.md5(desc.encode('utf-8')).hexdigest()
-        
+
         return [
             update.get('source_url', ''),
             update.get('publish_date', ''),
             update.get('product_name', ''),
             update.get('update_type', ''),
-            desc_hash
+            desc_hash,
         ]
     
     def _save_update(self, update: Dict[str, Any]) -> bool:

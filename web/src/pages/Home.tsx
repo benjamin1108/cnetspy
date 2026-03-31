@@ -2,7 +2,7 @@
  * 首页 - 时间流情报更新
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInfiniteUpdates, useStatsOverview, useVendors } from '@/hooks';
 import { Loading, EmptyState, Button } from '@/components/ui';
@@ -15,7 +15,7 @@ import {
   SOURCE_CHANNEL_LABELS,
 } from '@/types';
 import type { UpdateBrief } from '@/types';
-import { Clock3, Radar, ChevronRight, Loader2 } from 'lucide-react';
+import { Clock3, Radar, Loader2 } from 'lucide-react';
 import { differenceInCalendarDays, format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { SEO } from '@/components/SEO';
@@ -24,13 +24,35 @@ function getTimelineDate(update: UpdateBrief): string {
   return update.crawl_time || update.publish_date;
 }
 
+function compareTimelineUpdates(a: UpdateBrief, b: UpdateBrief): number {
+  const aTimeline = getTimelineDate(a);
+  const bTimeline = getTimelineDate(b);
+  if (aTimeline !== bTimeline) {
+    return bTimeline.localeCompare(aTimeline);
+  }
+
+  const aPublish = a.publish_date || '';
+  const bPublish = b.publish_date || '';
+  if (aPublish !== bPublish) {
+    return bPublish.localeCompare(aPublish);
+  }
+
+  const aCrawl = a.crawl_time || '';
+  const bCrawl = b.crawl_time || '';
+  if (aCrawl !== bCrawl) {
+    return bCrawl.localeCompare(aCrawl);
+  }
+
+  return a.update_id.localeCompare(b.update_id);
+}
+
 function isBackfillUpdate(update: UpdateBrief): boolean {
   if (!update.crawl_time || !update.publish_date) return false;
 
   try {
     const crawlDate = parseISO(update.crawl_time);
     const publishDate = parseISO(update.publish_date);
-    return differenceInCalendarDays(crawlDate, publishDate) >= 7;
+    return isToday(crawlDate) && differenceInCalendarDays(crawlDate, publishDate) >= 7;
   } catch {
     return false;
   }
@@ -204,7 +226,7 @@ function DailyBrief({ updates, stats }: { updates: UpdateBrief[]; stats?: { tota
 export function HomePage() {
   // 厂商筛选状态
   const [selectedVendor, setSelectedVendor] = useState<string>('');
-  const [showBackfill, setShowBackfill] = useState(true);
+  const [showBackfill, setShowBackfill] = useState(false);
   
   // 获取厂商列表
   const { data: vendorsData } = useVendors();
@@ -223,7 +245,27 @@ export function HomePage() {
     sort_by: 'crawl_time', 
     order: 'desc',
     vendor: selectedVendor || undefined,
+    exclude_backfill: showBackfill ? undefined : true,
   });
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const node = loadMoreRef.current;
+    if (node) {
+      observer.observe(node);
+    }
+
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
   
   // 获取统计概览
   const { data: statsData } = useStatsOverview();
@@ -249,6 +291,10 @@ export function HomePage() {
         groups[dateKey] = [];
       }
       groups[dateKey].push(update);
+    });
+
+    Object.values(groups).forEach((items) => {
+      items.sort(compareTimelineUpdates);
     });
     
     // 按日期倒序排列
@@ -367,20 +413,17 @@ export function HomePage() {
           ))}
           
           {/* 加载更多 */}
-          <div className="text-center py-8">
+          <div ref={loadMoreRef} className="text-center py-8">
             {isFetchingNextPage ? (
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 加载中...
               </div>
             ) : hasNextPage ? (
-              <button 
-                onClick={() => fetchNextPage()}
-                className="text-sm text-muted-foreground hover:text-primary transition flex items-center justify-center gap-2 w-full py-4 hover:bg-muted/30 rounded-lg"
-              >
-                <ChevronRight className="h-4 w-4 rotate-90" />
-                加载更多历史更新
-              </button>
+              <div className="text-sm text-muted-foreground/70 flex items-center justify-center gap-2 w-full py-4">
+                <Loader2 className="h-4 w-4" />
+                向下滚动加载更多历史更新
+              </div>
             ) : (
               <span className="text-sm text-muted-foreground/70">已加载全部记录</span>
             )}

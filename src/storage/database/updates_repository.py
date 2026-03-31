@@ -283,6 +283,79 @@ class UpdatesRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"获取 Update 记录失败: {e}")
             return None
+
+    def find_updates_by_business_key(
+        self,
+        vendor: str,
+        source_channel: str,
+        publish_date: str,
+        product_name: str,
+        title: str,
+    ) -> List[Dict[str, Any]]:
+        """按业务键查找候选记录。"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                    SELECT *
+                    FROM updates
+                    WHERE vendor = ?
+                    AND source_channel = ?
+                    AND publish_date = ?
+                    AND product_name = ?
+                    AND title = ?
+                    ORDER BY crawl_time DESC, created_at DESC
+                    ''',
+                    (vendor, source_channel, publish_date, product_name, title),
+                )
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"按业务键查询 Update 失败: {e}")
+            return []
+
+    def update_raw_fields(self, update_id: str, fields: Dict[str, Any]) -> bool:
+        """仅更新原始抓取相关字段，保留分析和分类结果。"""
+        allowed_fields = {
+            'source_identifier',
+            'description',
+            'content',
+            'publish_date',
+            'crawl_time',
+            'raw_filepath',
+            'file_hash',
+            'metadata_json',
+            'source_url',
+            'update_type',
+            'product_name',
+            'title',
+        }
+        update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
+        if not update_fields:
+            self.logger.warning("没有有效的原始字段需要更新")
+            return False
+
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    set_clauses = [f"{field} = ?" for field in update_fields.keys()]
+                    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+                    values = list(update_fields.values())
+                    values.append(update_id)
+                    sql = f"UPDATE updates SET {', '.join(set_clauses)} WHERE update_id = ?"
+                    cursor.execute(sql, values)
+                    conn.commit()
+                    if cursor.rowcount > 0:
+                        return True
+                    self.logger.warning(f"未找到更新记录: {update_id}")
+                    return False
+        except sqlite3.IntegrityError as e:
+            self.logger.warning(f"更新原始字段触发唯一约束: {update_id}, {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"更新原始字段失败: {e}")
+            return False
     
     def count_updates(self, **filters) -> int:
         """
@@ -489,6 +562,17 @@ class UpdatesRepository(BaseRepository):
                     "OR LENGTH(TRIM(title_translated)) < 2 "
                     "OR title_translated IN ('N/A', '暂无', 'None', 'null'))"
                 )
+
+        # exclude_backfill 过滤：仅排除“crawl_time 为今天且 publish_date 早于今天至少 7 天”的临时补全项
+        if filters.get('exclude_backfill'):
+            where_clauses.append(
+                "NOT ("
+                "crawl_time IS NOT NULL "
+                "AND publish_date IS NOT NULL "
+                "AND DATE(datetime(crawl_time)) = DATE('now', 'localtime') "
+                "AND (julianday(DATE(datetime(crawl_time))) - julianday(publish_date)) >= 7"
+                ")"
+            )
         
         # keyword 关键词搜索（中英文标题 + 内容 + 摘要）
         if filters.get('keyword'):

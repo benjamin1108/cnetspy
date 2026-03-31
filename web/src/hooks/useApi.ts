@@ -53,7 +53,12 @@ export function useUpdates(params: UpdateQueryParams = {}) {
 export function useInfiniteUpdates(params: Omit<UpdateQueryParams, 'page'> = {}) {
   return useInfiniteQuery({
     queryKey: ['updates', 'infinite', params],
-    queryFn: ({ pageParam = 1 }) => updatesApi.getUpdates({ ...params, page: pageParam, page_size: 20 }),
+    queryFn: ({ pageParam = 1 }) =>
+      updatesApi.getUpdates({
+        ...params,
+        page: pageParam,
+        page_size: params.page_size ?? 20,
+      }),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const pagination = lastPage.data?.pagination;
@@ -252,7 +257,7 @@ export function useAnalyzeSingle() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (updateId: string) => analysisApi.analyzeSingle(updateId),
+    mutationFn: (updateId: string) => analysisApi.analyzeSingle(updateId, false),
     onSuccess: (_, updateId) => {
       // 刷新更新详情缓存
       queryClient.invalidateQueries({ queryKey: queryKeys.updates.detail(updateId) });

@@ -8,6 +8,8 @@
 import logging
 import re
 import datetime
+import hashlib
+from difflib import SequenceMatcher
 from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
 
@@ -20,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 class VolcengineWhatsnewCrawler(BaseCrawler):
     """火山引擎网络服务产品动态爬虫 (串行模式)"""
+
+    MERGE_SIMILARITY_THRESHOLD = 0.97
     
     def __init__(self, config: Dict[str, Any], vendor: str, source_type: str):
         """初始化火山引擎产品动态爬虫"""
@@ -50,19 +54,27 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
     
     def _get_identifier_components(self, update: Dict[str, Any]) -> List[str]:
         """
-        火山引擎 whatsnew: hash(url + date + product + title)
+        火山引擎 whatsnew: hash(date + product + title + normalized_content)
+
+        仅靠 title/date 过于粗糙，不同产品的同名更新会被误合并；同时 page URL
+        又不稳定，会把同一条内容在不同页的镜像当成新记录。这里使用产品名、
+        标题、日期和规范化后的正文做平衡。
         
         Args:
             update: 更新数据字典
             
         Returns:
-            [url, date, product, title]
+            [date, product, title, normalized_content]
         """
+        content_fingerprint = self.normalize_identifier_text(
+            update.get('content') or update.get('description', '')
+        )
+
         return [
-            update.get('source_url', ''),
             update.get('publish_date', ''),
             update.get('product_name', ''),
-            update.get('title', '').strip()
+            update.get('title', '').strip(),
+            content_fingerprint,
         ]
     
     def _crawl(self) -> List[str]:
@@ -95,7 +107,7 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         # 保存每条更新
         for update in all_updates:
             try:
-                file_path = self.save_update(update)
+                file_path = self._save_update(update)
                 if file_path:
                     saved_files.append(file_path)
             except Exception as e:
@@ -103,6 +115,79 @@ class VolcengineWhatsnewCrawler(BaseCrawler):
         
         logger.info(f"成功保存 {len(saved_files)} 个火山引擎更新文件")
         return saved_files
+
+    def _find_merge_candidate(self, update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        candidates = self.data_layer.find_updates_by_business_key(
+            vendor=self.vendor,
+            source_channel=self.source_type,
+            publish_date=update.get('publish_date', ''),
+            product_name=update.get('product_name', ''),
+            title=update.get('title', ''),
+        )
+        if not candidates:
+            return None
+
+        normalized_new = self.normalize_identifier_text(
+            update.get('content') or update.get('description', '')
+        )
+        if not normalized_new:
+            return None
+
+        best_candidate = None
+        best_ratio = 0.0
+        for candidate in candidates:
+            normalized_old = self.normalize_identifier_text(
+                candidate.get('content') or candidate.get('description', '')
+            )
+            if not normalized_old:
+                continue
+            ratio = SequenceMatcher(None, normalized_new, normalized_old).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_candidate = candidate
+
+        if best_candidate and best_ratio >= self.MERGE_SIMILARITY_THRESHOLD:
+            logger.info(
+                "火山引擎命中高相似候选，执行覆盖: %s | ratio=%.3f | old=%s",
+                update.get('title', ''),
+                best_ratio,
+                best_candidate.get('update_id', ''),
+            )
+            return best_candidate
+        return None
+
+    def _save_update(self, update: Dict[str, Any]) -> Optional[str]:
+        """
+        保存单条更新。对火山引擎额外支持高相似候选覆盖，防止同一业务条目微调文案后重复入库。
+        """
+        if not update.get('source_identifier'):
+            update['source_identifier'] = self.generate_source_identifier(update)
+
+        candidate = self._find_merge_candidate(update)
+        content = update.get('content', '')
+        filepath = self._export_to_file(update, content)
+        if candidate:
+            sync_content = content or update.get('description', '')
+            merged = self.data_layer.update_raw_fields(
+                candidate['update_id'],
+                {
+                    'source_identifier': update.get('source_identifier', ''),
+                    'description': update.get('description', ''),
+                    'content': sync_content,
+                    'publish_date': update.get('publish_date', ''),
+                    'crawl_time': datetime.datetime.now().isoformat(),
+                    'raw_filepath': filepath,
+                    'file_hash': hashlib.md5(sync_content.encode('utf-8')).hexdigest(),
+                    'source_url': update.get('source_url', ''),
+                    'update_type': update.get('update_type', ''),
+                    'product_name': update.get('product_name', ''),
+                    'title': update.get('title', ''),
+                },
+            )
+            if merged:
+                return filepath
+
+        return self.save_update(update)
 
     def _crawl_single_source(
         self,

@@ -106,6 +106,7 @@ class UpdateQueryParams(BaseModel):
     date_from: Optional[str] = Field(None, description="开始日期（YYYY-MM-DD）")
     date_to: Optional[str] = Field(None, description="结束日期（YYYY-MM-DD）")
     has_analysis: Optional[bool] = Field(None, description="是否已AI分析")
+    exclude_backfill: Optional[bool] = Field(None, description="是否排除当日往期补全记录")
     keyword: Optional[str] = Field(None, description="关键词搜索（标题+内容）")
     tags: Optional[str] = Field(None, description="标签过滤（逗号分隔）")
     sort_by: str = Field("publish_date", description="排序字段")

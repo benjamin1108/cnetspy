@@ -44,8 +44,7 @@ class AnalysisService:
         if self.executor is None:
             # 创建 UpdateAnalyzer（需要 config 参数）
             from src.utils.config import get_config
-            config = get_config()
-            analyzer = UpdateAnalyzer(config)
+            analyzer = UpdateAnalyzer(self._get_default_ai_config(get_config()))
             
             # 创建 AnalysisExecutor（复用CLI的业务逻辑）
             executor_config = {
@@ -55,6 +54,14 @@ class AnalysisService:
             self.executor = AnalysisExecutor(analyzer, self.db, executor_config)
         
         return self.executor
+
+    @staticmethod
+    def _get_default_ai_config(config: Dict) -> Dict:
+        """提取默认 AI 模型配置，避免把整份总配置误传给分析器。"""
+        if 'ai_model' in config:
+            ai_model = config.get('ai_model', {})
+            return ai_model.get('default', ai_model)
+        return config.get('default', config)
     
     def analyze_single(self, update_id: str, force: bool = False) -> Dict:
         """
@@ -529,12 +536,7 @@ class AnalysisService:
         from src.utils.config import get_config
         from src.analyzers.gemini_client import GeminiClient
         
-        config = get_config()
-        if 'ai_model' in config:
-            ai_model = config.get('ai_model', {})
-            ai_config = ai_model.get('default', ai_model)
-        else:
-            ai_config = config.get('default', config)
+        ai_config = self._get_default_ai_config(get_config())
         
         try:
             client = GeminiClient(ai_config)

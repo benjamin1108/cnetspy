@@ -3,7 +3,7 @@
  * 浮动聊天窗口，支持 MCP 工具调用
  */
 
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, type KeyboardEvent } from 'react';
 import {
   MessageSquare,
   X,
@@ -233,14 +233,57 @@ function ConnectionStatus() {
 export function Chatbox() {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesContentRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const previousMessageCountRef = useRef(0);
   const { state, sendMessage, clearMessages } = useChat();
 
-  // 自动滚动到底部
+  const isNearBottom = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return true;
+
+    const distanceToBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    return distanceToBottom < 80;
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+  };
+
+  // 仅当用户原本就在底部时跟随新消息滚动。
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (!shouldStickToBottomRef.current) {
+      previousMessageCountRef.current = state.messages.length;
+      return;
+    }
+
+    const behavior =
+      state.messages.length > previousMessageCountRef.current ? 'auto' : 'auto';
+
+    requestAnimationFrame(() => {
+      scrollToBottom(behavior);
+      previousMessageCountRef.current = state.messages.length;
+    });
+  }, [isOpen, state.messages]);
+
+  // 消息展开、Markdown 重排等导致高度变化时，如果当前停留在底部则继续贴底。
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [state.messages]);
+    if (!isOpen || !messagesContentRef.current) return;
+
+    const observer = new ResizeObserver(() => {
+      if (!shouldStickToBottomRef.current) return;
+      requestAnimationFrame(() => scrollToBottom('auto'));
+    });
+
+    observer.observe(messagesContentRef.current);
+    return () => observer.disconnect();
+  }, [isOpen]);
 
   // 聚焦输入框
   useEffect(() => {
@@ -323,23 +366,31 @@ export function Chatbox() {
         </div>
 
         {/* 消息区域 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 chat-messages">
-          {state.messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="chat-empty-icon w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                <MessageSquare className="w-8 h-8" />
+        <div
+          ref={scrollContainerRef}
+          onScroll={() => {
+            shouldStickToBottomRef.current = isNearBottom();
+          }}
+          className="flex-1 overflow-y-auto p-4 chat-messages"
+        >
+          <div ref={messagesContentRef} className="space-y-4">
+            {state.messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="chat-empty-icon w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  <MessageSquare className="w-8 h-8" />
+                </div>
+                <h4 className="font-medium mb-2">开始对话</h4>
+                <p className="text-sm text-muted-foreground max-w-[250px]">
+                  我可以帮你分析云厂商的产品更新动态，支持复杂的数据查询和对比分析。
+                </p>
               </div>
-              <h4 className="font-medium mb-2">开始对话</h4>
-              <p className="text-sm text-muted-foreground max-w-[250px]">
-                我可以帮你分析云厂商的产品更新动态，支持复杂的数据查询和对比分析。
-              </p>
-            </div>
-          ) : (
-            state.messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))
-          )}
-          <div ref={messagesEndRef} />
+            ) : (
+              state.messages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* 错误提示 */}

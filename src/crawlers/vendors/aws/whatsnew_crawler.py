@@ -14,7 +14,7 @@ import hashlib
 import datetime
 import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 import requests
@@ -111,8 +111,27 @@ class AwsWhatsnewCrawler(BaseCrawler):
             [api_base, url]
         """
         api_base = "https://aws.amazon.com/api/dirs/items/search"
-        url = update.get('source_url', '')
+        url = self._normalize_source_url(update.get('source_url', ''))
         return [api_base, url]
+
+    @staticmethod
+    def _normalize_source_url(url: str) -> str:
+        """
+        归一化 AWS What's New URL，消除 `_msm_moved` 之类的迁移尾巴。
+        """
+        if not url:
+            return ''
+
+        parsed = urlsplit(url)
+        normalized_path = parsed.path.rstrip('/')
+
+        while normalized_path.endswith('_msm_moved'):
+            normalized_path = normalized_path[:-len('_msm_moved')]
+
+        if normalized_path != '/':
+            normalized_path = normalized_path + '/'
+
+        return urlunsplit((parsed.scheme, parsed.netloc, normalized_path, '', ''))
     
     def _crawl(self) -> List[str]:
         """
@@ -149,20 +168,21 @@ class AwsWhatsnewCrawler(BaseCrawler):
             # 过滤已存在的更新（检查数据库 + AI清洗）
             articles_to_crawl = []
             for title, url, publish_date, product_name, content in article_links:
+                normalized_url = self._normalize_source_url(url)
                 # 生成临时update字典用于identifier生成
-                temp_update = {'source_url': url}
+                temp_update = {'source_url': normalized_url}
                 source_identifier = self.generate_source_identifier(temp_update)
                 
                 # 统一去重检查
                 should_skip, reason = self.should_skip_update(
-                    source_url=url, 
+                    source_url=normalized_url, 
                     source_identifier=source_identifier, 
                     title=title
                 )
                 if not force_mode and should_skip:
                     logger.debug(f"跳过({reason}): {title}")
                 else:
-                    articles_to_crawl.append((title, url, publish_date, product_name, content))
+                    articles_to_crawl.append((title, normalized_url, publish_date, product_name, content))
             
             logger.info(f"需要爬取 {len(articles_to_crawl)} 篇新公告")
             
@@ -342,7 +362,8 @@ class AwsWhatsnewCrawler(BaseCrawler):
             
             # 生成 source_identifier（API base URL + URL path hash）
             api_base = "https://aws.amazon.com/api/dirs/items/search"
-            identifier_content = f"{api_base}|{url}"
+            normalized_url = self._normalize_source_url(url)
+            identifier_content = f"{api_base}|{normalized_url}"
             source_identifier = hashlib.md5(identifier_content.encode('utf-8')).hexdigest()[:12]
             
             # 构建更新条目
@@ -351,7 +372,7 @@ class AwsWhatsnewCrawler(BaseCrawler):
                 'description': content[:500] if content else '',  # 前500字符作为描述
                 'content': content,
                 'publish_date': publish_date,  # 使用从API获取的日期
-                'source_url': url,
+                'source_url': normalized_url,
                 'source_identifier': source_identifier,
                 'product_name': product_name  # 使用从tags提取的产品名
             }
