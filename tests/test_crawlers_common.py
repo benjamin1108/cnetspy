@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import shutil
+import datetime
 from unittest.mock import MagicMock, patch
 
 # 添加项目根目录到路径
@@ -335,8 +336,32 @@ class TestCrawlerIdentifierStability:
         crawler._data_layer.update_raw_fields.assert_called_once()
         crawler.save_update.assert_not_called()
 
-    def test_aws_whatsnew_identifier_normalizes_moved_urls(self):
-        """AWS What's New 迁移链接应归一化到同一个 identifier。"""
+    def test_aws_whatsnew_identifier_prefers_api_item_id(self):
+        """AWS What's New 应优先使用稳定的 API item id，而不是 headlineUrl。"""
+        from src.crawlers.vendors.aws.whatsnew_crawler import AwsWhatsnewCrawler
+
+        crawler = AwsWhatsnewCrawler(
+            config={"sources": {"aws": {"whatsnew": {}}}},
+            vendor="aws",
+            source_type="whatsnew",
+        )
+
+        base_update = {
+            "source_url": "https://aws.amazon.com/about-aws/whats-new/2015/03/cloudfront-signed-cookies-for-private-content/",
+            "source_item_id": "whats-new-v2#launch-abc123",
+        }
+        moved_update = {
+            "source_url": "https://aws.amazon.com/about-aws/whats-new/2015/03/amazon-cloudfront-signed-cookies/",
+            "source_item_id": "whats-new-v2#launch-abc123",
+        }
+
+        assert (
+            crawler.generate_source_identifier(base_update)
+            == crawler.generate_source_identifier(moved_update)
+        )
+
+    def test_aws_whatsnew_identifier_normalizes_moved_urls_without_item_id(self):
+        """AWS What's New 在缺失 item id 时，仍兼容旧的 URL 归一化策略。"""
         from src.crawlers.vendors.aws.whatsnew_crawler import AwsWhatsnewCrawler
 
         crawler = AwsWhatsnewCrawler(
@@ -356,6 +381,113 @@ class TestCrawlerIdentifierStability:
             crawler.generate_source_identifier(base_update)
             == crawler.generate_source_identifier(moved_update)
         )
+
+    def test_aws_whatsnew_parse_article_links_stops_at_lookback_window(self):
+        """AWS What's New 只保留最近 30 天，遇到更老公告时直接截断。"""
+        from src.crawlers.vendors.aws.whatsnew_crawler import AwsWhatsnewCrawler
+
+        crawler = AwsWhatsnewCrawler(
+            config={"sources": {"aws": {"whatsnew": {"lookback_days": 30}}}},
+            vendor="aws",
+            source_type="whatsnew",
+        )
+        recent_day = (datetime.date.today() - datetime.timedelta(days=5)).strftime("%Y-%m-%dT07:00:00Z")
+        old_day = (datetime.date.today() - datetime.timedelta(days=40)).strftime("%Y-%m-%dT07:00:00Z")
+
+        payload = {
+            "items": [
+                {
+                    "item": {
+                        "id": "whats-new-v2#launch-recent",
+                        "name": "launch-recent",
+                        "additionalFields": {
+                            "headline": "Recent AWS update",
+                            "headlineUrl": "/about-aws/whats-new/2026/03/recent-aws-update/",
+                            "postDateTime": recent_day,
+                            "postBody": "<p>recent</p>",
+                        },
+                    },
+                    "tags": [
+                        {
+                            "tagNamespaceId": "whats-new-v2#general-products",
+                            "name": "amazon-cloudfront",
+                        }
+                    ],
+                },
+                {
+                    "item": {
+                        "id": "whats-new-v2#launch-old",
+                        "name": "launch-old",
+                        "additionalFields": {
+                            "headline": "Old AWS update",
+                            "headlineUrl": "/about-aws/whats-new/2015/03/old-aws-update/",
+                            "postDateTime": old_day,
+                            "postBody": "<p>old</p>",
+                        },
+                    },
+                    "tags": [
+                        {
+                            "tagNamespaceId": "whats-new-v2#general-products",
+                            "name": "amazon-cloudfront",
+                        }
+                    ],
+                },
+            ]
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = payload
+
+        with patch("src.crawlers.vendors.aws.whatsnew_crawler.requests.get", return_value=mock_response):
+            articles = crawler._parse_article_links(None)
+
+        assert len(articles) == 1
+        assert articles[0][0] == "Recent AWS update"
+
+    def test_aws_whatsnew_lookback_zero_disables_cutoff(self):
+        """AWS What's New 的 lookback_days=0 应禁用时间窗口过滤。"""
+        from src.crawlers.vendors.aws.whatsnew_crawler import AwsWhatsnewCrawler
+
+        crawler = AwsWhatsnewCrawler(
+            config={"sources": {"aws": {"whatsnew": {"lookback_days": 0}}}},
+            vendor="aws",
+            source_type="whatsnew",
+        )
+        old_day = (datetime.date.today() - datetime.timedelta(days=400)).strftime("%Y-%m-%dT07:00:00Z")
+
+        payload = {
+            "items": [
+                {
+                    "item": {
+                        "id": "whats-new-v2#launch-old",
+                        "name": "launch-old",
+                        "additionalFields": {
+                            "headline": "Old AWS update",
+                            "headlineUrl": "/about-aws/whats-new/2015/03/old-aws-update/",
+                            "postDateTime": old_day,
+                            "postBody": "<p>old</p>",
+                        },
+                    },
+                    "tags": [
+                        {
+                            "tagNamespaceId": "whats-new-v2#general-products",
+                            "name": "amazon-cloudfront",
+                        }
+                    ],
+                }
+            ]
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = payload
+
+        with patch("src.crawlers.vendors.aws.whatsnew_crawler.requests.get", return_value=mock_response):
+            articles = crawler._parse_article_links(None)
+
+        assert len(articles) == 1
+        assert articles[0][0] == "Old AWS update"
 
 
 class TestVendorCrawlersImport:
@@ -691,6 +823,88 @@ class TestShouldSkipUpdate:
         
         assert mock_crawler._crawl_report.skipped_exists == 1
         assert mock_crawler._crawl_report.skipped_ai_cleaned == 1
+
+    def test_force_mode_bypasses_skip_checks_and_stats(self):
+        """测试 force 模式不应标记跳过，也不应累加跳过统计。"""
+        from src.crawlers.common.base_crawler import BaseCrawler, CrawlReport
+        from typing import List
+
+        class TestCrawler(BaseCrawler):
+            def _crawl(self, force_mode=False):
+                return []
+
+            def _get_identifier_strategy(self) -> str:
+                return 'url_based'
+
+            def _get_identifier_components(self, update) -> List[str]:
+                return [update.get('source_url', '')]
+
+        crawler = TestCrawler(
+            {"crawler": {"force": True}},
+            'test',
+            'whatsnew',
+        )
+        crawler._crawl_report = CrawlReport(vendor='test', source_type='whatsnew')
+        crawler._data_layer = MagicMock()
+        crawler._data_layer.check_update_exists.return_value = True
+        crawler._data_layer.check_cleaned_by_ai.return_value = True
+
+        should_skip, reason = crawler.should_skip_update(
+            source_url='https://example.com/test',
+            source_identifier='abc123',
+            publish_date='2020-01-01',
+            title='Test Title',
+        )
+
+        assert should_skip is False
+        assert reason == ''
+        crawler._data_layer.check_update_exists.assert_not_called()
+        crawler._data_layer.check_cleaned_by_ai.assert_not_called()
+        assert crawler._crawl_report.skipped_exists == 0
+        assert crawler._crawl_report.skipped_ai_cleaned == 0
+        assert crawler._crawl_report.skipped_too_old == 0
+
+
+class TestSaveUpdateForceMode:
+    """测试 save_update 在 force 模式下的时间窗口行为"""
+
+    def test_force_mode_allows_saving_old_update(self):
+        """force 模式应允许保存超出时间窗口的更新。"""
+        from src.crawlers.common.base_crawler import BaseCrawler, CrawlReport
+        from typing import List
+
+        class TestCrawler(BaseCrawler):
+            def _crawl(self, force_mode=False):
+                return []
+
+            def _get_identifier_strategy(self) -> str:
+                return 'url_based'
+
+            def _get_identifier_components(self, update) -> List[str]:
+                return [update.get('source_url', '')]
+
+        crawler = TestCrawler(
+            {"crawler": {"force": True}, "sources": {"test": {"whatsnew": {"lookback_days": 30}}}},
+            'test',
+            'whatsnew',
+        )
+        crawler._crawl_report = CrawlReport(vendor='test', source_type='whatsnew')
+        crawler._export_to_file = MagicMock(return_value='/tmp/test.md')
+        crawler.batch_sync_to_database = MagicMock()
+
+        success = crawler.save_update(
+            {
+                'title': 'Old Update',
+                'description': 'old description',
+                'content': 'old content',
+                'publish_date': '2020-01-01',
+                'source_url': 'https://example.com/old',
+            }
+        )
+
+        assert success is True
+        assert crawler._crawl_report.skipped_too_old == 0
+        crawler._export_to_file.assert_called_once()
 
 
 class TestShouldCrawl:

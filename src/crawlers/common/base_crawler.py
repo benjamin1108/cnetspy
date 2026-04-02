@@ -41,6 +41,7 @@ class CrawlReport:
     new_saved: int = 0                # 新增保存数
     skipped_exists: int = 0           # 跳过（已存在）
     skipped_ai_cleaned: int = 0       # 跳过（AI清洗过）
+    skipped_too_old: int = 0          # 跳过（超出时间窗口）
     failed: int = 0                   # 失败数
     ai_cleaned_urls: List[str] = field(default_factory=list)  # 被AI清洗的URL列表
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
@@ -70,6 +71,11 @@ class CrawlReport:
         with self._lock:
             self.skipped_ai_cleaned += 1
             self.ai_cleaned_urls.append(f"{title[:50]}..." if title else url)
+
+    def increment_skipped_too_old(self) -> None:
+        """线程安全地增加跳过数（超出时间窗口）"""
+        with self._lock:
+            self.skipped_too_old += 1
     
     def print_report(self) -> None:
         """打印爬取报告"""
@@ -80,6 +86,8 @@ class CrawlReport:
         logger.info(f"  ✅ 新增保存: {self.new_saved}")
         logger.info(f"  ⏭️  跳过(已存在): {self.skipped_exists}")
         logger.info(f"  🧹 跳过(AI清洗): {self.skipped_ai_cleaned}")
+        if self.skipped_too_old > 0:
+            logger.info(f"  🗓️  跳过(超出窗口): {self.skipped_too_old}")
         if self.failed > 0:
             logger.info(f"  ❌ 失败数: {self.failed}")
         logger.info("-" * 60)
@@ -110,10 +118,17 @@ class BaseCrawler(ABC):
         self.vendor = vendor
         self.source_type = source_type
         self.crawler_config = config.get('crawler', {})
+        self.source_config = config.get('sources', {}).get(vendor, {}).get(source_type, {})
         self.timeout = self.crawler_config.get('timeout', 30)
         self.retry = self.crawler_config.get('retry', 3)
         self.interval = self.crawler_config.get('interval', 2)
         self.headers = self.crawler_config.get('headers', {})
+        self.lookback_days = int(
+            self.source_config.get(
+                'lookback_days',
+                self.crawler_config.get('lookback_days', 30)
+            )
+        )
         
         # 创建保存目录，使用相对于项目根目录的路径
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -187,6 +202,40 @@ class BaseCrawler(ABC):
         return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
 
     @staticmethod
+    def normalize_publish_date(publish_date: str) -> str:
+        """统一日期格式，支持 YYYY-MM -> YYYY-MM-01。"""
+        if publish_date and len(publish_date) == 7:
+            return f"{publish_date}-01"
+        return publish_date or ''
+
+    def _get_cutoff_date(self) -> Optional[datetime.date]:
+        """获取时间窗口截止日期。"""
+        if self.lookback_days <= 0:
+            return None
+        return datetime.date.today() - datetime.timedelta(days=self.lookback_days)
+
+    def is_update_too_old(self, publish_date: str) -> bool:
+        """检查更新是否超出时间窗口。"""
+        normalized = self.normalize_publish_date(publish_date)
+        if not normalized:
+            return False
+
+        cutoff_date = self._get_cutoff_date()
+        if cutoff_date is None:
+            return False
+
+        try:
+            publish_day = datetime.date.fromisoformat(normalized)
+        except ValueError:
+            return False
+
+        return publish_day < cutoff_date
+
+    def is_force_mode_enabled(self) -> bool:
+        """当前爬虫是否启用了强制模式。"""
+        return bool(self.crawler_config.get('force', False))
+
+    @staticmethod
     def normalize_identifier_text(text: str) -> str:
         """
         对内容做稳定化处理，降低 Markdown/空白差异对 identifier 的影响。
@@ -204,6 +253,7 @@ class BaseCrawler(ABC):
         update: Dict[str, Any] = None,
         source_url: str = None,
         source_identifier: str = None,
+        publish_date: str = None,
         title: str = ''
     ) -> Tuple[bool, str]:
         """
@@ -221,6 +271,7 @@ class BaseCrawler(ABC):
             update: 完整的更新字典（Pattern 2 爬虫使用）
             source_url: 源URL（Pattern 1 爬虫使用）
             source_identifier: 源标识符（Pattern 1 爬虫使用）
+            publish_date: 发布日期
             title: 标题（用于日志）
             
         Returns:
@@ -232,14 +283,30 @@ class BaseCrawler(ABC):
         if update is not None:
             source_url = update.get('source_url', '')
             source_identifier = update.get('source_identifier') or self.generate_source_identifier(update)
+            publish_date = update.get('publish_date', '')
             title = update.get('title', '')
         
         # 参数校验
         if not source_url:
             return False, ''
+
+        if self.is_force_mode_enabled():
+            return False, ''
+
+        normalized_publish_date = self.normalize_publish_date(publish_date or '')
+
+        # 0. 检查是否超出抓取时间窗口
+        if self.is_update_too_old(normalized_publish_date):
+            self._crawl_report.increment_skipped_too_old()
+            return True, 'too_old'
         
         # 1. 检查数据库是否已存在
-        if self.data_layer.check_update_exists(source_url, source_identifier or ''):
+        if self.data_layer.check_update_exists(
+            source_url,
+            source_identifier or '',
+            vendor=self.vendor,
+            source_channel=self.source_type,
+        ):
             self._crawl_report.increment_skipped_exists()
             return True, 'exists'
         
@@ -276,10 +343,13 @@ class BaseCrawler(ABC):
             source_identifier = update['source_identifier']
             
             # 统一日期格式: YYYY-MM -> YYYY-MM-01
-            publish_date = update.get('publish_date', '')
-            if publish_date and len(publish_date) == 7:  # YYYY-MM 格式
-                publish_date = f"{publish_date}-01"
-                update['publish_date'] = publish_date
+            publish_date = self.normalize_publish_date(update.get('publish_date', ''))
+            update['publish_date'] = publish_date
+
+            if not self.is_force_mode_enabled() and self.is_update_too_old(publish_date):
+                self._crawl_report.increment_skipped_too_old()
+                logger.debug(f"跳过超出时间窗口的更新: {update.get('title', '')}")
+                return False
             
             # 获取 content（不自动用 description 填充，让 _export_to_file 统一处理）
             content = update.get('content', '')

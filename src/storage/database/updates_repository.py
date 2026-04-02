@@ -169,6 +169,25 @@ class UpdatesRepository(BaseRepository):
                                 self.logger.error(f"批量插入跳过: {error_msg}")
                                 fail_count += 1
                                 continue
+
+                            if (
+                                not force_update
+                                and update_data.get('source_identifier')
+                                and update_data.get('vendor')
+                                and update_data.get('source_channel')
+                                and self.check_update_exists(
+                                    update_data.get('source_url', ''),
+                                    update_data.get('source_identifier', ''),
+                                    vendor=update_data.get('vendor'),
+                                    source_channel=update_data.get('source_channel'),
+                                )
+                            ):
+                                fail_count += 1
+                                self.logger.warning(
+                                    f"插入跳过(已存在identifier): {update_data.get('vendor')}/"
+                                    f"{update_data.get('source_channel')}/{update_data.get('source_identifier')}"
+                                )
+                                continue
                             
                             self.logger.debug(
                                 f"插入数据: update_id={update_data.get('update_id')}, "
@@ -234,7 +253,13 @@ class UpdatesRepository(BaseRepository):
         
         return (success_count, fail_count)
     
-    def check_update_exists(self, source_url: str, source_identifier: str = '') -> bool:
+    def check_update_exists(
+        self,
+        source_url: str,
+        source_identifier: str = '',
+        vendor: Optional[str] = None,
+        source_channel: Optional[str] = None,
+    ) -> bool:
         """
         检查 Update 是否存在
         
@@ -248,11 +273,18 @@ class UpdatesRepository(BaseRepository):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT 1 FROM updates 
-                    WHERE source_url = ? AND source_identifier = ?
-                    LIMIT 1
-                ''', (source_url, source_identifier))
+                if source_identifier and vendor and source_channel:
+                    cursor.execute('''
+                        SELECT 1 FROM updates
+                        WHERE vendor = ? AND source_channel = ? AND source_identifier = ?
+                        LIMIT 1
+                    ''', (vendor, source_channel, source_identifier))
+                else:
+                    cursor.execute('''
+                        SELECT 1 FROM updates
+                        WHERE source_url = ? AND source_identifier = ?
+                        LIMIT 1
+                    ''', (source_url, source_identifier))
                 
                 return cursor.fetchone() is not None
                 
@@ -448,10 +480,21 @@ class UpdatesRepository(BaseRepository):
                 if order not in ['ASC', 'DESC']:
                     order = 'DESC'
                 
+                order_by_clauses = [f"{sort_by} {order}"]
+                secondary_sorts = {
+                    'publish_date': ['crawl_time DESC', 'created_at DESC', 'update_id ASC'],
+                    'crawl_time': ['publish_date DESC', 'created_at DESC', 'update_id ASC'],
+                    'vendor': ['publish_date DESC', 'crawl_time DESC', 'update_id ASC'],
+                    'update_id': ['publish_date DESC', 'crawl_time DESC'],
+                }
+                for clause in secondary_sorts.get(sort_by, []):
+                    if clause not in order_by_clauses:
+                        order_by_clauses.append(clause)
+
                 sql = f"""
                     SELECT * FROM updates
                     WHERE {where_clause}
-                    ORDER BY {sort_by} {order}
+                    ORDER BY {', '.join(order_by_clauses)}
                     LIMIT ? OFFSET ?
                 """
                 params.extend([limit, offset])

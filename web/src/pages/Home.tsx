@@ -15,13 +15,13 @@ import {
   SOURCE_CHANNEL_LABELS,
 } from '@/types';
 import type { UpdateBrief } from '@/types';
-import { Clock3, Radar, Loader2 } from 'lucide-react';
-import { differenceInCalendarDays, format, isToday, isYesterday, parseISO } from 'date-fns';
+import { Radar, Loader2 } from 'lucide-react';
+import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { SEO } from '@/components/SEO';
 
 function getTimelineDate(update: UpdateBrief): string {
-  return update.crawl_time || update.publish_date;
+  return update.publish_date || update.crawl_time || '';
 }
 
 function compareTimelineUpdates(a: UpdateBrief, b: UpdateBrief): number {
@@ -46,18 +46,6 @@ function compareTimelineUpdates(a: UpdateBrief, b: UpdateBrief): number {
   return a.update_id.localeCompare(b.update_id);
 }
 
-function isBackfillUpdate(update: UpdateBrief): boolean {
-  if (!update.crawl_time || !update.publish_date) return false;
-
-  try {
-    const crawlDate = parseISO(update.crawl_time);
-    const publishDate = parseISO(update.publish_date);
-    return isToday(crawlDate) && differenceInCalendarDays(crawlDate, publishDate) >= 7;
-  } catch {
-    return false;
-  }
-}
-
 // 格式化日期分组标签
 function formatDateGroup(dateStr: string): string {
   try {
@@ -75,7 +63,6 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
   const vendorColor = getVendorColor(update.vendor);
   const typeMeta = getUpdateTypeMeta(update.update_type);
   const TypeIcon = typeMeta.icon;
-  const backfill = isBackfillUpdate(update);
   
   return (
     <div className="timeline-card group">
@@ -122,12 +109,6 @@ function TimelineCard({ update }: { update: UpdateBrief }) {
             <span className="text-xs text-muted-foreground/70">
               发布于 {update.publish_date}
             </span>
-
-            {backfill && (
-              <span className="text-[10px] px-2 py-0.5 rounded font-medium border border-amber-200 bg-amber-50 text-amber-700">
-                往期补全
-              </span>
-            )}
 
             {/* 厂商名称 */}
             <span 
@@ -226,7 +207,6 @@ function DailyBrief({ updates, stats }: { updates: UpdateBrief[]; stats?: { tota
 export function HomePage() {
   // 厂商筛选状态
   const [selectedVendor, setSelectedVendor] = useState<string>('');
-  const [showBackfill, setShowBackfill] = useState(false);
   
   // 获取厂商列表
   const { data: vendorsData } = useVendors();
@@ -242,10 +222,9 @@ export function HomePage() {
     isFetchingNextPage,
   } = useInfiniteUpdates({ 
     page_size: 30, 
-    sort_by: 'crawl_time', 
+    sort_by: 'publish_date', 
     order: 'desc',
     vendor: selectedVendor || undefined,
-    exclude_backfill: showBackfill ? undefined : true,
   });
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -276,10 +255,7 @@ export function HomePage() {
     return data.pages.flatMap(page => page.data?.items || []);
   }, [data]);
 
-  const visibleUpdates = useMemo(() => {
-    if (showBackfill) return updates;
-    return updates.filter((update) => !isBackfillUpdate(update));
-  }, [updates, showBackfill]);
+  const visibleUpdates = updates;
   
   // 按日期分组
   const groupedUpdates = useMemo(() => {
@@ -366,19 +342,6 @@ export function HomePage() {
             {VENDOR_DISPLAY_NAMES[v.vendor] || v.vendor}
           </button>
         ))}
-        <button
-          onClick={() => setShowBackfill((prev) => !prev)}
-          className={cn(
-            'px-3 py-1.5 text-xs border rounded transition font-medium inline-flex items-center gap-1.5',
-            showBackfill
-              ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm hover:bg-amber-100'
-              : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-primary/50'
-          )}
-          title={showBackfill ? '点击隐藏往期补全项目' : '点击显示往期补全项目'}
-        >
-          <Clock3 className="h-3.5 w-3.5" />
-          往期补全
-        </button>
       </PageHeader>
 
       {/* 今日摘要 */}
@@ -392,7 +355,7 @@ export function HomePage() {
       ) : visibleUpdates.length === 0 ? (
         <EmptyState
           title="暂无更新"
-          description={showBackfill ? '暂时没有任何更新记录' : '隐藏往期补全后暂无可见记录'}
+          description="暂时没有任何更新记录"
         />
       ) : (
         <div className="timeline-container pl-2">

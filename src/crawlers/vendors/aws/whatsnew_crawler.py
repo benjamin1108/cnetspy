@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import time
-import hashlib
 import datetime
 import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple
@@ -35,9 +34,12 @@ class AwsWhatsnewCrawler(BaseCrawler):
         self.source_config = config.get('sources', {}).get(vendor, {}).get(source_type, {})
         self.start_url = self.source_config.get('url')
         self.max_pages = self.crawler_config.get('article_limit')  # 从配置读取
+        self.lookback_days = int(self.source_config.get('lookback_days', 30))
         
-        logger.info(f"AWS What's New爬虫初始化完成，最大文章数: {self.max_pages}")
-    
+        logger.info(
+            f"AWS What's New爬虫初始化完成，最大文章数: {self.max_pages}, 回看天数: {self.lookback_days}"
+        )
+
     def _parse_api_date(self, timestamp: Any) -> str:
         """
         解析API返回的时间戳
@@ -102,15 +104,18 @@ class AwsWhatsnewCrawler(BaseCrawler):
         
     def _get_identifier_components(self, update: Dict[str, Any]) -> List[str]:
         """
-        AWS whatsnew: hash(api_base + url)
+        AWS whatsnew: 优先使用稳定的 API item id，缺失时回退到 URL
             
         Args:
             update: 更新数据字典
                 
         Returns:
-            [api_base, url]
+            [api_base, item_id]
         """
         api_base = "https://aws.amazon.com/api/dirs/items/search"
+        item_id = (update.get('source_item_id') or update.get('source_item_name') or '').strip()
+        if item_id:
+            return [api_base, item_id]
         url = self._normalize_source_url(update.get('source_url', ''))
         return [api_base, url]
 
@@ -167,22 +172,29 @@ class AwsWhatsnewCrawler(BaseCrawler):
             
             # 过滤已存在的更新（检查数据库 + AI清洗）
             articles_to_crawl = []
-            for title, url, publish_date, product_name, content in article_links:
+            for title, url, publish_date, product_name, content, item_id, item_name in article_links:
                 normalized_url = self._normalize_source_url(url)
                 # 生成临时update字典用于identifier生成
-                temp_update = {'source_url': normalized_url}
+                temp_update = {
+                    'source_url': normalized_url,
+                    'source_item_id': item_id,
+                    'source_item_name': item_name,
+                }
                 source_identifier = self.generate_source_identifier(temp_update)
                 
                 # 统一去重检查
                 should_skip, reason = self.should_skip_update(
                     source_url=normalized_url, 
-                    source_identifier=source_identifier, 
+                    source_identifier=source_identifier,
+                    publish_date=publish_date,
                     title=title
                 )
                 if not force_mode and should_skip:
                     logger.debug(f"跳过({reason}): {title}")
                 else:
-                    articles_to_crawl.append((title, normalized_url, publish_date, product_name, content))
+                    articles_to_crawl.append(
+                        (title, normalized_url, publish_date, product_name, content, item_id, item_name)
+                    )
             
             logger.info(f"需要爬取 {len(articles_to_crawl)} 篇新公告")
             
@@ -195,8 +207,17 @@ class AwsWhatsnewCrawler(BaseCrawler):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                     # 提交所有任务
                     future_to_article = {
-                        executor.submit(self._crawl_article, title, url, publish_date, product_name, content): (title, url)
-                        for title, url, publish_date, product_name, content in articles_to_crawl
+                        executor.submit(
+                            self._crawl_article,
+                            title,
+                            url,
+                            publish_date,
+                            product_name,
+                            content,
+                            item_id,
+                            item_name,
+                        ): (title, url)
+                        for title, url, publish_date, product_name, content, item_id, item_name in articles_to_crawl
                     }
                     
                     # 处理完成的任务
@@ -234,7 +255,7 @@ class AwsWhatsnewCrawler(BaseCrawler):
         finally:
             self._close_driver()
     
-    def _parse_article_links(self, html: str) -> List[Tuple[str, str, str, str, str]]:
+    def _parse_article_links(self, html: str) -> List[Tuple[str, str, str, str, str, str, str]]:
         """
         通过AWS API获取What's New公告列表
         
@@ -242,7 +263,7 @@ class AwsWhatsnewCrawler(BaseCrawler):
             html: 未使用（保持接口一致）
             
         Returns:
-            (title, url, publish_date, product_name, content)元组列表
+            (title, url, publish_date, product_name, content, item_id, item_name)元组列表
         """
         articles = []
         
@@ -283,6 +304,8 @@ class AwsWhatsnewCrawler(BaseCrawler):
                                 additional_fields = item_data.get("additionalFields", {})
                                 # tags在外层，不在item.item里
                                 tags = item.get("tags", [])
+                                item_id = item_data.get("id", "")
+                                item_name = item_data.get("name", "")
                                 
                                 headline = additional_fields.get("headline", "")
                                 url_path = additional_fields.get("headlineUrl", "")
@@ -304,8 +327,29 @@ class AwsWhatsnewCrawler(BaseCrawler):
                                     
                                     # 解析日期 (postDateTime格式: 1732060800 Unix时间戳)
                                     publish_date = self._parse_api_date(post_date_time)
+                                    try:
+                                        publish_day = datetime.date.fromisoformat(publish_date)
+                                    except ValueError:
+                                        publish_day = None
+
+                                    cutoff_date = self._get_cutoff_date()
+                                    if cutoff_date and publish_day and publish_day < cutoff_date:
+                                        logger.info(
+                                            f"AWS What's New 命中历史截断，停止继续抓取: publish_date={publish_date}"
+                                        )
+                                        return articles[:self.max_pages]
                                     
-                                    articles.append((headline, full_url, publish_date, product_name, post_body))
+                                    articles.append(
+                                        (
+                                            headline,
+                                            full_url,
+                                            publish_date,
+                                            product_name,
+                                            post_body,
+                                            item_id,
+                                            item_name,
+                                        )
+                                    )
                             
                             total_items += len(page_items)
                             logger.debug(f"从API第 {page} 页获取到 {len(page_items)} 篇公告，累计 {total_items} 篇")
@@ -334,7 +378,16 @@ class AwsWhatsnewCrawler(BaseCrawler):
             logger.error(f"API爬取出错: {e}")
             return []
     
-    def _crawl_article(self, title: str, url: str, publish_date: str, product_name: str, html_content: str) -> Optional[Dict[str, Any]]:
+    def _crawl_article(
+        self,
+        title: str,
+        url: str,
+        publish_date: str,
+        product_name: str,
+        html_content: str,
+        item_id: str = '',
+        item_name: str = '',
+    ) -> Optional[Dict[str, Any]]:
         """
         处理单篇公告（使用API返回的内容）
         
@@ -360,11 +413,14 @@ class AwsWhatsnewCrawler(BaseCrawler):
             # 提取纯文本内容
             content = self._extract_content(soup)
             
-            # 生成 source_identifier（API base URL + URL path hash）
-            api_base = "https://aws.amazon.com/api/dirs/items/search"
             normalized_url = self._normalize_source_url(url)
-            identifier_content = f"{api_base}|{normalized_url}"
-            source_identifier = hashlib.md5(identifier_content.encode('utf-8')).hexdigest()[:12]
+            source_identifier = self.generate_source_identifier(
+                {
+                    'source_url': normalized_url,
+                    'source_item_id': item_id,
+                    'source_item_name': item_name,
+                }
+            )
             
             # 构建更新条目
             update = {
@@ -374,7 +430,9 @@ class AwsWhatsnewCrawler(BaseCrawler):
                 'publish_date': publish_date,  # 使用从API获取的日期
                 'source_url': normalized_url,
                 'source_identifier': source_identifier,
-                'product_name': product_name  # 使用从tags提取的产品名
+                'product_name': product_name,  # 使用从tags提取的产品名
+                'source_item_id': item_id,
+                'source_item_name': item_name,
             }
             
             return update

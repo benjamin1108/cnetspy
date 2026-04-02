@@ -121,6 +121,59 @@ class TestExtremeQueryParameters:
 
         assert {row["update_id"] for row in results} == {"blog-1", "blog-2"}
 
+    def test_repository_uses_stable_secondary_sort_for_same_publish_date(self, data_layer):
+        data_layer.batch_insert_updates(
+            [
+                {
+                    "update_id": "same-date-1",
+                    "vendor": "gcp",
+                    "source_channel": "whatsnew",
+                    "source_url": "https://example.com/same-date-1",
+                    "source_identifier": "same-date-1",
+                    "title": "Same date 1",
+                    "content": "content",
+                    "publish_date": "2024-12-28",
+                    "crawl_time": "2024-12-28T10:00:00",
+                },
+                {
+                    "update_id": "same-date-2",
+                    "vendor": "gcp",
+                    "source_channel": "whatsnew",
+                    "source_url": "https://example.com/same-date-2",
+                    "source_identifier": "same-date-2",
+                    "title": "Same date 2",
+                    "content": "content",
+                    "publish_date": "2024-12-28",
+                    "crawl_time": "2024-12-28T12:00:00",
+                },
+                {
+                    "update_id": "same-date-3",
+                    "vendor": "gcp",
+                    "source_channel": "whatsnew",
+                    "source_url": "https://example.com/same-date-3",
+                    "source_identifier": "same-date-3",
+                    "title": "Same date 3",
+                    "content": "content",
+                    "publish_date": "2024-12-28",
+                    "crawl_time": "2024-12-28T11:00:00",
+                },
+            ]
+        )
+
+        results = data_layer.query_updates_paginated(
+            filters={"vendor": "gcp"},
+            limit=10,
+            offset=0,
+            sort_by="publish_date",
+            order="desc",
+        )
+
+        assert [row["update_id"] for row in results] == [
+            "same-date-2",
+            "same-date-3",
+            "same-date-1",
+        ]
+
     def test_api_rejects_extreme_pagination_params(self, data_layer):
         from src.api.app import app
         from src.api.dependencies import get_db

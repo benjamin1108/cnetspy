@@ -18,6 +18,7 @@ class CrawlStats:
     new_saved: int = 0       # 新增保存
     skipped_exists: int = 0  # 跳过（已存在）
     skipped_ai: int = 0      # 跳过（AI清洗）
+    skipped_old: int = 0     # 跳过（超出时间窗口）
     failed: int = 0          # 失败数
 
 
@@ -125,6 +126,7 @@ class CrawlerManager:
             new_saved=report.new_saved,
             skipped_exists=report.skipped_exists,
             skipped_ai=report.skipped_ai_cleaned,
+            skipped_old=report.skipped_too_old,
             failed=report.failed
         )
         

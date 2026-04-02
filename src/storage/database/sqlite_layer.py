@@ -89,9 +89,20 @@ class UpdateDataLayer:
         """批量插入 Update 记录"""
         return self._updates.batch_insert_updates(updates_data, force_update)
     
-    def check_update_exists(self, source_url: str, source_identifier: str = '') -> bool:
+    def check_update_exists(
+        self,
+        source_url: str,
+        source_identifier: str = '',
+        vendor: Optional[str] = None,
+        source_channel: Optional[str] = None,
+    ) -> bool:
         """检查 Update 是否存在"""
-        return self._updates.check_update_exists(source_url, source_identifier)
+        return self._updates.check_update_exists(
+            source_url,
+            source_identifier,
+            vendor=vendor,
+            source_channel=source_channel,
+        )
     
     def get_update_by_id(self, update_id: str) -> Optional[Dict[str, Any]]:
         """根据 update_id 获取 Update 记录"""

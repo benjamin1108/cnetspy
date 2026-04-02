@@ -117,8 +117,10 @@ class CrawlerIntegration:
             
             # 检查是否已存在
             if self.data_layer.check_update_exists(
-                update_data['source_url'], 
-                update_data.get('source_identifier', '')
+                update_data['source_url'],
+                update_data.get('source_identifier', ''),
+                vendor=vendor,
+                source_channel=source_type,
             ):
                 self.logger.debug(f"Update已存在,跳过: {url_key}")
                 return True
@@ -187,8 +189,10 @@ class CrawlerIntegration:
                     
                     # 检查是否已存在（如果不是强制更新模式）
                     if not force_update and self.data_layer.check_update_exists(
-                        update_data['source_url'], 
-                        update_data.get('source_identifier', '')
+                        update_data['source_url'],
+                        update_data.get('source_identifier', ''),
+                        vendor=vendor,
+                        source_channel=source_type,
                     ):
                         result['skipped'] += 1
                         continue
