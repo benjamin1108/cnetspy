@@ -179,11 +179,11 @@ def generate_daily_report_html(
             <div style="display:flex; gap:12px; margin-bottom:16px;">
                 <div style="flex:1; background:#f7fafc; border-radius:8px; padding:12px; text-align:center;">
                     <div style="color:#4A90E2; font-size:24px; font-weight:700;">{crawl_discovered}</div>
-                    <div style="color:#718096; font-size:12px;">🔍 发现总数</div>
+                    <div style="color:#718096; font-size:12px;">🕷️ 扫描总数</div>
                 </div>
                 <div style="flex:1; background:#f7fafc; border-radius:8px; padding:12px; text-align:center;">
                     <div style="color:#a0aec0; font-size:24px; font-weight:700;">{crawl_skipped}</div>
-                    <div style="color:#718096; font-size:12px;">⏭️ 跳过(已存在)</div>
+                    <div style="color:#718096; font-size:12px;">⏭️ 已存在</div>
                 </div>
                 <div style="flex:1; background:#f0fff4; border-radius:8px; padding:12px; text-align:center;">
                     <div style="color:#22543d; font-size:24px; font-weight:700;">{crawl_total}</div>

@@ -62,7 +62,9 @@ def run_daily_crawl_analyze(config: JobConfig) -> bool:
                 if isinstance(stat_detail, dict):
                     new_count = stat_detail.get('new', 0)
                     discovered = stat_detail.get('discovered', 0)
-                    skipped = stat_detail.get('skipped', 0)
+                    skipped = (stat_detail.get('skipped', 0)
+                               + stat_detail.get('ai_cleaned', 0)
+                               + stat_detail.get('skipped_old', 0))
                 else:
                     new_count = stat_detail
                     discovered = 0
@@ -166,6 +168,7 @@ def _run_crawl_with_stats(vendors: list) -> Tuple[bool, Dict[str, Dict[str, Dict
                     'new': s.new_saved,
                     'skipped': s.skipped_exists,
                     'ai_cleaned': s.skipped_ai,
+                    'skipped_old': s.skipped_old,
                     'failed': s.failed
                 }
                 total_discovered += s.discovered

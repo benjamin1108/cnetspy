@@ -258,10 +258,11 @@ class BaseCrawler(ABC):
     ) -> Tuple[bool, str]:
         """
         统一去重检查 - 支持两种调用方式
-        
+
         检查顺序:
         1. 检查数据库是否已存在
-        2. 检查是否已被 AI 清洗（非网络相关已删除）
+        2. 检查是否超出抓取时间窗口（仅对库中不存在的新条目）
+        3. 检查是否已被 AI 清洗（非网络相关已删除）
         
         调用方式:
         1. should_skip_update(source_url=url, source_identifier=id, title=title)
@@ -295,12 +296,7 @@ class BaseCrawler(ABC):
 
         normalized_publish_date = self.normalize_publish_date(publish_date or '')
 
-        # 0. 检查是否超出抓取时间窗口
-        if self.is_update_too_old(normalized_publish_date):
-            self._crawl_report.increment_skipped_too_old()
-            return True, 'too_old'
-        
-        # 1. 检查数据库是否已存在
+        # 1. 检查数据库是否已存在（优先，确保统计准确）
         if self.data_layer.check_update_exists(
             source_url,
             source_identifier or '',
@@ -309,8 +305,13 @@ class BaseCrawler(ABC):
         ):
             self._crawl_report.increment_skipped_exists()
             return True, 'exists'
-        
-        # 2. 检查是否被AI清洗过
+
+        # 2. 检查是否超出抓取时间窗口（仅对库中不存在的新条目生效）
+        if self.is_update_too_old(normalized_publish_date):
+            self._crawl_report.increment_skipped_too_old()
+            return True, 'too_old'
+
+        # 3. 检查是否被AI清洗过
         if self.data_layer.check_cleaned_by_ai(source_url, source_identifier):
             self._crawl_report.add_skipped_ai_cleaned(source_url, title)
             return True, 'ai_cleaned'
