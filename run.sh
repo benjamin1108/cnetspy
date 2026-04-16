@@ -137,10 +137,14 @@ show_help() {
         echo -e "  --weekly           生成周报"
         echo -e "  --monthly          生成月报"
         echo -e "  --send             生成后发送通知"
+        echo -e "  --image            生成 4K 9:16 报告长图"
+        echo -e "  --send-image       生成长图并推送到钉钉"
+        echo -e "  --dingtalk-robots  指定钉钉机器人名称，多个用英文逗号分隔"
         echo -e "  --force            强制重新生成（忽略缓存）"
         echo ""
         echo -e "  $0 report --weekly                # 生成周报（优先使用缓存）"
         echo -e "  $0 report --weekly --force        # 强制重新生成周报"
+        echo -e "  $0 report --weekly --send-image --dingtalk-robots TEST-BOT"
         echo -e "  $0 report --monthly --send        # 生成月报并发送"
 }
 

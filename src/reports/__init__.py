@@ -9,9 +9,12 @@
 from .base import BaseReport
 from .weekly_report import WeeklyReport
 from .monthly_report import MonthlyReport
+from .image_generator import ReportImageGenerator, ReportImageResult
 
 __all__ = [
     'BaseReport',
     'WeeklyReport',
     'MonthlyReport',
+    'ReportImageGenerator',
+    'ReportImageResult',
 ]

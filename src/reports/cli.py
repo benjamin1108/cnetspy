@@ -23,6 +23,7 @@ from typing import Optional
 
 from src.reports.weekly_report import WeeklyReport
 from src.reports.monthly_report import MonthlyReport
+from src.reports.image_generator import ReportImageGenerator, ReportImageResult
 from src.storage.database.reports_repository import ReportRepository
 from src.notification import NotificationManager
 from src.utils.config import get_config
@@ -73,7 +74,71 @@ def send_notification(content: str, report_type: str, year: int, week_or_month: 
     except Exception as e:
         print(f"  → [错误] 通知发送失败: {e}")
 
-def generate_weekly_report(year: int, week: int, force: bool = False, send: bool = False, output: bool = False):
+def _parse_robot_names(robot_names: Optional[str]) -> Optional[list]:
+    """解析逗号分隔的钉钉机器人名称"""
+    if not robot_names:
+        return None
+    names = [name.strip() for name in robot_names.split(',') if name.strip()]
+    return names or None
+
+
+def _send_image_notification(
+    title: str,
+    image_result: ReportImageResult,
+    online_url: str,
+    report_content: str,
+    robot_names: Optional[list] = None,
+):
+    """推送报告长图到钉钉"""
+    try:
+        if not image_result.download_url:
+            print(f"  → [警告] 长图已保存但无公网下载链接，跳过钉钉图片推送: {image_result.filepath}")
+            return
+
+        config = get_config()
+        manager = NotificationManager(config.get('notification', {}))
+        content = (
+            f"## {title}\n\n"
+            f"![{title}]({image_result.download_url})\n\n"
+            f"{report_content}\n\n"
+            f"[点击查看在线报告]({online_url})"
+        )
+        result = manager.send_dingtalk(title, content, timeout=20, robot_names=robot_names)
+        status = "成功" if result.success else f"失败 ({result.message})"
+        print(f"  → [长图推送] dingtalk: {status}")
+    except Exception as e:
+        print(f"  → [错误] 长图推送到钉钉失败: {e}")
+
+
+def _generate_report_image(
+    report,
+    report_type: str,
+    title: str,
+    content: str,
+    filename: str,
+) -> ReportImageResult:
+    """生成报告长图并保存到 data/report/{type}/"""
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    output_path = os.path.join(base_dir, 'data', 'report', report_type, filename)
+    generator = ReportImageGenerator()
+    return generator.generate_report_image(
+        report_type=report_type,
+        title=title,
+        content=content,
+        output_path=output_path,
+    )
+
+
+def generate_weekly_report(
+    year: int,
+    week: int,
+    force: bool = False,
+    send: bool = False,
+    output: bool = False,
+    image: bool = False,
+    send_image: bool = False,
+    dingtalk_robots: Optional[str] = None,
+):
     """
     生成或获取周报
     """
@@ -100,6 +165,8 @@ def generate_weekly_report(year: int, week: int, force: bool = False, send: bool
     # 2. 检查数据库缓存
     existing_report = repo.get_report('weekly', year, week=week)
     
+    report = None
+
     if existing_report and not force:
         print(f"  → [缓存] 发现已有报告 (ID: {existing_report.get('id')})，跳过生成")
         
@@ -134,10 +201,44 @@ def generate_weekly_report(year: int, week: int, force: bool = False, send: bool
     # 3. 发送通知
     if send and content:
         send_notification(content, 'weekly', year, week)
+
+    # 4. 生成/推送长图
+    if (image or send_image) and content:
+        try:
+            if report is None:
+                report = WeeklyReport(start_date=start_dt, end_date=end_dt)
+            image_title = f"云网络竞争动态周报 {year}年第{week}周"
+            filename = f"{year}-W{week}.png"
+            image_result = _generate_report_image(report, 'weekly', image_title, content, filename)
+            print(f"  → [长图] 已生成: {image_result.filepath}")
+            if image_result.model:
+                print(f"  → [长图] 实际模型: {image_result.model}")
+
+            if send_image:
+                online_url = f"https://cnetspy.site/next/reports?type=weekly&year={year}&week={week}"
+                _send_image_notification(
+                    image_title,
+                    image_result,
+                    online_url,
+                    content,
+                    robot_names=_parse_robot_names(dingtalk_robots),
+                )
+        except Exception as e:
+            print(f"  → [失败] 长图生成/推送出错: {e}")
+            return False
     
     return True
 
-def generate_monthly_report(year: int, month: int, force: bool = False, send: bool = False, output: bool = False):
+def generate_monthly_report(
+    year: int,
+    month: int,
+    force: bool = False,
+    send: bool = False,
+    output: bool = False,
+    image: bool = False,
+    send_image: bool = False,
+    dingtalk_robots: Optional[str] = None,
+):
     """
     生成或获取月报
     """
@@ -155,6 +256,8 @@ def generate_monthly_report(year: int, month: int, force: bool = False, send: bo
     # 2. 检查数据库缓存
     existing_report = repo.get_report('monthly', year, month=month)
     
+    report = None
+
     if existing_report and not force:
         print(f"  → [缓存] 发现已有报告 (ID: {existing_report.get('id')})，跳过生成")
         
@@ -184,6 +287,31 @@ def generate_monthly_report(year: int, month: int, force: bool = False, send: bo
     # 3. 发送通知
     if send and content:
         send_notification(content, 'monthly', year, month)
+
+    # 4. 生成/推送长图
+    if (image or send_image) and content:
+        try:
+            if report is None:
+                report = MonthlyReport(start_date=start_date, end_date=end_date)
+            image_title = f"云网络竞争动态月报 {year}年{month}月"
+            filename = f"{year}-{month:02d}.png"
+            image_result = _generate_report_image(report, 'monthly', image_title, content, filename)
+            print(f"  → [长图] 已生成: {image_result.filepath}")
+            if image_result.model:
+                print(f"  → [长图] 实际模型: {image_result.model}")
+
+            if send_image:
+                online_url = f"https://cnetspy.site/next/reports?type=monthly&year={year}&month={month}"
+                _send_image_notification(
+                    image_title,
+                    image_result,
+                    online_url,
+                    content,
+                    robot_names=_parse_robot_names(dingtalk_robots),
+                )
+        except Exception as e:
+            print(f"  → [失败] 长图生成/推送出错: {e}")
+            return False
         
     return True
 
@@ -198,6 +326,9 @@ def main():
     parser.add_argument('--week', type=int, help='指定周次，如 47')
     parser.add_argument('--force', action='store_true', help='强制重新生成（忽略缓存）')
     parser.add_argument('--send', action='store_true', help='发送通知')
+    parser.add_argument('--image', action='store_true', help='生成 4K 9:16 报告长图')
+    parser.add_argument('--send-image', action='store_true', help='生成长图并推送到钉钉')
+    parser.add_argument('--dingtalk-robots', help='仅推送到指定钉钉机器人，多个名称用英文逗号分隔')
     parser.add_argument('--output', action='store_true', help='输出HTML内容到控制台')
     
     args = parser.parse_args()
@@ -212,7 +343,7 @@ def main():
     if args.weekly:
         # 情况 A: 指定具体某一周 (--year 2025 --week 10)
         if args.year and args.week:
-            generate_weekly_report(args.year, args.week, args.force, args.send, args.output)
+            generate_weekly_report(args.year, args.week, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
             
         # 情况 B: 指定某月的所有周 (--year 2025 --month 11)
         elif args.year and args.month:
@@ -231,7 +362,7 @@ def main():
                     iso_year, iso_week, _ = d.isocalendar()
                     if (iso_year, iso_week) not in processed_weeks:
                         processed_weeks.add((iso_year, iso_week))
-                        generate_weekly_report(iso_year, iso_week, args.force, args.send, args.output)
+                        generate_weekly_report(iso_year, iso_week, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
         
         # 情况 C: 默认生成最新一周
         else:
@@ -243,13 +374,13 @@ def main():
             iso_year, iso_week, _ = last_week_day.isocalendar()
             
             print(f"默认生成最新一周 ({iso_year}年第{iso_week}周)")
-            generate_weekly_report(iso_year, iso_week, args.force, args.send, args.output)
+            generate_weekly_report(iso_year, iso_week, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
 
     # ==================== 月报逻辑 ====================
     elif args.monthly:
         # 情况 A: 指定具体某一月 (--year 2025 --month 11)
         if args.year and args.month:
-            generate_monthly_report(args.year, args.month, args.force, args.send, args.output)
+            generate_monthly_report(args.year, args.month, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
             
         # 情况 B: 批量生成某年所有月份 (--year 2025)
         elif args.year and not args.month:
@@ -269,7 +400,7 @@ def main():
             print("=" * 60)
             
             for m in months_to_process:
-                generate_monthly_report(year, m, args.force, args.send, args.output)
+                generate_monthly_report(year, m, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
                 
         # 情况 C: 默认生成最新一个月
         else:
@@ -285,7 +416,7 @@ def main():
                 month = today.month
             
             print(f"默认生成最新月报 ({year}年{month}月)")
-            generate_monthly_report(year, month, args.force, args.send, args.output)
+            generate_monthly_report(year, month, args.force, args.send, args.output, args.image, args.send_image, args.dingtalk_robots)
 
 if __name__ == '__main__':
     main()
