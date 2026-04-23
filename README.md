@@ -138,6 +138,23 @@ vim .env
 ./run.sh mcp
 ```
 
+### 📰 周报与月报 (Reports)
+周报/月报支持文本报告、4K 竖版长图，以及钉钉长图推送。
+
+```bash
+# 生成最新周报
+./run.sh report --weekly
+
+# 生成周报长图
+./run.sh report --weekly --image
+
+# 生成长图并推送到指定钉钉机器人
+./run.sh report --weekly --send-image --dingtalk-robots TEST-BOT
+
+# 生成并发送月报
+./run.sh report --monthly --send
+```
+
 ### 🧪 测试 (Testing)
 项目当前测试重点覆盖后端核心链路，适合日常回归、发布前验证和问题复现。
 
@@ -267,8 +284,13 @@ tests/
 ## 📅 定时任务
 系统内置调度器，默认配置如下（可在 `config/scheduler.yaml` 中修改）：
 *   **每日 08:00**: 执行全量爬取 + 自动分析。
-*   **每周一 09:00**: 生成周报。
-*   **每月 1日 09:00**: 生成月报。
+*   **每周一 09:00**: 生成周报，并默认生成长图、推送长图到钉钉。
+*   **每月 1日 09:00**: 生成月报，并默认生成长图、推送长图到钉钉。
+
+周报/月报调度支持以下配置项：
+- `generate_image`: 是否自动生成长图，默认 `true`
+- `send_image`: 是否自动将长图推送到钉钉，默认 `true`
+- `dingtalk_robots`: 可选，指定钉钉机器人名称，多个用英文逗号分隔
 
 手动触发任务：
 ```bash

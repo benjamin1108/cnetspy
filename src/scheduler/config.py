@@ -60,6 +60,11 @@ class SchedulerConfig:
                 name='weekly_report',
                 cron=job_cfg.get('cron', '0 9 * * 1'),
                 enabled=job_cfg.get('enabled', True),
+                params={
+                    'generate_image': job_cfg.get('generate_image', True),
+                    'send_image': job_cfg.get('send_image', True),
+                    'dingtalk_robots': job_cfg.get('dingtalk_robots'),
+                },
                 notify=job_cfg.get('notify', ['dingtalk'])
             )
         
@@ -70,6 +75,11 @@ class SchedulerConfig:
                 name='monthly_report',
                 cron=job_cfg.get('cron', '0 9 1 * *'),
                 enabled=job_cfg.get('enabled', True),
+                params={
+                    'generate_image': job_cfg.get('generate_image', True),
+                    'send_image': job_cfg.get('send_image', True),
+                    'dingtalk_robots': job_cfg.get('dingtalk_robots'),
+                },
                 notify=job_cfg.get('notify', ['dingtalk', 'email'])
             )
         
