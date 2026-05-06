@@ -45,7 +45,6 @@ class TestScheduledReportJobs:
         config = SchedulerConfig.from_dict({"jobs": {"weekly_report": {}}}).jobs["weekly_report"]
 
         monkeypatch.setattr("src.reports.WeeklyReport", lambda: DummyReport(datetime(2026, 4, 20)))
-        monkeypatch.setattr(report_job, "_send_report", lambda *args, **kwargs: None)
         monkeypatch.setattr(
             "src.reports.cli._generate_report_image",
             lambda report, report_key, image_title, content, filename: calls.append(
@@ -76,7 +75,6 @@ class TestScheduledReportJobs:
         ).jobs["monthly_report"]
 
         monkeypatch.setattr("src.reports.MonthlyReport", lambda start_date, end_date: DummyReport(start_date))
-        monkeypatch.setattr(report_job, "_send_report", lambda *args, **kwargs: None)
 
         generate_calls = []
         monkeypatch.setattr(
