@@ -18,6 +18,7 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, JobExecution
 
 from .config import SchedulerConfig, JobConfig
 from ..utils.threading.process_lock_manager import ProcessLockManager, ProcessType
+from ..utils.distributed_lock import DistributedLock
 
 logger = logging.getLogger(__name__)
 
@@ -160,11 +161,11 @@ class Scheduler:
             trigger = CronTrigger.from_crontab(job_config.cron)
             
             self._scheduler.add_job(
-                self._job_functions[job_name],
+                self._run_job_with_lock,
                 trigger=trigger,
                 id=job_name,
                 name=job_name,
-                kwargs={'config': job_config},
+                kwargs={'job_name': job_name, 'config': job_config},
                 replace_existing=True
             )
             
@@ -219,11 +220,26 @@ class Scheduler:
         
         try:
             logger.info(f"手动触发任务: {job_name}")
-            self._job_functions[job_name](config=job_config)
-            return True
+            return self._run_job_with_lock(job_name=job_name, config=job_config)
         except Exception as e:
             logger.error(f"任务执行失败: {job_name}, 错误: {e}")
             return False
+
+    def _get_job_lock_path(self, job_name: str) -> str:
+        """返回任务执行锁文件路径。"""
+        return os.path.join("/tmp", f"cnetspy_job_{job_name}.lock")
+
+    def _run_job_with_lock(self, job_name: str, config: JobConfig) -> bool:
+        """通过任务级执行锁避免同一任务被并发触发。"""
+        lock = DistributedLock(self._get_job_lock_path(job_name), logger)
+        if not lock.acquire(blocking=False):
+            logger.warning("任务已在运行，跳过重复触发: %s", job_name)
+            return False
+
+        try:
+            return bool(self._job_functions[job_name](config=config))
+        finally:
+            lock.release()
     
     def get_jobs_status(self) -> List[Dict[str, Any]]:
         """
