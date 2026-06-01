@@ -174,6 +174,111 @@ class WeeklyReport(BaseReport):
 
         return text
 
+    def _get_updates_for_render(self) -> List[Dict[str, Any]]:
+        """获取用于 Markdown 渲染的更新列表。"""
+        if hasattr(self, '_update_map') and self._update_map:
+            return list(self._update_map.values())
+
+        updates = self._query_analyzed_updates()
+        self._update_map = {u['update_id']: u for u in updates}
+        return updates
+
+    def _generate_fallback_insight(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """AI 洞察失败时，用已分析数据生成可读兜底报告。"""
+        if not updates:
+            return {
+                'insight_title': '本周暂无云产品动态',
+                'insight_summary': '本周主要云厂商暂无重大的网络产品功能更新或发布。',
+                'top_updates': [],
+                'quick_scan': [],
+                'featured_blogs': []
+            }
+
+        self._update_map = {u['update_id']: u for u in updates}
+
+        vendor_counts: Dict[str, int] = {}
+        for update in updates:
+            vendor = update.get('vendor', '')
+            vendor_counts[vendor] = vendor_counts.get(vendor, 0) + 1
+
+        vendor_summary = '、'.join(
+            f"{VENDOR_DISPLAY_NAMES.get(vendor, vendor)} {count} 条"
+            for vendor, count in sorted(vendor_counts.items())
+        )
+        date_range = f"{self.start_date.strftime('%Y-%m-%d')} 至 {self.end_date.strftime('%Y-%m-%d')}"
+
+        top_source_updates = updates[:5]
+        top_updates = []
+        for update in top_source_updates:
+            vendor = update.get('vendor', '')
+            source_channel = update.get('source_channel') or 'updates'
+            product = update.get('product_subcategory') or source_channel
+            summary = self._format_summary(update.get('content_summary') or '')
+            top_updates.append({
+                'update_id': update.get('update_id', ''),
+                'vendor': VENDOR_DISPLAY_NAMES.get(vendor, vendor),
+                'product': product,
+                'title': update.get('title_translated') or update.get('title') or '',
+                'pain_point': f"来自 {source_channel}，发布日期 {update.get('publish_date') or '未知'}。",
+                'value': summary or '该更新已完成网络相关分析，建议结合产品路线和客户场景评估影响。',
+                'comment': 'AI 洞察生成失败，本条由本地分析摘要自动兜底整理。'
+            })
+
+        top_ids = {item['update_id'] for item in top_updates}
+        quick_scan = []
+        grouped_updates: Dict[str, List[Dict[str, Any]]] = {}
+        for update in updates:
+            if update.get('update_id') in top_ids:
+                continue
+            vendor = update.get('vendor', '')
+            grouped_updates.setdefault(vendor, []).append(update)
+
+        for vendor, vendor_updates in sorted(grouped_updates.items()):
+            items = []
+            for update in vendor_updates[:8]:
+                title = update.get('title_translated') or update.get('title') or ''
+                if not title:
+                    continue
+                items.append({
+                    'update_id': update.get('update_id', ''),
+                    'content': f"{title}（{update.get('publish_date') or '日期未知'}）",
+                    'is_noteworthy': False
+                })
+            if items:
+                quick_scan.append({
+                    'vendor': VENDOR_DISPLAY_NAMES.get(vendor, vendor),
+                    'items': items
+                })
+
+        featured_blogs = []
+        for update in updates:
+            if 'blog' not in (update.get('source_channel') or '').lower():
+                continue
+            featured_blogs.append({
+                'update_id': update.get('update_id', ''),
+                'vendor': VENDOR_DISPLAY_NAMES.get(update.get('vendor', ''), update.get('vendor', '')),
+                'title': update.get('title_translated') or update.get('title') or '',
+                'url': self._build_update_link(update.get('update_id', '')),
+                'reason': self._format_summary(update.get('content_summary') or '') or '本周网络相关技术文章，建议补看。'
+            })
+            if len(featured_blogs) >= 3:
+                break
+
+        top_titles = '；'.join(item['title'] for item in top_updates[:3] if item.get('title'))
+        insight_summary = (
+            f"{date_range} 共跟踪到 {len(updates)} 条已分析云网络动态，覆盖 {vendor_summary}。"
+        )
+        if top_titles:
+            insight_summary += f" 重点包括：{top_titles}。"
+
+        return {
+            'insight_title': '本周云网络动态速览',
+            'insight_summary': insight_summary,
+            'top_updates': top_updates,
+            'quick_scan': quick_scan,
+            'featured_blogs': featured_blogs
+        }
+
     def _generate_ai_insight(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         调用 AI 生成周报核心洞察 (JSON) (使用结构化输出)
@@ -293,27 +398,11 @@ class WeeklyReport(BaseReport):
             # 调用 AI (开启结构化输出模式)
             logger.info("调用 Gemini 生成周报洞察 (结构化模式)...")
 
-            # --- DEBUG START ---
-            print("\n" + "="*80)
-            print("DEBUG: GEMINI MODEL INPUT (PROMPT)")
-            print("="*80)
-            print(prompt)
-            print("="*80 + "\n")
-            # --- DEBUG END ---
-
             response = self._gemini.generate_text(
                 prompt, 
                 response_mime_type="application/json",
                 response_schema=weekly_report_schema
             )
-
-            # --- DEBUG START ---
-            print("\n" + "="*80)
-            print("DEBUG: GEMINI MODEL OUTPUT (RESPONSE)")
-            print("="*80)
-            print(response)
-            print("="*80 + "\n")
-            # --- DEBUG END ---
 
             result = json.loads(response.strip())
             return result
@@ -568,6 +657,9 @@ class WeeklyReport(BaseReport):
         else:
             # 生成 AI 洞察
             ai_insight = self._generate_ai_insight(updates)
+            if not ai_insight:
+                logger.warning("AI 周报洞察为空，使用本地兜底摘要")
+                ai_insight = self._generate_fallback_insight(updates)
 
         # 1. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
@@ -585,11 +677,9 @@ class WeeklyReport(BaseReport):
         """
         根据 AI 洞察生成 Markdown 内容
         """
-        updates = []
-        # 确保 _update_map 存在，用于链接生成
-        if not hasattr(self, '_update_map') or not self._update_map:
-            updates = self._query_analyzed_updates()
-            self._update_map = {u['update_id']: u for u in updates}
+        updates = self._get_updates_for_render()
+        if updates and not ai_insight:
+            ai_insight = self._generate_fallback_insight(updates)
         
         # 如果是空报告（没有 updates 且 ai_insight 显示无内容）
         if not updates and not ai_insight.get('top_updates') and not ai_insight.get('quick_scan'):

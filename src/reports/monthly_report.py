@@ -141,6 +141,131 @@ class MonthlyReport(BaseReport):
         """构建更新详情链接"""
         return f"{SITE_BASE_URL}/updates/{update_id}"
 
+    def _format_summary(self, content_summary: str, limit: int = 220) -> str:
+        """压缩已分析摘要，供兜底报告使用。"""
+        if not content_summary:
+            return ""
+
+        lines = []
+        for line in content_summary.strip().split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('## '):
+                continue
+            lines.append(line)
+
+        text = ' '.join(lines)
+        if len(text) > limit:
+            text = text[:limit - 3] + '...'
+        return text
+
+    def _get_updates_for_render(self) -> List[Dict[str, Any]]:
+        """获取用于 Markdown 渲染的更新列表。"""
+        if hasattr(self, '_update_map') and self._update_map:
+            return list(self._update_map.values())
+
+        updates = self._query_analyzed_updates()
+        self._update_map = {u['update_id']: u for u in updates}
+        return updates
+
+    def _generate_fallback_insight(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """AI 洞察失败时，用已分析数据生成可读兜底报告。"""
+        if not updates:
+            return {
+                'insight_title': '本月暂无重大动态',
+                'insight_summary': '本月主要云厂商暂无重大的网络产品功能更新或发布。',
+                'landmark_updates': [],
+                'solution_analysis': [],
+                'noteworthy_updates': []
+            }
+
+        self._update_map = {u['update_id']: u for u in updates}
+
+        vendor_counts: Dict[str, int] = {}
+        subcategory_groups: Dict[str, List[Dict[str, Any]]] = {}
+        for update in updates:
+            vendor = update.get('vendor', '')
+            vendor_counts[vendor] = vendor_counts.get(vendor, 0) + 1
+            subcategory = update.get('product_subcategory') or update.get('source_channel') or 'other'
+            subcategory_groups.setdefault(subcategory, []).append(update)
+
+        vendor_summary = '、'.join(
+            f"{VENDOR_DISPLAY_NAMES.get(vendor, vendor)} {count} 条"
+            for vendor, count in sorted(vendor_counts.items())
+        )
+        date_range = f"{self.start_date.strftime('%Y-%m-%d')} 至 {self.end_date.strftime('%Y-%m-%d')}"
+
+        landmark_updates = []
+        for update in updates[:6]:
+            summary = self._format_summary(update.get('content_summary') or '')
+            landmark_updates.append({
+                'update_id': update.get('update_id', ''),
+                'vendor': VENDOR_DISPLAY_NAMES.get(update.get('vendor', ''), update.get('vendor', '')),
+                'product': update.get('product_subcategory') or update.get('source_channel') or '',
+                'title': update.get('title_translated') or update.get('title') or '',
+                'pain_point': f"来自 {update.get('source_channel') or 'updates'}，发布日期 {update.get('publish_date') or '未知'}。",
+                'value': summary or '该更新已完成网络相关分析，建议结合产品路线和客户场景评估影响。',
+                'comment': 'AI 洞察生成失败，本条由本地分析摘要自动兜底整理。'
+            })
+
+        solution_analysis = []
+        for subcategory, group in sorted(
+            subcategory_groups.items(),
+            key=lambda item: len(item[1]),
+            reverse=True
+        )[:4]:
+            refs = []
+            for update in group[:3]:
+                refs.append({
+                    'update_id': update.get('update_id', ''),
+                    'title': update.get('title_translated') or update.get('title') or ''
+                })
+            solution_analysis.append({
+                'theme': subcategory,
+                'summary': f"本月该方向共有 {len(group)} 条更新，主要集中在能力增强、区域/规格扩展或最佳实践发布。",
+                'references': refs
+            })
+
+        landmark_ids = {item['update_id'] for item in landmark_updates}
+        noteworthy_updates = []
+        grouped_by_vendor: Dict[str, List[Dict[str, Any]]] = {}
+        for update in updates:
+            if update.get('update_id') in landmark_ids:
+                continue
+            vendor = update.get('vendor', '')
+            grouped_by_vendor.setdefault(vendor, []).append(update)
+
+        for vendor, group in sorted(grouped_by_vendor.items()):
+            items = []
+            for update in group[:10]:
+                title = update.get('title_translated') or update.get('title') or ''
+                if not title:
+                    continue
+                items.append({
+                    'update_id': update.get('update_id', ''),
+                    'content': f"{title}（{update.get('publish_date') or '日期未知'}）",
+                    'reason': self._format_summary(update.get('content_summary') or '', limit=120)
+                })
+            if items:
+                noteworthy_updates.append({
+                    'vendor': VENDOR_DISPLAY_NAMES.get(vendor, vendor),
+                    'items': items
+                })
+
+        top_titles = '；'.join(item['title'] for item in landmark_updates[:3] if item.get('title'))
+        insight_summary = (
+            f"{date_range} 共跟踪到 {len(updates)} 条已分析云网络动态，覆盖 {vendor_summary}。"
+        )
+        if top_titles:
+            insight_summary += f" 代表性动态包括：{top_titles}。"
+
+        return {
+            'insight_title': '本月云网络动态速览',
+            'insight_summary': insight_summary,
+            'landmark_updates': landmark_updates,
+            'solution_analysis': solution_analysis,
+            'noteworthy_updates': noteworthy_updates
+        }
+
     def _generate_ai_insight(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         调用 AI 生成月报核心洞察 (JSON)
@@ -455,6 +580,9 @@ class MonthlyReport(BaseReport):
         else:
             # 2. 生成 AI 洞察
             ai_insight = self._generate_ai_insight(updates)
+            if not ai_insight:
+                logger.warning("AI 月报洞察为空，使用本地兜底摘要")
+                ai_insight = self._generate_fallback_insight(updates)
 
         # 3. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
@@ -472,11 +600,9 @@ class MonthlyReport(BaseReport):
         """
         根据 AI 洞察生成 Markdown 内容
         """
-        updates = []
-        # 确保 _update_map 存在
-        if not hasattr(self, '_update_map') or not self._update_map:
-            updates = self._query_analyzed_updates()
-            self._update_map = {u['update_id']: u for u in updates}
+        updates = self._get_updates_for_render()
+        if updates and not ai_insight:
+            ai_insight = self._generate_fallback_insight(updates)
 
         if not updates and not ai_insight.get('landmark_updates') and not ai_insight.get('noteworthy_updates'):
             self._generate_empty_report()

@@ -6,7 +6,7 @@ default:
   provider: gemini
   
   # 模型名称
-  model_name: gemini-3-flash-preview
+  model_name: gemini-3.5-flash
   
   # API Key 环境变量名称（实际的 API Key 从环境变量读取）
   api_key_env: GEMINI_API_KEY
@@ -64,7 +64,7 @@ default:
 # Chatbox 配置（前端 AI 助手使用）
 chatbox:
   # 模型名称（可与 default 不同）
-  model_name: gemini-3-flash-preview
+  model_name: gemini-3.5-flash
   
   # API Key 环境变量名称（复用 default 的 key）
   api_key_env: GEMINI_API_KEY
@@ -76,8 +76,8 @@ chatbox:
 
 # 报告生成配置
 report_generation:
-  # 周报和月报统一使用更高性能的模型以获得更深度的战略洞察
-  model_name: gemini-3-pro-preview
+  # 周报和月报统一使用报告模型
+  model_name: gemini-3.5-flash
   api_key_env: GEMINI_API_KEY
   generation:
     temperature: 0.3
