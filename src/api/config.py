@@ -26,6 +26,8 @@ class APISettings(BaseSettings):
     
     # 数据库
     db_path: str = "data/sqlite/updates.db"
+    public_site_url: str = "https://cnetspy.site"
+    spa_index_path: str = ""
     
     # CORS配置
     cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

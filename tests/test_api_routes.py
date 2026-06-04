@@ -46,12 +46,32 @@ def test_client(temp_db_path_module):
         "source_url": "https://aws.amazon.com/test",
         "source_identifier": "test-001",
         "title": "API Test Update",
+        "title_translated": "API 测试更新",
         "description": "Test description",
-        "content": "Test content for API testing",
+        "content": "![Preview](https://example.com/preview image.png)\n\nTest content for API testing",
+        "content_summary": "这是用于分享预览的测试摘要。",
         "publish_date": "2024-12-28",
         "crawl_time": "2024-12-28T12:00:00"
     }
     db.insert_update(test_update)
+    private_update = {
+        "update_id": "share-private-001",
+        "vendor": "aws",
+        "source_channel": "network-blog",
+        "source_url": "https://aws.amazon.com/private",
+        "source_identifier": "private-001",
+        "title": "Private connectivity patterns for Amazon Bedrock AgentCore Gateway Targets",
+        "title_translated": "Amazon Bedrock AgentCore Gateway 目标私有连接模式解析",
+        "description": "Private connectivity patterns",
+        "content": "Test private connectivity content",
+        "content_summary": (
+            "本文介绍了为 Amazon Bedrock AgentCore Gateway 构建私有连接的四种架构模式，"
+            "包括 MCP 服务器私有连接、REST API 私有连接、VPC Link 和 Lambda ENI。"
+        ),
+        "publish_date": "2026-06-03",
+        "crawl_time": "2026-06-04T08:00:00",
+    }
+    db.insert_update(private_update)
     
     # 创建 FastAPI 应用
     from src.api.app import app
@@ -224,6 +244,39 @@ class TestUpdatesRoutes:
         response = test_client.get("/api/v1/updates/nonexistent-id")
         # 应该返回 404 或者包含错误信息
         assert response.status_code in [200, 404]
+
+
+class TestShareRoutes:
+    """测试分享预览页面"""
+
+    def test_update_share_preview_has_server_rendered_meta(self, test_client):
+        response = test_client.get("/share/updates/api-test-001")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+        html = response.text
+        assert '<title>AWS API 测试更新</title>' in html
+        assert '<meta property="og:title" content="AWS API 测试更新" />' in html
+        assert '<meta property="og:description" content="这是用于分享预览的测试摘要。" />' in html
+        assert '<meta property="og:url" content="https://cnetspy.site/next/updates/api-test-001" />' in html
+        assert '<meta property="og:image" content="https://example.com/preview%20image.png" />' in html
+        assert '<div id="root"></div>' in html
+
+    def test_update_share_preview_supports_head_probe(self, test_client):
+        response = test_client.head("/share/updates/api-test-001")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_update_share_preview_frontloads_private_connectivity_terms(self, test_client):
+        response = test_client.get("/share/updates/share-private-001")
+        assert response.status_code == 200
+
+        html = response.text
+        assert '<meta property="og:title" content="AWS 私网连接：Bedrock AgentCore" />' in html
+        assert (
+            '<meta property="og:description" '
+            'content="私网连接模式：MCP、REST API、VPC Link、Lambda ENI，面向合规 AI Agent 后端访问。" />'
+        ) in html
 
 
 class TestVendorsRoutes:
