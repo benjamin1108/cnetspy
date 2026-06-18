@@ -3,7 +3,7 @@
 """
 更新记录分析器
 
-基于 Gemini 对单条更新记录进行 AI 分析
+基于 LiteLLM 对单条更新记录进行 AI 分析
 """
 
 import json
@@ -30,7 +30,7 @@ class UpdateAnalyzer(BaseAnalyzer):
         # 设置 Prompt 模板配置
         PromptTemplates.set_config(config)
         
-        # 初始化 Gemini 客户端
+        # 初始化 LLM 客户端
         self.gemini_client = GeminiClient(config)
         
         # 加载验证配置
@@ -63,7 +63,7 @@ class UpdateAnalyzer(BaseAnalyzer):
             # 构建 Prompt
             prompt = PromptTemplates.get_update_analysis_prompt(update_data)
             
-            # 调用 Gemini API
+            # 调用 LLM API
             self.logger.info(f"开始分析更新: {update_data.get('update_id', 'unknown')}")
             response_text = self.gemini_client.generate_content(prompt)
             
@@ -111,7 +111,7 @@ class UpdateAnalyzer(BaseAnalyzer):
             # 构建翻译 Prompt
             prompt = PromptTemplates.get_content_translation_prompt(content)
             
-            # 调用 Gemini API 进行翻译（使用纯文本模式）
+            # 调用 LLM API 进行翻译（使用纯文本模式）
             translated_content = self.gemini_client.generate_text(prompt)
             
             if translated_content:

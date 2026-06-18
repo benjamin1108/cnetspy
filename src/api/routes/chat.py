@@ -6,7 +6,6 @@ Chat API 路由
 """
 
 import json
-import os
 import logging
 import re
 import calendar
@@ -17,10 +16,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 try:
-    from google import genai
     from google.genai import types
 except ImportError:
-    genai = None
     types = None
 
 from ..config import settings
@@ -594,6 +591,53 @@ def _extract_json_text(response: Any) -> str:
     return ""
 
 
+def _extract_content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        if "content" in content:
+            return _extract_content_text(content["content"])
+        parts = content.get("parts", [])
+        texts = []
+        for part in parts:
+            if isinstance(part, dict) and part.get("text"):
+                texts.append(part["text"])
+            elif getattr(part, "text", None):
+                texts.append(part.text)
+        return "\n".join(texts)
+    text = getattr(content, "text", None)
+    if text:
+        return text
+    return json.dumps(content, ensure_ascii=False, default=str)
+
+
+def _contents_to_chat_messages(contents: Any, system_instruction: Optional[str] = None) -> list[dict]:
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+
+    if isinstance(contents, str):
+        messages.append({"role": "user", "content": contents})
+        return messages
+
+    if isinstance(contents, list):
+        role_map = {
+            "model": "assistant",
+            "assistant": "assistant",
+            "user": "user",
+            "tool": "user",
+        }
+        for item in contents:
+            role = item.get("role") if isinstance(item, dict) else getattr(item, "role", "user")
+            text = _extract_content_text(item)
+            if text:
+                messages.append({"role": role_map.get(role, "user"), "content": text})
+        return messages
+
+    messages.append({"role": "user", "content": _extract_content_text(contents)})
+    return messages
+
+
 def _generate_with_gemini(
     client: Any,
     model_name: str,
@@ -605,6 +649,19 @@ def _generate_with_gemini(
     response_mime_type: Optional[str] = None,
     response_schema: Optional[dict] = None,
 ) -> str:
+    if hasattr(client, "complete_messages"):
+        return client.complete_messages(
+            _contents_to_chat_messages(contents, system_instruction),
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            response_mime_type=response_mime_type,
+            response_schema=response_schema,
+            response_name="chat_response",
+        )
+
+    if types is None:
+        raise RuntimeError("google-genai 库未安装，且当前客户端不支持 LiteLLM complete_messages")
+
     config_args = {
         "temperature": temperature,
         "max_output_tokens": max_output_tokens,
@@ -708,13 +765,7 @@ def _build_summary_prompt() -> str:
 
 
 def get_gemini_client():
-    """获取 Gemini 客户端"""
-    if genai is None:
-        raise HTTPException(
-            status_code=500,
-            detail="google-genai 库未安装"
-        )
-    
+    """获取 AI 客户端。函数名保留用于兼容旧测试和调用点。"""
     # 加载配置
     ai_config = get_config("ai_model")
     # 优先使用 chatbox 配置，否则回退到 default
@@ -723,22 +774,23 @@ def get_gemini_client():
     
     # 合并配置：chatbox 覆盖 default
     config = {**default_config, **chatbox_config}
-    
-    api_key_env = config.get("api_key_env", "GEMINI_API_KEY")
-    api_key = os.getenv(api_key_env)
-    
-    if not api_key:
+
+    if not config.get("model_name"):
         raise HTTPException(
             status_code=500,
-            detail=f"未配置 API Key 环境变量: {api_key_env}"
+            detail="未配置模型名称 model_name，已禁止默认回退。"
         )
-    
-    return genai.Client(api_key=api_key), config
+
+    try:
+        from src.analyzers.gemini_client import GeminiClient
+        return GeminiClient(config), config
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def convert_messages_to_contents(messages: List[ChatMessage]) -> tuple[str, list]:
     """
-    将消息列表转换为 Gemini 格式
+    将消息列表转换为内部消息格式
     返回: (system_instruction, contents)
     """
     system_instruction = ""
@@ -894,7 +946,7 @@ async def chat_completions(request: ChatRequest):
                     "tool_results": [],
                 }
         except Exception as api_error:
-            logger.error(f"Gemini API call failed: {api_error}")
+            logger.error(f"AI API call failed: {api_error}")
             raise HTTPException(status_code=500, detail=f"AI 调用失败: {api_error}")
 
         # 构建响应

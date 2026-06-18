@@ -328,6 +328,15 @@ class UpdateDataLayer:
     ) -> int:
         """统计待处理的质量问题数量"""
         return self._quality.count_open_issues(issue_type, vendor)
+
+    def resolve_open_issues_for_update(
+        self,
+        update_id: str,
+        issue_type: Optional[str] = None,
+        resolution: str = 'fixed'
+    ) -> int:
+        """按 update_id 解决待处理质量问题"""
+        return self._quality.resolve_open_issues_for_update(update_id, issue_type, resolution)
     
     def get_issue_statistics(self) -> Dict[str, Any]:
         """获取质量问题统计"""

@@ -296,6 +296,53 @@ class QualityRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"解决问题失败: {e}")
             return False
+
+    def resolve_open_issues_for_update(
+        self,
+        update_id: str,
+        issue_type: Optional[str] = None,
+        resolution: str = 'fixed'
+    ) -> int:
+        """
+        按 update_id 解决待处理质量问题。
+
+        Args:
+            update_id: 更新记录 ID
+            issue_type: 问题类型过滤，为 None 时解决该更新的所有 open 问题
+            resolution: 解决方式
+
+        Returns:
+            被更新的问题数量
+        """
+        try:
+            with self.lock:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+
+                    where_clauses = ["update_id = ?", "status = 'open'"]
+                    params = [update_id]
+
+                    if issue_type:
+                        where_clauses.append("issue_type = ?")
+                        params.append(issue_type)
+
+                    params = [datetime.now().isoformat(), resolution, *params]
+                    where_clause = " AND ".join(where_clauses)
+
+                    cursor.execute(f'''
+                        UPDATE quality_issues
+                        SET status = 'resolved',
+                            resolved_at = ?,
+                            resolution = ?
+                        WHERE {where_clause}
+                    ''', params)
+
+                    conn.commit()
+                    return cursor.rowcount
+
+        except Exception as e:
+            self.logger.error(f"按更新记录解决问题失败: {e}")
+            return 0
     
     def ignore_issue(self, issue_id: int) -> bool:
         """

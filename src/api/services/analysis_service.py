@@ -532,7 +532,7 @@ class AnalysisService:
                 'error': '翻译 Prompt 模板不存在'
             }
         
-        # 5. 初始化 Gemini 客户端
+        # 5. 初始化 AI 客户端
         from src.utils.config import get_config
         from src.analyzers.gemini_client import GeminiClient
         

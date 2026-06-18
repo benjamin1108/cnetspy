@@ -4,10 +4,12 @@
 调度周报/月报任务测试
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 
 from src.scheduler.config import SchedulerConfig
-from src.scheduler.jobs import report_job
+from src.scheduler.jobs import analyze_job, crawl_job, report_job
+from src.storage.database.task_report_repository import TaskReport
 
 
 class DummyReport:
@@ -84,3 +86,54 @@ class TestScheduledReportJobs:
 
         assert report_job.run_monthly_report(config) is True
         assert generate_calls == []
+
+
+class TestAnalyzeJobStats:
+    def test_run_analyze_with_stats_returns_false_when_records_failed(self, monkeypatch, caplog):
+        pending_counts = [3, 0]
+
+        class DummyResult:
+            returncode = 0
+            stdout = "summary: failed=3"
+            stderr = "403 PERMISSION_DENIED unrestricted key"
+
+        monkeypatch.setattr(
+            analyze_job,
+            "_count_pending_analysis",
+            lambda vendor=None, source=None: pending_counts.pop(0),
+        )
+        monkeypatch.setattr(analyze_job, "_count_failed_analysis", lambda start_time=None: 3)
+        monkeypatch.setattr(analyze_job.subprocess, "run", lambda *args, **kwargs: DummyResult())
+
+        caplog.set_level(logging.WARNING)
+
+        success, stats = analyze_job.run_analyze_with_stats(start_time=datetime.now())
+
+        assert success is False
+        assert stats == {"pending": 3, "success": 0, "failed": 3}
+        assert "存在 3 条分析失败" in caplog.text
+        assert "403 PERMISSION_DENIED unrestricted key" in caplog.text
+
+
+class TestDailyCrawlAnalyzeIssueStats:
+    def test_collect_quality_issues_does_not_double_count_existing_failure_stats(self, data_layer):
+        start_time = datetime.now() - timedelta(minutes=1)
+        report = TaskReport(task_date="2026-06-18", task_type="daily_crawl_analyze")
+        report.start_time = start_time
+        report.analyze_failed = 1
+
+        data_layer.insert_quality_issue(
+            update_id="failed-001",
+            issue_type="analysis_failed",
+            auto_action="kept",
+            vendor="gcp",
+            title="Failed update",
+            source_url="https://example.com/failed",
+        )
+
+        analyze_failed_from_stats = report.analyze_failed
+        crawl_job._collect_quality_issues(report, start_time)
+        crawl_job._sync_analyze_failed_count(report, analyze_failed_from_stats)
+
+        assert len(report.failed_items) == 1
+        assert report.analyze_failed == 1

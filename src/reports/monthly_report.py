@@ -82,7 +82,7 @@ class MonthlyReport(BaseReport):
         self._db = DatabaseManager()
         self._report_repo = ReportRepository()
         
-        # 初始化 Gemini 客户端
+        # 初始化 AI 客户端
         try:
             config = get_config()
             
@@ -100,7 +100,7 @@ class MonthlyReport(BaseReport):
                 
             self._gemini = GeminiClient(ai_config)
         except Exception as e:
-            logger.warning(f"Gemini 客户端初始化失败: {e}")
+            logger.warning(f"AI 客户端初始化失败: {e}")
             self._gemini = None
     
     @property
@@ -389,7 +389,7 @@ class MonthlyReport(BaseReport):
             prompt = prompt.replace('{updates_json}', updates_json)
             prompt = prompt.replace('{stats_summary}', stats_summary)
 
-            logger.info("调用 Gemini 生成月报洞察 (结构化模式)...")
+            logger.info("调用 AI 生成月报洞察 (结构化模式)...")
             response = self._gemini.generate_text(
                 prompt, 
                 response_mime_type="application/json",

@@ -135,3 +135,41 @@ class TestAnalysisExecutor:
         
         # 应该不抛出异常
         AnalysisExecutor.print_analysis_report(data_layer)
+
+    def test_executor_resolves_analysis_failed_issue_after_success(
+        self,
+        data_layer,
+        sample_update_data,
+        sample_analysis_result
+    ):
+        """测试分析成功后自动关闭历史 analysis_failed 问题"""
+        from src.analyzers.analysis_executor import AnalysisExecutor
+
+        class FakeAnalyzer:
+            def analyze(self, update_data):
+                return dict(sample_analysis_result)
+
+        data_layer.insert_update(sample_update_data)
+        data_layer.insert_quality_issue(
+            update_id=sample_update_data["update_id"],
+            issue_type="analysis_failed",
+            auto_action="kept",
+            vendor=sample_update_data["vendor"],
+            title=sample_update_data["title"],
+            source_url=sample_update_data["source_url"],
+        )
+
+        executor = AnalysisExecutor(
+            FakeAnalyzer(),
+            data_layer,
+            {"enable_file_save": False}
+        )
+
+        result = executor.execute_analysis(
+            sample_update_data,
+            save_to_db=True,
+            save_to_file=False
+        )
+
+        assert result is not None
+        assert data_layer.count_open_issues(issue_type="analysis_failed") == 0

@@ -15,6 +15,8 @@ from typing import Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
+_SUBPROCESS_OUTPUT_LOG_LIMIT = 8000
+
 
 def run_analyze(
     vendor: str = None,
@@ -105,10 +107,15 @@ def run_analyze_with_stats(
         stats['failed'] = failed_count
         
         logger.info(f"分析统计: 待分析={pending_before}, 成功={success_count}, 失败={failed_count}")
+        if failed_count > 0 or result.returncode != 0:
+            _log_subprocess_output(result)
         
-        if result.returncode == 0:
+        if result.returncode == 0 and failed_count == 0:
             logger.info("分析任务完成")
             return True, stats
+        elif result.returncode == 0:
+            logger.warning(f"分析脚本执行完成，但存在 {failed_count} 条分析失败")
+            return False, stats
         else:
             logger.error(f"分析任务失败: {result.stderr}")
             return False, stats
@@ -116,6 +123,18 @@ def run_analyze_with_stats(
     except Exception as e:
         logger.error(f"分析任务异常: {e}")
         return False, stats
+
+
+def _log_subprocess_output(result: subprocess.CompletedProcess) -> None:
+    """记录分析子进程输出，便于排查返回码为 0 但部分失败的情况。"""
+    for stream_name, content in (("stdout", result.stdout), ("stderr", result.stderr)):
+        output = (content or "").strip()
+        if not output:
+            continue
+        if len(output) > _SUBPROCESS_OUTPUT_LOG_LIMIT:
+            output = output[-_SUBPROCESS_OUTPUT_LOG_LIMIT:]
+            output = f"... <truncated to last {_SUBPROCESS_OUTPUT_LOG_LIMIT} chars>\n{output}"
+        logger.warning("分析脚本%s输出:\n%s", stream_name, output)
 
 
 def _count_pending_analysis(vendor: str = None, source: str = None) -> int:

@@ -28,13 +28,13 @@ UI_PORT=8080 npm run ui
 
 | 变量 | 必填 | 说明 |
 |---|---:|---|
-| `GEMINI_API_KEY` | 是 | Gemini API Key |
-| `GEMINI_MODEL` | 否 | 图片模型。可以是单个模型，也可以是逗号分隔模型列表 |
-| `GEMINI_BASE_URL` | 否 | Gemini API Base URL，默认 `https://generativelanguage.googleapis.com/v1beta` |
-| `GEMINI_TEXT_MODEL` | 否 | 文本生成模型，PPT 大纲生成可用 |
+| `DASHSCOPE_API_KEY` | 是 | 默认 AI 分析模型使用的 DashScope API Key |
+| `GEMINI_API_KEY` | 切换 Gemini 时必填 | Gemini API Key |
 | `UI_PORT` | 否 | HTTP 服务端口，默认 `5173` |
 | `ADMIN_PASSWORD` | 管理接口必填 | 管理员登录密码 |
 | `ADMIN_COOKIE_SECURE` | 否 | 设置为 `1` 时，管理员 cookie 带 `Secure` 标记 |
+
+模型切换通过 `config/ai_model.yaml` 完成，默认模型为 `dashscope/qwen3.7-max`。
 
 ## 通用说明
 

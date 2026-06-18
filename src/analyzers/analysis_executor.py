@@ -146,6 +146,7 @@ class AnalysisExecutor:
                 if not success:
                     self.logger.error(f"数据库更新失败: {update_id}")
                     return None
+                self._resolve_analysis_failed_issue(update_id)
             
             return result
             
@@ -283,6 +284,24 @@ class AnalysisExecutor:
             )
         except Exception as e:
             self.logger.error(f"记录质量问题失败: {e}")
+
+    def _resolve_analysis_failed_issue(self, update_id: str) -> None:
+        """分析成功写库后，关闭该记录历史 AI 分析失败问题。"""
+        try:
+            quality_repo = getattr(self.data_layer, 'quality', None)
+            if not quality_repo:
+                return
+
+            resolved_count = quality_repo.resolve_open_issues_for_update(
+                update_id=update_id,
+                issue_type='analysis_failed',
+                resolution='analysis_succeeded'
+            )
+            if resolved_count:
+                self.logger.info(f"已关闭历史分析失败问题: {update_id} ({resolved_count} 条)")
+
+        except Exception as e:
+            self.logger.error(f"关闭历史分析失败问题失败: {e}")
     
     @classmethod
     def print_analysis_report(cls, data_layer) -> None:

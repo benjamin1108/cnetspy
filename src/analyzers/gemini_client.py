@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Gemini API 客户端封装
+LiteLLM 客户端封装
 
-提供 Gemini API 调用、错误处理、重试机制和速率限制功能
+保留 GeminiClient 类名作为兼容入口，底层通过 LiteLLM 调用 Gemini、DashScope
+等不同 LLM 服务商，并提供错误处理、重试机制和速率限制功能。
 """
 
 import os
@@ -12,27 +13,32 @@ import json
 import logging
 import re
 import threading
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, Optional, List
+
+# LiteLLM 默认会启用较详细的 DEBUG 日志。必须在 import litellm 前设置。
+os.environ.setdefault("LITELLM_LOG", "WARNING")
 
 try:
-    from google import genai
-    from google.genai import types
+    import litellm
 except ImportError:
-    genai = None
-    types = None
+    litellm = None
 
 
 class GeminiClient:
-    """Gemini API 客户端"""
+    """LiteLLM 客户端（兼容旧 GeminiClient 调用名）"""
     
     # 全局锁，用于控制所有实例的 API 调用频率
     _global_lock = threading.Lock()
     _last_api_call_time = 0
+
+    _PROVIDER_API_KEY_ENV = {
+        "gemini": "GEMINI_API_KEY",
+        "dashscope": "DASHSCOPE_API_KEY",
+    }
     
     def __init__(self, config: Dict[str, Any]):
         """
-        初始化 Gemini 客户端
+        初始化 LiteLLM 客户端
         
         Args:
             config: AI 模型配置字典
@@ -40,34 +46,40 @@ class GeminiClient:
         self.logger = logging.getLogger(__name__)
         self.config = config
         
-        # 检查 genai 库是否可用
-        if genai is None:
+        # 检查 litellm 库是否可用
+        if litellm is None:
             raise ImportError(
-                "google-genai 库未安装。请运行: pip install google-genai"
+                "litellm 库未安装。请运行: pip install litellm"
             )
-        
-        # 获取 API Key
-        api_key_env = config.get('api_key_env', 'GEMINI_API_KEY')
-        api_key = os.getenv(api_key_env)
+        self._configure_litellm_logging()
+
+        raw_model_name = config.get('model_name')
+        if not raw_model_name:
+            raise ValueError("未配置模型名称 model_name，已禁止默认回退。")
+
+        raw_provider = config.get('provider')
+        inferred_provider = raw_model_name.split('/', 1)[0] if '/' in raw_model_name else None
+        self.provider = (raw_provider or inferred_provider or "gemini").lower()
+        self.model_name = self._normalize_model_name(raw_model_name, self.provider)
+
+        # 获取 API Key。DashScope/Gemini 默认分别读取 DASHSCOPE_API_KEY/GEMINI_API_KEY。
+        self.api_key_env = config.get('api_key_env') or self._PROVIDER_API_KEY_ENV.get(self.provider)
+        api_key = os.getenv(self.api_key_env) if self.api_key_env else None
         
         if not api_key:
             raise ValueError(
-                f"未找到 API Key。请设置环境变量: {api_key_env}"
+                f"未找到 API Key。请设置环境变量: {self.api_key_env}"
             )
-        
-        # 创建客户端实例 (新 SDK 方式)
-        self.client = genai.Client(api_key=api_key)
-        
-        # 获取模型名称（必须显式配置）
-        self.model_name = config.get('model_name')
-        if not self.model_name:
-            raise ValueError("未配置模型名称 model_name，已禁止默认回退。")
-        
+
+        self.api_key = api_key
+        self.api_base = self._resolve_api_base(config)
+        self._ensure_provider_environment()
+
         # 获取生成参数
-        generation_config = config.get('generation', {})
-        
+        self.generation_config = config.get('generation', {})
+
         # 定义响应 Schema（结构化输出）
-        response_schema = {
+        self.response_schema = {
             "type": "object",
             "properties": {
                 "is_network_related": {
@@ -98,28 +110,73 @@ class GeminiClient:
             },
             "required": ["is_network_related", "title_translated", "content_summary", "update_type", "product_subcategory", "tags"]
         }
-        
-        # 保存生成配置 (启用结构化输出)
-        self.generation_config = types.GenerateContentConfig(
-            temperature=generation_config.get('temperature', 0.5),
-            top_p=generation_config.get('top_p', 0.9),
-            top_k=generation_config.get('top_k', 40),
-            max_output_tokens=generation_config.get('max_output_tokens', 65535),
-            response_mime_type="application/json",
-            response_schema=response_schema,
-        )
-        
+
         # 速率限制配置
         rate_limit_config = config.get('rate_limit', {})
         self.interval_seconds = rate_limit_config.get('interval', 0.5)
         self.max_retries = rate_limit_config.get('max_retries', 3)
         self.retry_backoff_base = rate_limit_config.get('retry_backoff_base', 2.0)
         
-        self.logger.info(f"Gemini 客户端初始化成功: 模型={self.model_name}")
+        self.logger.info(
+            "LiteLLM 客户端初始化成功: provider=%s, 模型=%s",
+            self.provider,
+            self.model_name,
+        )
+
+    @staticmethod
+    def _normalize_model_name(model_name: str, provider: str) -> str:
+        """把本地短模型名规范化为 LiteLLM 模型名。"""
+        if '/' in model_name:
+            return model_name
+        if provider == "gemini":
+            return f"gemini/{model_name}"
+        if provider == "dashscope":
+            return f"dashscope/{model_name}"
+        return model_name
+
+    @staticmethod
+    def _resolve_api_base(config: Dict[str, Any]) -> Optional[str]:
+        api_base_env = config.get("api_base_env")
+        if api_base_env:
+            env_value = os.getenv(api_base_env)
+            if env_value:
+                return env_value
+        return config.get("api_base")
+
+    def _ensure_provider_environment(self) -> None:
+        """LiteLLM 读取部分 provider 的标准环境变量，这里做一次兼容注入。"""
+        standard_env = self._PROVIDER_API_KEY_ENV.get(self.provider)
+        if standard_env:
+            os.environ.setdefault(standard_env, self.api_key)
+        if self.provider == "dashscope" and self.api_base:
+            os.environ.setdefault("DASHSCOPE_API_BASE", self.api_base)
+
+    @staticmethod
+    def _configure_litellm_logging() -> None:
+        """压制 LiteLLM 内部调试和费用估算噪声。"""
+        if litellm is None:
+            return
+
+        for attr, value in (
+            ("set_verbose", False),
+            ("suppress_debug_info", True),
+            ("log_level", "WARNING"),
+        ):
+            try:
+                setattr(litellm, attr, value)
+            except Exception:
+                pass
+
+        for logger_name in ("LiteLLM", "litellm", "openai", "httpx", "httpcore"):
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+        verbose_logger = getattr(litellm, "verbose_logger", None)
+        if verbose_logger is not None:
+            verbose_logger.setLevel(logging.WARNING)
     
     def generate_content(self, prompt: str) -> str:
         """
-        调用 Gemini API 生成内容
+        调用 LLM 生成结构化分析内容
         
         Args:
             prompt: 提示词
@@ -130,56 +187,16 @@ class GeminiClient:
         Raises:
             Exception: API 调用失败
         """
-        for attempt in range(self.max_retries):
-            try:
-                # 全局速率限制控制
-                self._wait_for_global_rate_limit()
-                
-                # 记录请求
-                self.logger.debug(f"调用 Gemini API (尝试 {attempt + 1}/{self.max_retries})")
-                
-                # 调用 API (新 SDK 方式)
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=self.generation_config
-                )
-                
-                # 提取文本
-                if response and response.text:
-                    self.logger.debug(f"API 调用成功，响应长度: {len(response.text)}")
-                    return response.text
-                else:
-                    raise Exception("API 返回空响应")
-                    
-            except Exception as e:
-                error_msg = str(e)
-                self.logger.warning(f"API 调用失败 (尝试 {attempt + 1}/{self.max_retries}): {error_msg}")
-                
-                # 检查是否是速率限制错误
-                if '429' in error_msg or 'quota' in error_msg.lower():
-                    # 速率限制，使用更长的退避时间
-                    backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt) * 2
-                    self.logger.warning(f"API 速率限制，等待 {backoff_time:.1f} 秒后重试")
-                    time.sleep(backoff_time)
-                elif '401' in error_msg or 'authentication' in error_msg.lower():
-                    # 认证失败，不重试
-                    raise Exception(f"API 认证失败，请检查 API Key: {error_msg}")
-                else:
-                    # 其他错误，指数退避重试
-                    if attempt < self.max_retries - 1:
-                        backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt)
-                        self.logger.warning(f"等待 {backoff_time:.1f} 秒后重试")
-                        time.sleep(backoff_time)
-                    else:
-                        # 最后一次尝试失败
-                        raise Exception(f"API 调用失败，已重试 {self.max_retries} 次: {error_msg}")
-        
-        raise Exception(f"API 调用失败，已达到最大重试次数: {self.max_retries}")
+        return self.complete_messages(
+            [{"role": "user", "content": prompt}],
+            response_mime_type="application/json",
+            response_schema=self.response_schema,
+            response_name="update_analysis",
+        )
     
     def generate_text(self, prompt: str, response_mime_type: Optional[str] = None, response_schema: Optional[Dict[str, Any]] = None) -> str:
         """
-        调用 Gemini API 生成内容（支持结构化输出）
+        调用 LLM 生成内容（支持结构化输出）
         
         Args:
             prompt: 提示词
@@ -189,58 +206,167 @@ class GeminiClient:
         Returns:
             生成的文本内容
         """
-        # 生成配置
-        generation_config = self.config.get('generation', {})
-        config_params = {
-            "temperature": generation_config.get('temperature', 0.5),
-            "top_p": generation_config.get('top_p', 0.9),
-            "top_k": generation_config.get('top_k', 40),
-            "max_output_tokens": generation_config.get('max_output_tokens', 65535),
-        }
-        
-        if response_mime_type:
-            config_params["response_mime_type"] = response_mime_type
-        if response_schema:
-            config_params["response_schema"] = response_schema
-            
-        text_config = types.GenerateContentConfig(**config_params)
-        
+        return self.complete_messages(
+            [{"role": "user", "content": prompt}],
+            response_mime_type=response_mime_type,
+            response_schema=response_schema,
+            response_name="structured_response",
+        )
+
+    def complete_messages(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        response_mime_type: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        response_name: str = "response",
+    ) -> str:
+        """
+        使用 OpenAI Chat Completions 兼容消息格式调用 LiteLLM。
+
+        Args:
+            messages: [{"role": "user"|"assistant"|"system", "content": "..."}]
+            temperature: 本次调用温度，默认读取配置
+            max_output_tokens: 本次最大输出 token，默认读取配置
+            response_mime_type: 响应 MIME 类型，例如 "application/json"
+            response_schema: JSON Schema，支持时会以 response_format 传给模型
+            response_name: JSON Schema 名称
+        """
+        use_schema = bool(response_mime_type == "application/json" and response_schema)
+
         for attempt in range(self.max_retries):
             try:
                 self._wait_for_global_rate_limit()
-                mode_str = f"模式: {response_mime_type}" if response_mime_type else "纯文本模式"
-                self.logger.debug(f"调用 Gemini API ({mode_str}, 尝试 {attempt + 1}/{self.max_retries})")
-                
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=text_config
+
+                params = self._build_completion_params(
+                    messages,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    response_schema=response_schema if use_schema else None,
+                    response_name=response_name,
                 )
-                
-                if response and response.text:
-                    self.logger.debug(f"API 调用成功，响应长度: {len(response.text)}")
-                    return response.text
-                else:
-                    raise Exception("API 返回空响应")
-                    
+
+                mode_str = "结构化 JSON" if use_schema else "纯文本"
+                self.logger.debug(
+                    "调用 LiteLLM API (%s, provider=%s, 模型=%s, 尝试 %s/%s)",
+                    mode_str,
+                    self.provider,
+                    self.model_name,
+                    attempt + 1,
+                    self.max_retries,
+                )
+
+                response = litellm.completion(**params)
+                text = self._extract_response_text(response)
+                if text:
+                    self.logger.debug(f"API 调用成功，响应长度: {len(text)}")
+                    return text
+
+                raise Exception("API 返回空响应")
+
             except Exception as e:
                 error_msg = str(e)
                 self.logger.warning(f"API 调用失败 (尝试 {attempt + 1}/{self.max_retries}): {error_msg}")
-                
-                if '429' in error_msg or 'quota' in error_msg.lower():
+
+                if use_schema and self._is_response_format_error(error_msg):
+                    self.logger.warning("当前模型不支持结构化 response_format，降级为纯文本 JSON 输出")
+                    use_schema = False
+                    continue
+
+                if '429' in error_msg or 'quota' in error_msg.lower() or 'rate limit' in error_msg.lower():
                     backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt) * 2
                     self.logger.warning(f"API 速率限制，等待 {backoff_time:.1f} 秒后重试")
                     time.sleep(backoff_time)
-                elif '401' in error_msg or 'authentication' in error_msg.lower():
-                    raise Exception(f"API 认证失败: {error_msg}")
+                elif self._is_permission_error(error_msg):
+                    raise Exception(f"API 权限失败，请检查 API Key 配置: {error_msg}")
                 else:
                     if attempt < self.max_retries - 1:
                         backoff_time = self.interval_seconds * (self.retry_backoff_base ** attempt)
                         time.sleep(backoff_time)
                     else:
                         raise Exception(f"API 调用失败: {error_msg}")
-        
+
         raise Exception(f"API 调用失败，已达到最大重试次数: {self.max_retries}")
+
+    def _build_completion_params(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        temperature: Optional[float],
+        max_output_tokens: Optional[int],
+        response_schema: Optional[Dict[str, Any]],
+        response_name: str,
+    ) -> Dict[str, Any]:
+        generation_config = self.generation_config
+        params = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else generation_config.get('temperature', 0.5),
+            "top_p": generation_config.get('top_p', 0.9),
+            "max_tokens": max_output_tokens if max_output_tokens is not None else generation_config.get('max_output_tokens', 65535),
+        }
+        if self.api_base:
+            params["api_base"] = self.api_base
+        if response_schema:
+            params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_name,
+                    "schema": response_schema,
+                },
+            }
+        return params
+
+    @staticmethod
+    def _extract_response_text(response: Any) -> str:
+        """从 LiteLLM/OpenAI 兼容响应里提取文本。"""
+        choices = response.get("choices") if isinstance(response, dict) else getattr(response, "choices", None)
+        if not choices:
+            return ""
+
+        choice = choices[0]
+        message = choice.get("message") if isinstance(choice, dict) else getattr(choice, "message", None)
+        if not message:
+            return ""
+
+        content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text") or item.get("content")
+                else:
+                    text = getattr(item, "text", None) or getattr(item, "content", None)
+                if text:
+                    parts.append(str(text))
+            return "\n".join(parts)
+        return ""
+
+    @staticmethod
+    def _is_response_format_error(error_msg: str) -> bool:
+        error_lower = error_msg.lower()
+        return (
+            "response_format" in error_lower
+            or "json_schema" in error_lower
+            or "schema" in error_lower and "support" in error_lower
+            or "unsupported parameter" in error_lower
+        )
+
+    @staticmethod
+    def _is_permission_error(error_msg: str) -> bool:
+        """判断是否为不应重试的认证或权限错误。"""
+        error_lower = error_msg.lower()
+        return (
+            '401' in error_msg
+            or '403' in error_msg
+            or 'authentication' in error_lower
+            or 'permission_denied' in error_lower
+            or 'forbidden' in error_lower
+        )
     
     def parse_json_response(self, text: str) -> Dict[str, Any]:
         """

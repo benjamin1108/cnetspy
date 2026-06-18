@@ -4,7 +4,7 @@
 
 CNetSpy 是一个全栈式竞争情报系统，旨在自动化监控全球主流云厂商（AWS、Azure、Google Cloud、华为云、腾讯云、火山引擎等）的产品动态、技术博客和发布说明。
 
-系统集成了 **多源数据爬取**、**AI 智能分析**（基于 Gemini/Claude）、**Web 可视化大屏** 以及 **MCP (Model Context Protocol) 服务**，帮助用户高效获取和分析云技术领域的最新趋势。
+系统集成了 **多源数据爬取**、**AI 智能分析**（通过 LiteLLM 接入 DashScope/Gemini 等模型）、**Web 可视化大屏** 以及 **MCP (Model Context Protocol) 服务**，帮助用户高效获取和分析云技术领域的最新趋势。
 
 ---
 
@@ -49,7 +49,7 @@ chmod +x run.sh
 ```bash
 cp .env.example .env
 vim .env
-# 填入 GEMINI_API_KEY 或其他模型配置
+# 默认填入 DASHSCOPE_API_KEY；切换到 Gemini 时填入 GEMINI_API_KEY 并修改 config/ai_model.yaml
 ```
 
 ### 3. 启动服务

@@ -170,6 +170,31 @@ class TestQualityIssueTracking:
         # 验证已解决
         open_issues = data_layer.get_open_issues()
         assert len(open_issues) == 0
+
+    def test_resolve_open_issues_for_update_filters_by_issue_type(self, data_layer):
+        """测试按更新记录解决指定类型的问题"""
+        data_layer.insert_quality_issue(
+            update_id="resolve-update-test",
+            issue_type="analysis_failed",
+            auto_action="kept",
+            vendor="gcp"
+        )
+        data_layer.insert_quality_issue(
+            update_id="resolve-update-test",
+            issue_type="empty_subcategory",
+            auto_action="kept",
+            vendor="gcp"
+        )
+
+        resolved = data_layer.resolve_open_issues_for_update(
+            update_id="resolve-update-test",
+            issue_type="analysis_failed",
+            resolution="analysis_succeeded"
+        )
+
+        assert resolved == 1
+        assert data_layer.count_open_issues(issue_type="analysis_failed") == 0
+        assert data_layer.count_open_issues(issue_type="empty_subcategory") == 1
     
     def test_ignore_issue(self, data_layer):
         """测试忽略问题"""

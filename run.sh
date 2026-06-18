@@ -283,7 +283,7 @@ do_api() {
     if [ ! -f ".env" ]; then
         echo -e "${YELLOW}警告: .env 文件不存在${NC}"
         echo -e "建议运行: ${GREEN}cp .env.example .env${NC}"
-        echo -e "然后编辑 .env 配置 GEMINI_API_KEY"
+        echo -e "然后编辑 .env 配置 DASHSCOPE_API_KEY（默认）或 GEMINI_API_KEY"
         echo ""
     fi
     

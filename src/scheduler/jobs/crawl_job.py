@@ -90,7 +90,9 @@ def run_daily_crawl_analyze(config: JobConfig) -> bool:
         report.analyze_failed = analyze_stats.get('failed', 0)
         
         # 3. 收集质量问题统计（只统计本次任务产生的）
+        analyze_failed_from_stats = report.analyze_failed
         _collect_quality_issues(report, report.start_time)
+        _sync_analyze_failed_count(report, analyze_failed_from_stats)
         
         # 4. 完成报告
         report.finish(success)
@@ -231,6 +233,17 @@ def _collect_quality_issues(report, start_time: datetime) -> None:
                 
     except Exception as e:
         logger.error(f"收集质量问题失败: {e}")
+
+
+def _sync_analyze_failed_count(report, failed_count_from_stats: int) -> None:
+    """
+    同步分析失败总数。
+
+    analyze_job 已经从 quality_issues 统计过失败数；收集失败明细时
+    report.add_failed() 会再次递增计数，因此这里用统计值和明细数去重。
+    """
+    if report.failed_items:
+        report.analyze_failed = max(failed_count_from_stats, len(report.failed_items))
 
 
 def _generate_report_html(report) -> str:

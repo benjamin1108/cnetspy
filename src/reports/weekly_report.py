@@ -85,7 +85,7 @@ class WeeklyReport(BaseReport):
         self._db = DatabaseManager()
         self._report_repo = ReportRepository()
 
-        # 初始化 Gemini 客户端
+        # 初始化 AI 客户端
         try:
             config = get_config()
             
@@ -103,7 +103,7 @@ class WeeklyReport(BaseReport):
                 
             self._gemini = GeminiClient(ai_config)
         except Exception as e:
-            logger.warning(f"Gemini 客户端初始化失败: {e}")
+            logger.warning(f"AI 客户端初始化失败: {e}")
             self._gemini = None
 
     @property
@@ -396,7 +396,7 @@ class WeeklyReport(BaseReport):
             prompt = prompt.replace('{stats_summary}', stats_summary)
 
             # 调用 AI (开启结构化输出模式)
-            logger.info("调用 Gemini 生成周报洞察 (结构化模式)...")
+            logger.info("调用 AI 生成周报洞察 (结构化模式)...")
 
             response = self._gemini.generate_text(
                 prompt, 

@@ -3,7 +3,7 @@
 """
 AI 分析模块
 
-提供基于 Gemini 的云计算更新内容智能分析能力
+提供基于 LiteLLM 的云计算更新内容智能分析能力
 """
 
 from .base_analyzer import BaseAnalyzer

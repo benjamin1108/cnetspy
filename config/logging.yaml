@@ -57,11 +57,26 @@ logging:
       level: DEBUG
       handlers: [console, api_file]
       propagate: false
-    # 可以为其他特别吵闹的库添加配置
-    # some_noisy_library:
-    #   level: WARNING
-    #   handlers: [console, file]
-    #   propagate: false
+    LiteLLM:
+      level: WARNING
+      handlers: [console, file]
+      propagate: false
+    litellm:
+      level: WARNING
+      handlers: [console, file]
+      propagate: false
+    openai:
+      level: WARNING
+      handlers: [console, file]
+      propagate: false
+    httpx:
+      level: WARNING
+      handlers: [console, file]
+      propagate: false
+    httpcore:
+      level: WARNING
+      handlers: [console, file]
+      propagate: false
   root:
     level: DEBUG  # 根logger级别设为DEBUG，具体级别由handler控制
     handlers: [console, file] 
