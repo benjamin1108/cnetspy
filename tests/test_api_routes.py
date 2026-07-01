@@ -72,6 +72,21 @@ def test_client(temp_db_path_module):
         "crawl_time": "2026-06-04T08:00:00",
     }
     db.insert_update(private_update)
+    glued_link_update = {
+        "update_id": "62a7fd63-ec38-4bc2-af8d-687c2a36a44b",
+        "vendor": "aws",
+        "source_channel": "network-blog",
+        "source_url": "https://aws.amazon.com/cloud-wan-migration",
+        "source_identifier": "cloud-wan-migration",
+        "title": "Cloud WAN migration",
+        "title_translated": "AWS Cloud WAN 迁移实践",
+        "description": "Cloud WAN migration practice",
+        "content": "Cloud WAN migration content",
+        "content_summary": "介绍 Transit Gateway 到 Cloud WAN 的渐进式迁移实践。",
+        "publish_date": "2026-06-30",
+        "crawl_time": "2026-07-01T01:00:00",
+    }
+    db.insert_update(glued_link_update)
     
     # 创建 FastAPI 应用
     from src.api.app import app
@@ -245,6 +260,16 @@ class TestUpdatesRoutes:
         # 应该返回 404 或者包含错误信息
         assert response.status_code in [200, 404]
 
+    def test_get_update_detail_normalizes_glued_uuid_link(self, test_client):
+        """兼容已发报告中 UUID 后粘连日期标题的旧链接"""
+        update_id = "62a7fd63-ec38-4bc2-af8d-687c2a36a44b"
+        response = test_client.get(f"/api/v1/updates/{update_id}2026-06-30-network-blog-AWS-Cloud-WAN")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["update_id"] == update_id
+
 
 class TestShareRoutes:
     """测试分享预览页面"""
@@ -261,6 +286,15 @@ class TestShareRoutes:
         assert '<meta property="og:url" content="https://cnetspy.site/next/updates/api-test-001" />' in html
         assert '<meta property="og:image" content="https://example.com/preview%20image.png" />' in html
         assert '<div id="root"></div>' in html
+
+    def test_update_share_preview_normalizes_glued_uuid_canonical_url(self, test_client):
+        update_id = "62a7fd63-ec38-4bc2-af8d-687c2a36a44b"
+        response = test_client.get(f"/share/updates/{update_id}2026-06-30-network-blog-AWS-Cloud-WAN")
+        assert response.status_code == 200
+
+        html = response.text
+        assert '<title>AWS Cloud WAN 迁移实践</title>' in html
+        assert f'<meta property="og:url" content="https://cnetspy.site/next/updates/{update_id}" />' in html
 
     def test_update_share_preview_supports_head_probe(self, test_client):
         response = test_client.head("/share/updates/api-test-001")

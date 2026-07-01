@@ -142,7 +142,10 @@ class WeeklyReport(BaseReport):
 
     def _build_update_link(self, update_id: str) -> str:
         """构建更新详情链接"""
-        return f"{SITE_BASE_URL}/updates/{update_id}"
+        normalized_id = self._normalize_update_id(update_id)
+        if not normalized_id:
+            return ""
+        return f"{SITE_BASE_URL}/updates/{normalized_id}"
 
     def _format_summary(self, content_summary: str) -> str:
         """
@@ -434,7 +437,7 @@ class WeeklyReport(BaseReport):
                 vendor = item.get('vendor', 'Unknown')
                 vendor_lower = vendor.lower()
                 update_id = item.get('update_id')
-                link = self._build_update_link(update_id) if update_id else "#"
+                link = self._build_update_link(update_id) or "#"
                 
                 title = item.get('title', '')
                 product = item.get('product', '')
@@ -494,7 +497,7 @@ class WeeklyReport(BaseReport):
                     update_id = item.get('update_id') if isinstance(item, dict) else None
                     is_noteworthy = item.get('is_noteworthy', False) if isinstance(item, dict) else False
                     
-                    link = self._build_update_link(update_id) if update_id else "#"
+                    link = self._build_update_link(update_id) or "#"
                     
                     item_class = 'scan-item scan-item-noteworthy' if is_noteworthy else 'scan-item'
                     icon_html = '<span class="scan-icon">✨</span>' if is_noteworthy else ''
@@ -530,8 +533,9 @@ class WeeklyReport(BaseReport):
                 
                 # 优先使用内部链接，如果没有则使用 AI 返回的 url
                 link = "#"
-                if update_id and update_id in self._update_map:
-                    link = self._build_update_link(update_id)
+                normalized_id = self._normalize_update_id(update_id)
+                if normalized_id:
+                    link = self._build_update_link(normalized_id) or "#"
                 else:
                     link = blog.get('url', '#')
 
@@ -661,6 +665,8 @@ class WeeklyReport(BaseReport):
                 logger.warning("AI 周报洞察为空，使用本地兜底摘要")
                 ai_insight = self._generate_fallback_insight(updates)
 
+        ai_insight = self._sanitize_insight_update_ids(ai_insight)
+
         # 1. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
 
@@ -680,6 +686,7 @@ class WeeklyReport(BaseReport):
         updates = self._get_updates_for_render()
         if updates and not ai_insight:
             ai_insight = self._generate_fallback_insight(updates)
+        ai_insight = self._sanitize_insight_update_ids(ai_insight)
         
         # 如果是空报告（没有 updates 且 ai_insight 显示无内容）
         if not updates and not ai_insight.get('top_updates') and not ai_insight.get('quick_scan'):
@@ -760,8 +767,9 @@ class WeeklyReport(BaseReport):
                     update_id = blog.get('update_id')
                     
                     link = "#"
-                    if update_id and update_id in self._update_map:
-                        link = self._build_update_link(update_id)
+                    normalized_id = self._normalize_update_id(update_id)
+                    if normalized_id:
+                        link = self._build_update_link(normalized_id) or "#"
                     else:
                         link = blog.get('url', '#')
 

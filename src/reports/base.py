@@ -7,11 +7,17 @@
 
 import logging
 import os
+import re
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 
 class BaseReport(ABC):
@@ -98,3 +104,74 @@ class BaseReport(ABC):
         if self._content is None:
             self._content = self.generate()
         return self._content
+
+    def _normalize_update_id(self, update_id: Any) -> Optional[str]:
+        """
+        Normalize AI-returned update IDs back to IDs known by this report.
+
+        Gemini occasionally appends nearby fields such as publish date and title
+        to update_id. Reports should never emit those glued IDs because the
+        public detail route only accepts the actual stored update_id.
+        """
+        candidate = str(update_id or "").strip()
+        if not candidate:
+            return None
+
+        update_map = getattr(self, "_update_map", None) or {}
+        if candidate in update_map:
+            return candidate
+
+        if update_map:
+            prefix_matches = [
+                known_id
+                for known_id in update_map
+                if known_id and len(str(known_id)) >= 8 and candidate.startswith(str(known_id))
+            ]
+            if prefix_matches:
+                normalized = max(prefix_matches, key=len)
+                logger.warning("归一化报告 update_id: %s -> %s", candidate, normalized)
+                return normalized
+
+            contains_matches = [
+                known_id
+                for known_id in update_map
+                if known_id and len(str(known_id)) >= 8 and str(known_id) in candidate
+            ]
+            if len(contains_matches) == 1:
+                normalized = contains_matches[0]
+                logger.warning("归一化报告 update_id: %s -> %s", candidate, normalized)
+                return normalized
+
+            uuid_match = UUID_RE.search(candidate)
+            if uuid_match and uuid_match.group(0) in update_map:
+                normalized = uuid_match.group(0)
+                logger.warning("归一化报告 update_id: %s -> %s", candidate, normalized)
+                return normalized
+
+            logger.warning("报告引用了未知 update_id，跳过链接: %s", candidate)
+            return None
+
+        uuid_match = UUID_RE.search(candidate)
+        if uuid_match and uuid_match.group(0) != candidate:
+            normalized = uuid_match.group(0)
+            logger.warning("归一化报告 update_id: %s -> %s", candidate, normalized)
+            return normalized
+
+        return candidate
+
+    def _sanitize_insight_update_ids(self, value: Any) -> Any:
+        """Recursively normalize all update_id fields in an AI insight payload."""
+        if isinstance(value, dict):
+            for key, child in list(value.items()):
+                if key == "update_id":
+                    value[key] = self._normalize_update_id(child) or ""
+                else:
+                    value[key] = self._sanitize_insight_update_ids(child)
+            return value
+
+        if isinstance(value, list):
+            for index, child in enumerate(value):
+                value[index] = self._sanitize_insight_update_ids(child)
+            return value
+
+        return value

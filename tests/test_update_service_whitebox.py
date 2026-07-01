@@ -12,11 +12,13 @@ from src.api.services.update_service import UpdateService
 class StubDB:
     """最小化数据库桩对象。"""
 
-    def __init__(self, count=0, rows=None, detail=None):
+    def __init__(self, count=0, rows=None, detail=None, details_by_id=None):
         self.count = count
         self.rows = rows or []
         self.detail = detail
+        self.details_by_id = details_by_id or {}
         self.last_query = None
+        self.detail_calls = []
 
     def count_updates_with_filters(self, **filters):
         self.last_count_filters = filters
@@ -33,7 +35,10 @@ class StubDB:
         return self.rows
 
     def get_update_by_id(self, update_id):
+        self.detail_calls.append(update_id)
         self.last_detail_id = update_id
+        if update_id in self.details_by_id:
+            return self.details_by_id[update_id]
         return self.detail
 
 
@@ -136,3 +141,24 @@ class TestUpdateServiceWhiteBox:
     def test_get_update_detail_returns_none_when_record_missing(self):
         service = UpdateService(StubDB(detail=None))
         assert service.get_update_detail("missing-id") is None
+
+    def test_get_update_detail_normalizes_glued_uuid_links(self):
+        update_id = "62a7fd63-ec38-4bc2-af8d-687c2a36a44b"
+        row = {
+            "update_id": update_id,
+            "title_translated": "AWS Cloud WAN 迁移实践",
+            "tags": "[]",
+            "publish_date": "2026-06-30",
+            "content": "full content",
+            "content_summary": "summary",
+        }
+        db = StubDB(details_by_id={update_id: row})
+        service = UpdateService(db)
+
+        result = service.get_update_detail(f"{update_id}2026-06-30-network-blog-AWS-Cloud-WAN")
+
+        assert result["update_id"] == update_id
+        assert db.detail_calls == [
+            f"{update_id}2026-06-30-network-blog-AWS-Cloud-WAN",
+            update_id,
+        ]

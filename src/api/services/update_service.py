@@ -7,11 +7,20 @@
 """
 
 import json
+import logging
+import re
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from src.storage.database.sqlite_layer import UpdateDataLayer
 from ..schemas.common import PaginationMeta
 from ..utils.time_utils import format_dict_datetimes
+
+logger = logging.getLogger(__name__)
+
+UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 
 class UpdateService:
@@ -118,9 +127,28 @@ class UpdateService:
         """
         row = self.db.get_update_by_id(update_id)
         if not row:
+            normalized_id = self._normalize_detail_update_id(update_id)
+            if normalized_id and normalized_id != update_id:
+                row = self.db.get_update_by_id(normalized_id)
+                if row:
+                    logger.warning("归一化详情 update_id: %s -> %s", update_id, normalized_id)
+
+        if not row:
             return None
         
         return self._process_update_row(row, include_content=True)
+
+    def _normalize_detail_update_id(self, update_id: str) -> Optional[str]:
+        """Extract a canonical UUID from legacy malformed detail links."""
+        candidate = str(update_id or "").strip()
+        if not candidate:
+            return None
+
+        uuid_match = UUID_RE.search(candidate)
+        if uuid_match:
+            return uuid_match.group(0)
+
+        return candidate
     
     def _process_update_row(self, row: dict, include_content: bool = False) -> dict:
         """

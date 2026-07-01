@@ -139,7 +139,10 @@ class MonthlyReport(BaseReport):
 
     def _build_update_link(self, update_id: str) -> str:
         """构建更新详情链接"""
-        return f"{SITE_BASE_URL}/updates/{update_id}"
+        normalized_id = self._normalize_update_id(update_id)
+        if not normalized_id:
+            return ""
+        return f"{SITE_BASE_URL}/updates/{normalized_id}"
 
     def _format_summary(self, content_summary: str, limit: int = 220) -> str:
         """压缩已分析摘要，供兜底报告使用。"""
@@ -421,7 +424,7 @@ class MonthlyReport(BaseReport):
                 vendor = item.get('vendor', 'Unknown')
                 vendor_lower = vendor.lower()
                 update_id = item.get('update_id')
-                link = self._build_update_link(update_id) if update_id else "#"
+                link = self._build_update_link(update_id) or "#"
                 
                 title = item.get('title', '')
                 pain_point = item.get('pain_point', '')
@@ -468,7 +471,7 @@ class MonthlyReport(BaseReport):
                     content = item.get('content', '')
                     update_id = item.get('update_id')
                     reason = item.get('reason', '')
-                    link = self._build_update_link(update_id) if update_id else "#"
+                    link = self._build_update_link(update_id) or "#"
                     
                     # 月报中的 Noteworthy Updates 全部视为重要，添加高亮样式和图标
                     item_class = 'scan-item scan-item-noteworthy'
@@ -506,8 +509,9 @@ class MonthlyReport(BaseReport):
                 if sol.get('references'):
                     for ref in sol['references']:
                         update_id = ref.get('update_id')
-                        link = self._build_update_link(update_id) if update_id else "#"
-                        refs_html += f'<a href="{link}" target="_blank" class="text-xs border border-color px-2 py-1 rounded hover:bg-muted/50">{ref.get("title", "")}</a>'
+                        link = self._build_update_link(update_id) or "#"
+                        ref_title = ref.get("title") or "查看详情"
+                        refs_html += f'<a href="{link}" target="_blank" class="text-xs border border-color px-2 py-1 rounded hover:bg-muted/50">{ref_title}</a>'
 
                 solution_analysis_html += f'''
 <div class="blog-card">
@@ -584,6 +588,8 @@ class MonthlyReport(BaseReport):
                 logger.warning("AI 月报洞察为空，使用本地兜底摘要")
                 ai_insight = self._generate_fallback_insight(updates)
 
+        ai_insight = self._sanitize_insight_update_ids(ai_insight)
+
         # 3. 生成 HTML 报告
         html_content = self._render_html(updates, ai_insight)
 
@@ -603,6 +609,7 @@ class MonthlyReport(BaseReport):
         updates = self._get_updates_for_render()
         if updates and not ai_insight:
             ai_insight = self._generate_fallback_insight(updates)
+        ai_insight = self._sanitize_insight_update_ids(ai_insight)
 
         if not updates and not ai_insight.get('landmark_updates') and not ai_insight.get('noteworthy_updates'):
             self._generate_empty_report()

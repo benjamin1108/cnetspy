@@ -61,7 +61,8 @@ async def update_share_preview(
 
 
 def _build_update_metadata(update_id: str, update: Optional[dict]) -> dict:
-    canonical_url = _join_url(settings.public_site_url, f"/next/updates/{update_id}")
+    canonical_update_id = update.get("update_id") if update else update_id
+    canonical_url = _join_url(settings.public_site_url, f"/next/updates/{canonical_update_id}")
 
     if not update:
         return {
